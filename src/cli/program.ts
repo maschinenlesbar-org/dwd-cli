@@ -29,16 +29,25 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .version(VERSION)
     .option("--base-url <url>", "live web-service base URL", "https://app-prod-ws.warnwetter.de")
     .option("--static-base-url <url>", "static (S3) bucket base URL", DEFAULT_STATIC_BASE_URL)
-    .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
+    .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg, 30_000)
     .option("--user-agent <ua>", "User-Agent header value")
-    .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)
+    .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg, 2)
     .option(
       "--max-response-bytes <n>",
-      "cap response body size in bytes (0 = unlimited; default 100 MiB)",
+      "cap response body size in bytes (0 = unlimited; 100 MiB)",
       parseIntArg,
+      100 * 1024 * 1024,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    .showHelpAfterError();
+    // No .showHelpAfterError(): a single bad flag should print a focused error,
+    // not dump the whole top-level command listing. Users who want the listing
+    // can run `--help` (which exits 0).
+    .showHelpAfterError(false)
+    // Running the bare program (no subcommand) is a "what can I do" gesture, not
+    // an error: print top-level help to stdout and exit 0, like --help.
+    .action(function (this: Command) {
+      this.outputHelp();
+    });
 
   registerWeatherCommands(program, deps);
 

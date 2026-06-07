@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine } from "../src/client/engine.js";
-import { DwdApiError, DwdParseError } from "../src/client/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -77,7 +77,7 @@ test("follows a redirect, resolving a relative Location", async () => {
   assert.equal(calls, 2);
 });
 
-test("stops following redirects past maxRedirects and surfaces the 3xx", async () => {
+test("stops following redirects past maxRedirects with a clear 'too many redirects' error", async () => {
   let calls = 0;
   const mt = makeMockTransport(() => {
     calls += 1;
@@ -90,7 +90,7 @@ test("stops following redirects past maxRedirects and surfaces the 3xx", async (
   });
   await assert.rejects(
     () => e.getJson("/x"),
-    (err) => err instanceof DwdApiError && err.status === 302,
+    (err) => err instanceof DwdNetworkError && /Too many redirects/.test(err.message),
   );
   assert.equal(calls, 3); // initial + 2 redirect hops
 });

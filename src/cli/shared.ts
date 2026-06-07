@@ -9,9 +9,19 @@ import type { DwdClientOptions } from "../client/client.js";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  // Require a plain decimal integer literal: no sign, no whitespace, no hex
+  // (`0x10`), no scientific notation (`1e3`), no decimal point. `Number()` would
+  // silently accept all of those, violating the "non-negative integer" contract.
+  if (!/^\d+$/.test(value)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
+  }
+  const n = Number(value);
+  // Reject values that lose precision (above Number.MAX_SAFE_INTEGER the parsed
+  // number no longer round-trips to the digits the user typed).
+  if (!Number.isSafeInteger(n)) {
+    throw new InvalidArgumentError(
+      `Expected a non-negative integer no greater than ${Number.MAX_SAFE_INTEGER}.`,
+    );
   }
   return n;
 }

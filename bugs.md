@@ -11,7 +11,8 @@
 
 ## HIGH severity
 
-### 1. Decompressed-size cap ("decompression bomb") reports a misleading generic decode error, contradicting the documented protection
+### 1. Decompressed-size cap ("decompression bomb") reports a misleading generic decode error, contradicting the documented protection — ✅ FIXED
+- **Fix:** `src/client/http.ts` — `decode()` now detects zlib's `ERR_BUFFER_TOO_LARGE` (raised when `maxOutputLength` is exceeded) and rethrows it as `DwdNetworkError("Response exceeded maxResponseBytes (<n>)")`, matching the wire-size cap message; the deflate zlib→raw fallback no longer re-trips the cap.
 - **Severity:** High
 - **Confidence:** High
 - **Repro** (local server that sends `Content-Encoding: gzip` of a 5 MiB body, compressed to ~5 KB on the wire):
@@ -37,7 +38,8 @@
 
 ## MEDIUM severity
 
-### 2. `parseIntArg` accepts hexadecimal input (`0x10`) despite advertising "non-negative integer"
+### 2. `parseIntArg` accepts hexadecimal input (`0x10`) despite advertising "non-negative integer" — ✅ FIXED
+- **Fix:** `src/cli/shared.ts` — `parseIntArg` now requires a plain decimal literal via `/^\d+$/` before `Number()`, rejecting `0x10`.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro:**
@@ -48,7 +50,8 @@
 - **Actual:** Accepted silently; `Number("0x10")` → `16`, so the timeout is set to 16 ms with no warning. Request proceeds (exit 0 with a live/local server).
 - **Root cause:** `src/cli/shared.ts:11-17` — `parseIntArg` uses `Number(value)` then `Number.isInteger`. `Number("0x10") === 16` passes `Number.isInteger`, so the "Expected a non-negative integer" contract is violated.
 
-### 3. `parseIntArg` accepts scientific notation (`1e3`)
+### 3. `parseIntArg` accepts scientific notation (`1e3`) — ✅ FIXED
+- **Fix:** `src/cli/shared.ts` — the new `/^\d+$/` guard in `parseIntArg` rejects `1e1`/`1e3`.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro:**
@@ -59,7 +62,8 @@
 - **Actual:** Accepted; `Number("1e1") === 10`, so the response-byte cap is silently set to **10 bytes** and every real feed then fails with `Error: Response exceeded maxResponseBytes (10)`. `--timeout 1e3` is likewise accepted as 1000 ms. No validation error.
 - **Root cause:** `src/cli/shared.ts:12` — `Number("1e1")` is an integer per `Number.isInteger`, so it slips through.
 
-### 4. `parseIntArg` accepts leading/trailing whitespace (`" 5 "`)
+### 4. `parseIntArg` accepts leading/trailing whitespace (`" 5 "`) — ✅ FIXED
+- **Fix:** `src/cli/shared.ts` — the `/^\d+$/` guard rejects whitespace-padded input (no implicit trim).
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro:**
@@ -70,7 +74,8 @@
 - **Actual:** Accepted; `Number(" 5 ") === 5`. Silently coerced.
 - **Root cause:** `src/cli/shared.ts:12` — `Number()` trims surrounding whitespace before parsing.
 
-### 5. `parseIntArg` accepts values above `Number.MAX_SAFE_INTEGER` with silent precision loss
+### 5. `parseIntArg` accepts values above `Number.MAX_SAFE_INTEGER` with silent precision loss — ✅ FIXED
+- **Fix:** `src/cli/shared.ts` — `parseIntArg` now rejects values failing `Number.isSafeInteger`, with a message naming the `MAX_SAFE_INTEGER` bound.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro:**
@@ -81,7 +86,8 @@
 - **Actual:** Accepted; `Number("99999999999999999999")` becomes `100000000000000000000` (`1e20`) — a different number than the user typed — and `Number.isInteger` still returns `true`, so no error is raised. The value used downstream differs from the input.
 - **Root cause:** `src/cli/shared.ts:12-13` — no `Number.MAX_SAFE_INTEGER` bound and no "input string round-trips to the parsed number" check.
 
-### 6. No `Accept-Encoding` request header is sent, so the advertised deflate/brotli decoding never gets a chance to engage
+### 6. No `Accept-Encoding` request header is sent, so the advertised deflate/brotli decoding never gets a chance to engage — ✅ FIXED
+- **Fix:** `src/client/engine.ts` — `request()` now sets `Accept-Encoding: gzip, deflate, br` on outgoing requests so an RFC-compliant origin actually compresses.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro** (point at a request-echoing local server and inspect headers):
@@ -93,7 +99,8 @@
 - **Actual:** The outgoing request carries **no `Accept-Encoding` header**. Decompression only works because the DWD S3 bucket sends `Content-Encoding: gzip` unsolicited; for any RFC-compliant origin (which compresses only when asked) responses arrive uncompressed and the deflate/brotli code paths can never run.
 - **Root cause:** `src/client/engine.ts:88-91` builds `headers` with only `Accept` and `User-Agent`; no `Accept-Encoding` is ever added.
 
-### 7. `station-overview --help` does not mark the required `--id` option as required
+### 7. `station-overview --help` does not mark the required `--id` option as required — ✅ FIXED
+- **Fix:** `src/cli/commands/weather.ts` — the `--id` option description now ends with "(required)", so help matches the runtime requirement.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro:**
@@ -110,7 +117,8 @@
   No "(required)" marker — the help disagrees with the runtime requirement.
 - **Root cause:** `src/cli/commands/weather.ts:15` uses `.requiredOption(...)`; commander does not append "(required)" to the help text for required options, and the project does not add it to the description. Help/behaviour mismatch.
 
-### 8. Redirect-loop / redirect-exhaustion surfaces as a raw "HTTP 30x" API error, not a clear "too many redirects"
+### 8. Redirect-loop / redirect-exhaustion surfaces as a raw "HTTP 30x" API error, not a clear "too many redirects" — ✅ FIXED
+- **Fix:** `src/client/engine.ts` — when a 3xx-with-`Location` arrives after `maxRedirects` is exhausted, `request()` now throws `DwdNetworkError("Too many redirects (exceeded maxRedirects=<n>) ...")` instead of falling through to the generic HTTP-status error. Updated the corresponding test in `test/engine.test.ts`.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro** (local server that 302-redirects to itself):
@@ -126,7 +134,8 @@
   After `maxRedirects` is exhausted the 3xx response simply falls through to the non-2xx handler and is reported as a confusing "HTTP 302" error.
 - **Root cause:** `src/client/engine.ts:114` — once `redirects < this.maxRedirects` is false, control drops to `:133-136` which throws `toApiError(...)` with the 3xx status. No dedicated "redirects exhausted" error is raised.
 
-### 9. 200 responses with a non-JSON `Content-Type` are force-parsed as JSON, yielding a misleading "Failed to parse" error
+### 9. 200 responses with a non-JSON `Content-Type` are force-parsed as JSON, yielding a misleading "Failed to parse" error — ✅ FIXED
+- **Fix:** `src/client/engine.ts` — `getJson()` now inspects `res.contentType` and, when a Content-Type is present and is not JSON (`application/json`, `text/json`, or a `+json` suffix; parameters/case ignored), throws `DwdParseError("Expected a JSON response ... but got Content-Type \"text/html\"")`. A missing/empty Content-Type is still parsed leniently.
 - **Severity:** Medium
 - **Confidence:** High
 - **Repro** (local server returns `Content-Type: text/html`, body `<html>…`, status 200):
@@ -146,7 +155,8 @@
 
 ## LOW severity (docs / UX / help)
 
-### 10. `--timeout` default (30000 ms) is documented but never shown in `--help`
+### 10. `--timeout` default (30000 ms) is documented but never shown in `--help` — ✅ FIXED
+- **Fix:** `src/cli/program.ts` — `--timeout` now registers a commander default of `30000`, so help shows "(default: 30000)".
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:**
@@ -157,7 +167,8 @@
 - **Actual:** Help line is `--timeout <ms>  per-request timeout in milliseconds` with no default shown.
 - **Root cause:** `src/cli/program.ts:32` registers `--timeout` without a default value (the 30 000 default lives in `engine.ts:66`, invisible to commander/help).
 
-### 11. `--max-retries` default (2) is documented but never shown in `--help`
+### 11. `--max-retries` default (2) is documented but never shown in `--help` — ✅ FIXED
+- **Fix:** `src/cli/program.ts` — `--max-retries` now registers a commander default of `2`, surfaced in help.
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:** `node dist/src/cli/index.js --help` — `--max-retries` shows no default.
@@ -165,14 +176,16 @@
 - **Actual:** `--max-retries <n>  retries for transient 429/503 responses` (no default).
 - **Root cause:** `src/cli/program.ts:34` registers the option without a commander default; the real default is in `engine.ts:67`.
 
-### 12. `--max-response-bytes` help says "default 100 MiB" in prose but no machine default is registered
+### 12. `--max-response-bytes` help says "default 100 MiB" in prose but no machine default is registered — ✅ FIXED
+- **Fix:** `src/cli/program.ts` — `--max-response-bytes` now registers a commander default of `104857600` (100 MiB), so help shows "(default: 104857600)" alongside the human "100 MiB" prose.
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:** `node dist/src/cli/index.js --help`.
 - **Expected/Actual:** The description text says "default 100 MiB", but commander has no default value, so `command.opts()` reports `undefined` when the flag is omitted; the 100 MiB default is applied only later inside the engine (`engine.ts:70`). The "default" is therefore documented in two disconnected places and not surfaced as an actual commander default — easy to drift.
 - **Root cause:** `src/cli/program.ts:35-39`.
 
-### 13. README "Exit codes" omits the codes the CLI actually returns for usage/parse errors
+### 13. README "Exit codes" omits the codes the CLI actually returns for usage/parse errors — ✅ FIXED
+- **Fix:** `src/cli/run.ts` + `README.md` — usage/parse errors (any non-zero `CommanderError`) now exit `2`, distinct from runtime errors; the README "Exit codes" section is replaced with a full table (0/1/2/4/5/6/7).
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:**
@@ -185,7 +198,8 @@
 - **Actual:** Unknown command, unknown option, missing required option, and bad `--lang` all exit `1` — the same code as a network failure or parse error, so scripts cannot tell a usage mistake from a server problem.
 - **Root cause:** `src/cli/run.ts:32-34` returns `err.exitCode` (commander uses 1 for parse errors) and `:42-44` returns 1 for every `DwdError`; no separate usage-vs-runtime exit code.
 
-### 14. Network errors, parse errors and generic API errors are all collapsed into exit code 1
+### 14. Network errors, parse errors and generic API errors are all collapsed into exit code 1 — ✅ FIXED
+- **Fix:** `src/cli/run.ts` + `README.md` — `run()` now maps `DwdNetworkError`→`6`, `DwdParseError`→`7`, non-404 `DwdApiError`→`5` (404 stays `4`), generic `DwdError`→`1`, via a documented `EXIT` constant. README exit-code table updated to match.
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:**
@@ -198,7 +212,8 @@
 - **Actual:** `DwdNetworkError`, `DwdParseError` and non-404 `DwdApiError` all map to exit 1 (`run.ts:36-45`). Given the error classes already exist, this is a missed opportunity and a documentation/behaviour thinness.
 - **Root cause:** `src/client/errors.ts` defines distinct classes, but `src/cli/run.ts:36-48` only special-cases `status === 404`.
 
-### 15. Invalid global numeric flags print the wrong usage block and lose subcommand context
+### 15. Invalid global numeric flags print the wrong usage block and lose subcommand context — ✅ FIXED
+- **Fix:** `src/cli/program.ts` — `.showHelpAfterError(false)` so a single bad flag prints only the focused commander error, not the whole top-level help dump. (`--help` still shows the listing and exits 0.)
 - **Severity:** Low
 - **Confidence:** High
 - **Repro:**
@@ -217,7 +232,8 @@
   Because `showHelpAfterError()` is set on the root (`program.ts:41`), every global parse error prints the whole top-level help, which is noisy for a single bad flag. (Exit code is correct at 1.)
 - **Root cause:** `src/cli/program.ts:41` `.showHelpAfterError()`.
 
-### 16. `crowd` / `warnings` parent emit usage text on stderr but exit 1, making "show me help" indistinguishable from an error
+### 16. `crowd` / `warnings` parent emit usage text on stderr but exit 1, making "show me help" indistinguishable from an error — ✅ FIXED
+- **Fix:** `src/cli/program.ts` + `src/cli/commands/weather.ts` — the bare program and the `warnings` group now have `.action()`s that call `outputHelp()` (writes help to stdout via the configured writeOut) and return normally, so `dwd` and `dwd warnings` print help to stdout and exit 0, consistent with `--help`.
 - **Severity:** Low
 - **Confidence:** Medium
 - **Repro:**
@@ -229,7 +245,8 @@
 - **Actual:** Bare `warnings` and bare program both exit 1 with help routed through `writeErr` (`run.ts:19`).
 - **Root cause:** commander default `helpCommand`/no-action behaviour; `src/cli/run.ts:16-21` routes all help via `writeErr`, and there is no `.action()` on the `warnings` group to print help with exit 0.
 
-### 17. Empty `--id ""` is silently sent as `stationIds=` (empty query param) rather than rejected
+### 17. Empty `--id ""` is silently sent as `stationIds=` (empty query param) rather than rejected — ✅ FIXED
+- **Fix:** `src/cli/commands/weather.ts` — the repeatable-id accumulator (renamed `collectStationId`) now throws `InvalidArgumentError("A station id must not be empty.")` for an empty/blank value, so `--id ""` is rejected as a usage error (exit 2) before any request. (The `--id "-5"` case noted in the repro is left as-is: negative-looking ids are not blank, and the README does not constrain the id format beyond "5-digit"; only the clear empty-string defect is fixed.)
 - **Severity:** Low
 - **Confidence:** High
 - **Repro** (against a request-echoing local server):

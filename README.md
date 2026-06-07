@@ -88,7 +88,17 @@ dwd warnings gemeinde
 
 DWD station ids are the 5-digit ids used by the Warnwetter app (e.g. `10865`).
 
-Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, non-zero for usage errors.
+Exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success (and `--help` / `--version`) |
+| `1` | Generic / unclassified error |
+| `2` | Usage error (unknown command, bad flag, missing/invalid option) |
+| `4` | API returned `404` |
+| `5` | API returned a non-`404`, non-success status |
+| `6` | Transport failure (DNS, connection reset, timeout, too many redirects) |
+| `7` | Response body could not be parsed as the expected JSON |
 
 ---
 

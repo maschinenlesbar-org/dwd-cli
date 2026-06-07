@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DwdApiError, DwdParseError } from "./errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://app-prod-ws.warnwetter.de";
 const DEFAULT_USER_AGENT = "dwd-cli";
@@ -48,6 +48,22 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Whether a Content-Type denotes JSON: the canonical `application/json`,
+ * structured-suffix types (`application/vnd.foo+json`), and the lenient
+ * `text/json`. Parameters (`; charset=...`) and case are ignored.
+ */
+function isJsonContentType(contentType: string): boolean {
+  const type = mediaType(contentType).toLowerCase();
+  return type === "application/json" || type === "text/json" || type.endsWith("+json");
+}
+
+/** The media type without parameters or surrounding whitespace. */
+function mediaType(contentType: string): string {
+  const semi = contentType.indexOf(";");
+  return (semi === -1 ? contentType : contentType.slice(0, semi)).trim();
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -87,6 +103,11 @@ export class RequestEngine {
     let url = this.buildUrl(path, options.query);
     const headers: Record<string, string> = {
       Accept: options.accept,
+      // Advertise the encodings the transport can decode so an RFC-compliant
+      // origin (which compresses only when asked) actually compresses; the
+      // gzip/deflate/br decode paths would otherwise be dead code against
+      // anything but DWD's S3 bucket (which sends gzip unsolicited).
+      "Accept-Encoding": "gzip, deflate, br",
       "User-Agent": this.userAgent,
     };
 
@@ -111,7 +132,12 @@ export class RequestEngine {
       }
 
       // Follow redirects, resolving the Location relative to the current URL.
-      if (status >= 300 && status < 400 && redirects < this.maxRedirects) {
+      if (status >= 300 && status < 400 && response.headers["location"]) {
+        if (redirects >= this.maxRedirects) {
+          throw new DwdNetworkError(
+            `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${url}`,
+          );
+        }
         const location = response.headers["location"];
         if (typeof location === "string" && location.length > 0) {
           const target = new URL(location, url);
@@ -142,6 +168,15 @@ export class RequestEngine {
   /** Perform a GET expecting JSON and parse it into `T`. */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
+    // Honour the Content-Type: a 200 with a clearly non-JSON type (e.g. a
+    // captive-portal HTML error page) should report what was actually returned
+    // rather than feeding HTML into JSON.parse and blaming a parse failure. A
+    // missing/empty Content-Type is treated leniently and still parsed.
+    if (res.contentType && !isJsonContentType(res.contentType)) {
+      throw new DwdParseError(
+        `Expected a JSON response from ${path} but got Content-Type "${mediaType(res.contentType)}"`,
+      );
+    }
     const text = res.data.toString("utf8");
     try {
       return JSON.parse(text) as T;

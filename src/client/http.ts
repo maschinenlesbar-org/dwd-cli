@@ -62,27 +62,43 @@ async function decode(
 ): Promise<Buffer> {
   // `maxOutputLength` is honoured by both zlib and brotli option objects.
   const limit = maxBytes && maxBytes > 0 ? { maxOutputLength: maxBytes } : {};
-  switch ((encoding ?? "").toLowerCase()) {
-    case "gzip":
-    case "x-gzip":
-      return gunzip(body, limit);
-    case "deflate":
-      // The `deflate` content-coding is ambiguous in the wild: some servers send
-      // zlib-wrapped data (RFC 1950, handled by inflate) and some send raw
-      // DEFLATE (RFC 1951, handled by inflateRaw). Try zlib-wrapped first, then
-      // fall back to raw, so both are decoded like browsers/fetch do.
-      try {
-        return await inflate(body, limit);
-      } catch {
-        return await inflateRaw(body, limit);
-      }
-    case "br":
-      return brotliDecompress(body, limit);
-    default:
-      if (maxBytes && maxBytes > 0 && body.length > maxBytes) {
-        throw new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`);
-      }
-      return body;
+  // When the decompressed output exceeds `maxOutputLength`, zlib throws an error
+  // with code `ERR_BUFFER_TOO_LARGE`. Translate it into the same documented
+  // size-cap error the wire-size cap produces, so a decompression bomb reports
+  // "Response exceeded maxResponseBytes" rather than looking like a corrupt body.
+  const overCap = (): DwdNetworkError =>
+    new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`);
+  const isOverCap = (err: unknown): boolean =>
+    typeof err === "object" && err !== null && (err as { code?: unknown }).code === "ERR_BUFFER_TOO_LARGE";
+  try {
+    switch ((encoding ?? "").toLowerCase()) {
+      case "gzip":
+      case "x-gzip":
+        return await gunzip(body, limit);
+      case "deflate":
+        // The `deflate` content-coding is ambiguous in the wild: some servers send
+        // zlib-wrapped data (RFC 1950, handled by inflate) and some send raw
+        // DEFLATE (RFC 1951, handled by inflateRaw). Try zlib-wrapped first, then
+        // fall back to raw, so both are decoded like browsers/fetch do.
+        try {
+          return await inflate(body, limit);
+        } catch (err) {
+          // A hit on the size cap is a deliberate limit, not a wrong-wrapper
+          // mismatch; don't waste a second decode attempt re-tripping it.
+          if (isOverCap(err)) throw err;
+          return await inflateRaw(body, limit);
+        }
+      case "br":
+        return await brotliDecompress(body, limit);
+      default:
+        if (maxBytes && maxBytes > 0 && body.length > maxBytes) {
+          throw overCap();
+        }
+        return body;
+    }
+  } catch (err) {
+    if (isOverCap(err)) throw overCap();
+    throw err;
   }
 }
 
