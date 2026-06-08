@@ -12,6 +12,10 @@ warning** feeds (nowcast, municipality, coastal) plus crowd-sourced reports.
 - **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
 - **Read-only, no auth** — these endpoints need no key; this client only reads.
 
+New to the DWD Warnwetter data, or terms like *station overview*, *nowcast* and
+*Gemeinde warning*? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts
+and the project's own vocabulary.
+
 ## Two hosts
 
 The DWD app data lives on two hosts, and this client talks to both:
@@ -105,7 +109,7 @@ Exit codes:
 ## Library usage
 
 ```ts
-import { DwdClient, DwdApiError } from "dwd-cli";
+import { DwdClient, DwdApiError } from "@maschinenlesbar.org/dwd-cli";
 
 const client = new DwdClient(); // live + static defaults
 
