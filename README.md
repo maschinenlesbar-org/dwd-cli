@@ -1,210 +1,199 @@
 # dwd-cli
 
-A TypeScript **API client** and **command-line interface** for the open
-[DWD Warnwetter app API](https://dwd.api.bund.dev/) operated by the **Deutscher
-Wetterdienst** — station **forecasts/observations** and the published **weather
-warning** feeds (nowcast, municipality, coastal) plus crowd-sourced reports.
+Query Germany's official **weather warnings, station forecasts, and crowd reports**
+from your terminal. `dwd` is a small command-line tool over the open
+[DWD Warnwetter app API](https://dwd.api.bund.dev/) operated by the Deutscher
+Wetterdienst — no account, no API key, just data.
 
-- **Zero runtime HTTP dependencies** — built on Node's built-in `http`/`https` (no axios, no fetch polyfill).
-- **One small dependency** for the CLI: [`commander`](https://github.com/tj/commander.js).
-- **Strongly typed** — typed client surface and feed envelopes.
-- **Transparent gzip** — the warning feeds are served gzip-encoded; the transport decompresses them.
-- **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
-- **Read-only, no auth** — these endpoints need no key; this client only reads.
+- **Works out of the box** — no account, no API key, no configuration. Install and run.
+- **Clean JSON output** — pretty-printed by default, `--compact` for one-line/scripting.
+- **Five commands** — `station-overview`, `warnings nowcast`, `warnings gemeinde`, `warnings coast`, and `crowd`.
+- **Transparent gzip** — the warning feeds are served compressed; the tool decompresses them silently.
+- **Read-only, open data** — these endpoints are public and unauthenticated; `dwd` only reads.
 
-New to the DWD Warnwetter data, or terms like *station overview*, *nowcast* and
-*Gemeinde warning*? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts
-and the project's own vocabulary.
-
-## Two hosts
-
-The DWD app data lives on two hosts, and this client talks to both:
-
-- **Live web service** — `https://app-prod-ws.warnwetter.de/v30` — station overviews/forecasts (queried with parameters).
-- **Static S3 bucket** — `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16` — the periodically-published warning feeds (gzip JSON).
-
-Override them with `--base-url` (live) and `--static-base-url` (static).
-
-## Requirements
-
-- Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
+> Want to use this as a TypeScript library or understand how it's built?
+> See **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Install
 
 ```bash
-npm install
-npm run build        # compiles TypeScript to dist/
+npm i -g @maschinenlesbar.org/dwd-cli
 ```
 
-Run the CLI without a global install:
+This installs the **`dwd`** command. Requires **Node.js 20+**.
+
+Check it works:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link` / global install:
 dwd --help
 ```
 
----
+## Quickstart
 
-## CLI usage
+No setup needed. Your first command — current nationwide short-term warnings:
 
-Every command prints pretty JSON to stdout (`--compact` for a single line).
+```bash
+dwd warnings nowcast
+```
 
-### Global options
+The result is a JSON envelope with a `time` (publish timestamp) and a `warnings`
+array. Count the active entries with `jq`:
+
+```bash
+dwd --compact warnings nowcast | jq '.warnings | length'
+```
+
+Fetch forecast and observation data for a DWD station (München-Stadt = `10865`):
+
+```bash
+dwd station-overview --id 10865
+```
+
+## Commands
+
+```text
+station-overview --id <stationId> [--id …]   forecasts/observations for one or more stations
+warnings nowcast  [--lang de|en]             short-term (nowcast) warnings
+warnings gemeinde [--lang de|en]             municipality-level warnings
+warnings coast    [--lang de|en]             coastal warnings (by zone)
+crowd                                        crowd-sourced reports overview
+```
+
+### `station-overview` flags
+
+| Flag | Meaning |
+| --- | --- |
+| `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt) |
+
+### `warnings` flags
+
+Applies to all three `warnings` subcommands (`nowcast`, `gemeinde`, `coast`):
+
+| Flag | Meaning |
+| --- | --- |
+| `--lang <lang>` | Feed language: `de` (default) or `en` |
+
+### `crowd` flags
+
+No flags beyond the global options.
+
+The **[Glossary](GLOSSARY.md)** explains domain terms — station ids, feed envelopes,
+coastal zones, and the German/English equivalents.
+
+## Two hosts
+
+The DWD app data lives on two hosts; `dwd` talks to both automatically:
+
+- **Live web service** — `https://app-prod-ws.warnwetter.de/v30` — used by `station-overview`.
+- **Static S3 bucket** — `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16` — used by `warnings` and `crowd`.
+
+Override them with `--base-url` (live) and `--static-base-url` (static) if you
+need to point at a proxy or staging host.
+
+## Common tasks
+
+A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+use-case-driven set.
+
+```bash
+# Current nowcast warnings in English
+dwd warnings nowcast --lang en
+
+# Municipality-level warnings — find ones mentioning München
+dwd --compact warnings gemeinde | jq '.warnings[] | select(.regionName | test("München"))'
+
+# Coastal-warning zones that currently carry a warning
+dwd --compact warnings coast | jq '.warnings | keys'
+
+# Forecast for several stations at once
+dwd station-overview --id 10865 --id 01766
+
+# Address a single station from a multi-station response
+dwd station-overview --id 10865 --id 10147 | jq '."10865"'
+
+# Crowd-sourced reports — count how many were submitted
+dwd --compact crowd | jq '.meldungen | length'
+
+# Snapshot the nowcast feed to a timestamped file (cron-friendly)
+dwd --compact warnings nowcast > "nowcast-$(date +%Y%m%dT%H%M).json"
+```
+
+## Output & scripting
+
+Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
+stderr, so piping stdout into `jq` stays clean.
+
+```bash
+# Flatten nowcast warnings into a headline/region/event TSV
+dwd warnings nowcast --lang en \
+  | jq -r '.warnings[] | [.headline, .regionName, .event] | @tsv'
+
+# When was the Gemeinde feed last published? Read the time field.
+dwd --compact warnings gemeinde | jq '.time'
+```
+
+Use `--compact` for single-line JSON in pipelines and logs:
+
+```bash
+dwd --compact warnings nowcast | jq -c '.warnings[]'
+```
+
+`--compact` (and every global option) works **before or after** the command —
+both `dwd --compact warnings nowcast` and `dwd warnings nowcast --compact` do the
+same thing.
+
+**Exit codes** make the CLI easy to use in scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success (also `--help` / `--version`) |
+| `2` | Bad usage / invalid argument (nothing was sent) |
+| `4` | Resource not found (`404`) |
+| `5` | API returned a non-404, non-success status |
+| `6` | Network/transport failure (DNS, connection, timeout, oversized response) |
+| `7` | Response body could not be parsed as JSON |
+| `1` | Any other error |
+
+## Troubleshooting
+
+- **`command not found: dwd`** — the global npm bin directory isn't on your
+  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `npx @maschinenlesbar.org/dwd-cli …`.
+- **Exit `4` / "not found"** — the station id doesn't exist in the DWD catalogue.
+  Double-check the id against the DWD Warnwetter app or docs; DWD station ids are
+  typically 5-digit numeric codes.
+- **Exit `5` / API error** — the upstream service returned an unexpected status.
+  The service is public but may be temporarily unavailable; retry later.
+- **Exit `6` / network error** — connectivity, DNS, or a timeout. Try again, or
+  raise the limit with `--timeout 60000`. If a feed is large and getting cut off,
+  try `--max-response-bytes 0` (unlimited).
+- **Exit `7` / parse error** — the response wasn't valid JSON (e.g. a captive-portal
+  HTML page). Check your network path; captive portals often intercept HTTPS on
+  public Wi-Fi.
+- **Empty `warnings` array** — the feed is live but no warnings are currently
+  active. That's the normal situation when the weather is calm.
+
+## Global options
+
+These apply to every command and may be given **before or after** it:
 
 | Option | Description |
 | --- | --- |
-| `--base-url <url>` | live web-service base URL (default `https://app-prod-ws.warnwetter.de`) |
-| `--static-base-url <url>` | static S3 bucket base URL |
+| `-V, --version` | Print the version number |
+| `-h, --help` | Show help for the program or a command |
+| `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--base-url <url>` | Live web-service base URL (default `https://app-prod-ws.warnwetter.de`) |
+| `--static-base-url <url>` | Static S3 bucket base URL |
 | `--timeout <ms>` | Per-request timeout (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
-| `--compact` | Print JSON on a single line |
 
-Global options go **before** the command, e.g. `dwd --compact warnings nowcast`.
+## Learn more
 
-### Commands
-
-```text
-station-overview --id <stationId> [--id <stationId> ...]   forecasts/observations
-warnings nowcast  [--lang de|en]    short-term (nowcast) warnings
-warnings gemeinde [--lang de|en]    municipality-level warnings
-warnings coast    [--lang de|en]    coastal warnings (by zone)
-crowd                               crowd-sourced reports overview
-```
-
-### Examples
-
-```bash
-# Forecast/observation for a station (München-Stadt = 10865)
-dwd station-overview --id 10865
-
-# Several stations at once
-dwd station-overview --id 10865 --id 01766
-
-# Current nowcast warnings, English
-dwd warnings nowcast --lang en
-
-# Municipality-level warnings
-dwd warnings gemeinde
-```
-
-DWD station ids are the 5-digit ids used by the Warnwetter app (e.g. `10865`).
-
-Exit codes:
-
-| Code | Meaning |
-| --- | --- |
-| `0` | Success (and `--help` / `--version`) |
-| `1` | Generic / unclassified error |
-| `2` | Usage error (unknown command, bad flag, missing/invalid option) |
-| `4` | API returned `404` |
-| `5` | API returned a non-`404`, non-success status |
-| `6` | Transport failure (DNS, connection reset, timeout, too many redirects) |
-| `7` | Response body could not be parsed as the expected JSON |
-
----
-
-## Library usage
-
-```ts
-import { DwdClient, DwdApiError } from "@maschinenlesbar.org/dwd-cli";
-
-const client = new DwdClient(); // live + static defaults
-
-const overview = await client.weather.stationOverview(["10865"]);
-const nowcast = await client.warnings.nowcast("de");
-const gemeinde = await client.warnings.gemeinde("en");
-const crowd = await client.crowd();
-
-try {
-  await client.weather.stationOverview(["nope"]);
-} catch (err) {
-  if (err instanceof DwdApiError) console.error(err.status, err.detail);
-}
-```
-
-### Client options
-
-```ts
-new DwdClient({
-  baseUrl: "https://app-prod-ws.warnwetter.de",          // live web service
-  staticBaseUrl: "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de",
-  timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
-  maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
-  userAgent: "my-app/1.0",
-  transport: customTransport, // inject your own HTTP transport
-});
-```
-
-### Resource groups
-
-`client.weather.stationOverview(ids)`, `client.warnings` (`.nowcast` / `.gemeinde` / `.coast`),
-and `client.crowd()`.
-
----
-
-## Architecture
-
-```
-src/
-  client/
-    enums.ts     # Lang (de|en) value set (runtime + type)
-    types.ts     # feed envelopes (station overview / warnings exposed as JsonObject)
-    query.ts     # dependency-free query-string builder
-    http.ts      # the Transport interface + node:http/https transport with gzip/deflate/br decoding
-    engine.ts    # URL building, retry/backoff, redirects, JSON decoding, error mapping
-    errors.ts    # DwdError / DwdApiError / DwdNetworkError / DwdParseError
-    client.ts    # DwdClient — two engines (live ws + static bucket) over one transport
-  cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
-    shared.ts    # option parsers, global-option resolver, JSON renderer
-    commands/    # station-overview / warnings / crowd
-    program.ts   # assembles the commander program from injectable deps
-    run.ts       # parses argv -> exit code (no process.exit; testable)
-    index.ts     # #! bin shim
-```
-
-**Design notes**
-
-- The HTTP layer is a single `Transport` function (`(req) => Promise<HttpResponse>`). The default
-  uses `node:http`/`node:https` and transparently decompresses gzip, deflate (both zlib-wrapped and raw
-  DEFLATE) and brotli bodies; decoding runs asynchronously (off the event loop) and the decompressed
-  output is bounded by `maxResponseBytes` so a small compressed body cannot expand into an
-  out-of-memory "decompression bomb". Tests inject a mock.
-- The client runs two `RequestEngine` instances (live + static host) sharing the same options/transport,
-  so the two-host topology is invisible to callers. Redirects are followed up to `maxRedirects`; if a
-  redirect crosses to a different origin, sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) are
-  stripped so credentials issued for one host are never forwarded to another.
-- The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
-  driven in-process by tests with a mocked client and captured output — no subprocesses.
-
----
-
-## Testing
-
-```bash
-npm test          # builds, then runs `node --test` over dist/test
-```
-
-- **`query.test.ts`** — query-string serialisation.
-- **`http.test.ts`** — the default transport against a real loopback `http.createServer`: gzip/deflate
-  (zlib + raw)/brotli decoding, malformed-body handling, the decompressed-size cap, and the timeout path.
-- **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, redirect following,
-  `maxRedirects` exhaustion, and cross-origin credential stripping — mocked transport.
-- **`client.test.ts`** — host routing (live vs static), URL/query mapping, language suffixes — mocked transport.
-- **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
-
-## Continuous integration
-
-GitHub Actions workflows under `.github/workflows/`:
-
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station ids, feed envelopes, and exit codes.
+- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## License
 

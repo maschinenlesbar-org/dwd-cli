@@ -165,37 +165,6 @@ the type actually returned, rather than being fed to `JSON.parse`.
 
 ---
 
-## Project / technical terms
-
-**API client.** [`DwdClient`](src/client/client.ts) — the typed,
-resource-grouped wrapper over the API. Usable as a library independently of the
-CLI. Runs two `RequestEngine` instances (live web service + static bucket) over a
-single transport, so the two-host topology is invisible to callers.
-
-**Resource group.** A cohesive set of client methods for one part of the API
-(`client.weather`, `client.warnings`) plus the standalone `client.crowd()`, and
-the matching top-level CLI commands.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https` and transparently decompresses gzip/deflate/brotli; tests inject a
-mock. This is the only HTTP seam.
-
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
-serialises queries, applies retry/backoff, follows redirects, decodes JSON and
-maps errors. Sits between the client's resource methods and the transport.
-
-**Query-string builder.** [`buildQueryString`](src/client/query.ts) — a
-dependency-free serialiser: `undefined`/`null` omitted, arrays become repeated
-keys, booleans become `"true"`/`"false"`, `Date`s become ISO-8601, spaces encoded
-as `%20`.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
-CLI run in tests with a mocked client and captured output — no subprocess.
-
-**Error types.** [`errors.ts`](src/client/errors.ts): `DwdApiError` (non-2xx,
-carries `status`/`detail`/`isRetryable`), `DwdNetworkError` (transport
-failure/timeout), `DwdParseError` (bad/non-JSON body), all extending `DwdError`.
-The CLI maps `404` to exit code `4`, other API statuses to `5`, network failures
-to `6`, parse failures to `7`, and any other error to `1`.
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `DwdClient`, the request engine, transport, retry/backoff, error types, query
+> builder, feed envelope types — now live in **[DEVELOPING.md](DEVELOPING.md)**.
