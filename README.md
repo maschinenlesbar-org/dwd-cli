@@ -1,5 +1,10 @@
 # dwd-cli
 
+[![CI](https://github.com/maschinenlesbar-org/dwd-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/maschinenlesbar-org/dwd-cli/actions/workflows/ci.yml)
+[![Release](https://github.com/maschinenlesbar-org/dwd-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/dwd-cli/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/maschinenlesbar-org/dwd-cli)](https://github.com/maschinenlesbar-org/dwd-cli/releases/latest)
+[![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/dwd-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/dwd-cli)
+
 Query Germany's official **weather warnings, station forecasts, and crowd reports**
 from your terminal. `dwd` is a small command-line tool over the open
 [DWD Warnwetter app API](https://dwd.api.bund.dev/) operated by the Deutscher
