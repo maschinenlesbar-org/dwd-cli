@@ -1,0 +1,37 @@
+{
+  "name": "dwd-skills",
+  "owner": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "metadata": {
+    "description": "Live German weather-warning and forecast skills powered by the dwd-cli (DWD Warnwetter app API)"
+  },
+  "plugins": [
+    {
+      "name": "dwd",
+      "source": "./",
+      "description": "Brief the current German weather warnings, decode a DWD station forecast into real units, export warning areas as GeoJSON, and cross-check official warnings against crowd reports — all over the open, key-free DWD Warnwetter app API via the dwd-cli.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Sebastian Schürmann",
+        "email": "sebs@2xs.org"
+      },
+      "license": "AGPL-3.0-or-later",
+      "repository": "https://github.com/maschinenlesbar-org/dwd-cli",
+      "homepage": "https://github.com/maschinenlesbar-org/dwd-cli#readme",
+      "category": "weather",
+      "keywords": [
+        "dwd",
+        "wetter",
+        "weather",
+        "warnings",
+        "warnwetter",
+        "forecast",
+        "geojson",
+        "germany",
+        "bund.dev"
+      ]
+    }
+  ]
+}

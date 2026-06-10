@@ -195,6 +195,7 @@ These apply to every command and may be given **before or after** it:
 
 ## Learn more
 
+- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for real-world weather questions.
 - **[Usage.md](Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station ids, feed envelopes, and exit codes.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
