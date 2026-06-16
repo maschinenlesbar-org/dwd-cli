@@ -200,6 +200,16 @@ These apply to every command and may be given **before or after** it:
 - **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station ids, feed envelopes, and exit codes.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
+## Data license
+
+This CLI is a **client** — it accesses data it does not own or redistribute. The
+upstream data is © its provider and licensed **separately from this tool's code**.
+See **[DATA_LICENSE.md](DATA_LICENSE.md)**.
+
+> **Deutscher Wetterdienst** — GeoNutzV / CC BY 4.0. Attribution required ("Quelle:
+> Deutscher Wetterdienst"); commercial use allowed. Special rule: if you *modify* an
+> official warning, the DWD source label must be removed.
+
 ## License
 
 **Dual-licensed** — use it under **either**:
