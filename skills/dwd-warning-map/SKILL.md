@@ -86,9 +86,10 @@ Notes:
 ## Step 3 — Output
 
 Write the FeatureCollection to a file the user can open (default
-`./dwd-<feed>-warnings.geojson`, or a combined name for multi-feed exports) and report the
-feature count. Offer to open it at https://geojson.io, or to colour by `level` for a
-severity map.
+`./dwd-<feed>-warnings.geojson`, or a combined name for multi-feed exports) and report
+**the path you wrote and the feature count**. If a name the user supplied already exists,
+confirm before overwriting it (re-running with the default name to refresh is fine). Offer
+to open it at https://geojson.io, or to colour by `level` for a severity map.
 
 Validity checklist before handing it over:
 - geometry came from `polygonGeometry` (already `[lon, lat]`) — or, if built from `polygon`,

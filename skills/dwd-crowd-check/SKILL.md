@@ -3,7 +3,7 @@ name: dwd-crowd-check
 description: >
   Cross-check official DWD warnings against crowd-sourced weather reports near a
   place, using the dwd-cli. Trigger when the user asks "are people reporting
-  hail/rain/thunder near <city>?", "what's the crowd-sourced weather right now?",
+  hail/rain/thunder near a city?", "what's the crowd-sourced weather right now?",
   "is the storm warning actually happening on the ground?", "any reports of
   flooding/lightning around me?", or wants ground-truth observations from the DWD
   Warnwetter crowd feed. Filters reports by location and category and summarises

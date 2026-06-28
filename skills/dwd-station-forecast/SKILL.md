@@ -3,7 +3,7 @@ name: dwd-station-forecast
 description: >
   Turn a raw DWD station-overview into a readable weather forecast, using the
   dwd-cli. Trigger when the user asks "what's the forecast for Munich/Hamburg?",
-  "weather at DWD station 10865", "will it rain tomorrow in <city>?", "compare
+  "weather at DWD station 10865", "will it rain tomorrow in a city?", "compare
   the forecast for two cities", or wants temperature/wind/precip for a German
   weather station. Decodes the API's scaled integer arrays (tenths-of-units) and
   epoch-millisecond timestamps that make the raw payload unreadable.
