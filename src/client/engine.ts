@@ -87,11 +87,41 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
-  /** Build a fully-qualified URL from a path and optional query parameters. */
+  /**
+   * Build a fully-qualified URL from a path and optional query parameters.
+   *
+   * The base URL is validated and decomposed via the WHATWG URL parser rather
+   * than blindly concatenated, so a scheme-only base (`https:`) or one carrying
+   * a query string (`https://host/?x=1`) is rejected with a clear,
+   * base-url-specific error instead of silently producing a malformed URL — e.g.
+   * promoting an internal path segment to the hostname, or emitting a double-`?`.
+   * The base's own path prefix (such as the static bucket's
+   * `/app-prod-static.warnwetter.de`) is preserved.
+   */
   buildUrl(path: string, query?: QueryParams): string {
+    let base: URL;
+    try {
+      base = new URL(this.baseUrl);
+    } catch {
+      throw new DwdNetworkError(`Invalid base URL: "${this.baseUrl}"`);
+    }
+    if (base.protocol !== "http:" && base.protocol !== "https:") {
+      throw new DwdNetworkError(
+        `Unsupported protocol "${base.protocol}" in base URL: "${this.baseUrl}"`,
+      );
+    }
+    if (!base.host) {
+      throw new DwdNetworkError(`Base URL "${this.baseUrl}" has no host`);
+    }
+    if (base.search || base.hash) {
+      throw new DwdNetworkError(
+        `Base URL "${this.baseUrl}" must not contain a query string or fragment`,
+      );
+    }
+    const basePath = base.pathname.replace(/\/+$/, "");
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${base.origin}${basePath}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */

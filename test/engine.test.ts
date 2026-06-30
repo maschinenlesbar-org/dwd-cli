@@ -13,6 +13,21 @@ test("buildUrl normalises the path and appends the query", () => {
   );
 });
 
+test("buildUrl preserves a base URL path prefix", () => {
+  const e = new RequestEngine({ baseUrl: "https://host.test/api" });
+  assert.equal(e.buildUrl("/v16/x"), "https://host.test/api/v16/x");
+});
+
+test("buildUrl rejects a scheme-only base URL instead of mangling the host", () => {
+  const e = new RequestEngine({ baseUrl: "https:" });
+  assert.throws(() => e.buildUrl("/v30/stationOverviewExtended"), DwdNetworkError);
+});
+
+test("buildUrl rejects a base URL carrying a query string", () => {
+  const e = new RequestEngine({ baseUrl: "https://example.test/?foo=bar" });
+  assert.throws(() => e.buildUrl("/v30/x"), DwdNetworkError);
+});
+
 test("getJson parses a JSON body", async () => {
   const mt = makeMockTransport(() => jsonResponse({ ok: true }));
   const e = new RequestEngine({ transport: mt.transport });
