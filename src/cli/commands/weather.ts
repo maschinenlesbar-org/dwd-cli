@@ -55,7 +55,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
 
   const warnings = program
     .command("warnings")
-    .description(`Published warning feeds (lang: ${LangValues.join(" | ")}, default de)`)
+    .description(`Published warning feeds (pass --lang ${LangValues.join("|")} to a subcommand, default de)`)
     .helpCommand(true)
     .allowExcessArguments()
     // Bare `dwd warnings` is a "what can I do here" gesture: print this group's
