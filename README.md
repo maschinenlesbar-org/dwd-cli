@@ -157,7 +157,7 @@ same thing.
 | `2` | Bad usage / invalid argument (nothing was sent) |
 | `4` | Resource not found (`404`) |
 | `5` | API returned a non-404, non-success status |
-| `6` | Network/transport failure (DNS, connection, timeout, oversized response) |
+| `6` | Network/transport failure (DNS, connection, timeout, oversized response, unsupported protocol, too many redirects) |
 | `7` | Response body could not be parsed as JSON |
 | `1` | Any other error |
 
