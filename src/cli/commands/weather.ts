@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, renderJson } from "../shared.js";
+import { action, assertEnum, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues } from "../../client/enums.js";
 
 /**
@@ -39,11 +39,14 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
   const warnings = program
     .command("warnings")
     .description(`Published warning feeds (lang: ${LangValues.join(" | ")}, default de)`)
-    // Running the group with no subcommand is a "what can I do here" gesture, not
-    // an error: print this group's help to stdout and exit 0 (like --help), rather
-    // than commander's default of help-on-stderr with a non-zero exit.
+    .helpCommand(true)
+    .allowExcessArguments()
+    // Bare `dwd warnings` is a "what can I do here" gesture: print this group's
+    // help to stdout and exit 0 (like --help). An unrecognized subcommand
+    // (`dwd warnings nowcst`) is reported as an unknown command (exit 2) rather
+    // than commander's misleading "too many arguments for 'warnings'".
     .action(function (this: Command) {
-      this.outputHelp();
+      helpOrUnknownCommand(this);
     });
 
   const lang = (opts: Record<string, unknown>) =>

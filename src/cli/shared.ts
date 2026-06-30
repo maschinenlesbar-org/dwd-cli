@@ -42,6 +42,26 @@ export function assertEnum<T extends string>(
   return value as T;
 }
 
+/**
+ * Default action for a command that only groups subcommands (the root program
+ * and the `warnings` group). A bare invocation prints that command's help to
+ * stdout and exits 0 — the "what can I do here" gesture. An unrecognized token,
+ * however, is reported as an unknown command (exit 2) rather than commander's
+ * misleading "too many arguments. Expected 0 arguments" wording.
+ *
+ * This relies on the command calling `.allowExcessArguments()` so a stray token
+ * reaches this handler (as `command.args[0]`) instead of tripping the arity
+ * check first, and on `.helpCommand(true)` so `help` / `help <cmd>` still
+ * dispatch to the built-in help command before this action ever runs.
+ */
+export function helpOrUnknownCommand(command: Command): void {
+  const [unknown] = command.args;
+  if (unknown !== undefined) {
+    command.error(`error: unknown command '${unknown}'`, { code: "commander.unknownCommand" });
+  }
+  command.outputHelp();
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   staticBaseUrl?: string;

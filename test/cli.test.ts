@@ -67,3 +67,45 @@ test("a 404 from the API maps to exit code 4", async () => {
   const code = await run(["crowd"], cli.deps);
   assert.equal(code, 4);
 });
+
+test("an unknown command says 'unknown command', not 'too many arguments'", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["bogus"], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /unknown command 'bogus'/);
+  assert.equal(cli.out.length, 0);
+});
+
+test("an unknown warnings subcommand says 'unknown command'", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["warnings", "nowcst"], cli.deps);
+  assert.equal(code, 2);
+  assert.match(cli.err.join("\n"), /unknown command 'nowcst'/);
+});
+
+test("bare program prints help to stdout and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run([], cli.deps);
+  assert.equal(code, 0);
+  assert.match(cli.out.join("\n"), /Usage: dwd/);
+  assert.equal(cli.err.length, 0);
+});
+
+test("bare warnings group prints help to stdout and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["warnings"], cli.deps);
+  assert.equal(code, 0);
+  assert.match(cli.out.join("\n"), /Usage: dwd warnings/);
+  assert.equal(cli.err.length, 0);
+});
+
+test("the help command works for the program and a subcommand", async () => {
+  const root = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["help"], root.deps), 0);
+  assert.match(root.out.join("\n"), /Usage: dwd/);
+
+  const group = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["help", "warnings"], group.deps), 0);
+  assert.match(group.out.join("\n"), /Usage: dwd warnings/);
+});

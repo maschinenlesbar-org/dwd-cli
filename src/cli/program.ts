@@ -8,7 +8,7 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL } from "../client/client.js";
-import { parseIntArg } from "./shared.js";
+import { parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 
 /**
@@ -61,10 +61,17 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     // not dump the whole top-level command listing. Users who want the listing
     // can run `--help` (which exits 0).
     .showHelpAfterError(false)
-    // Running the bare program (no subcommand) is a "what can I do" gesture, not
-    // an error: print top-level help to stdout and exit 0, like --help.
+    // Keep the built-in `help` / `help <command>` command available even though
+    // this command carries an action handler (commander otherwise disables it),
+    // and let a stray token through the arity check so the action below can
+    // report it as an unknown command rather than "too many arguments".
+    .helpCommand(true)
+    .allowExcessArguments()
+    // Bare `dwd` is a "what can I do" gesture: print top-level help to stdout and
+    // exit 0. An unrecognized token (`dwd bogus`, a misplaced `dwd nowcast`) is
+    // reported as an unknown command (exit 2).
     .action(function (this: Command) {
-      this.outputHelp();
+      helpOrUnknownCommand(this);
     });
 
   registerWeatherCommands(program, deps);
