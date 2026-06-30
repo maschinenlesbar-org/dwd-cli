@@ -44,6 +44,10 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "CLI for the open DWD Warnwetter app API — station forecasts " +
         "(app-prod-ws.warnwetter.de) and the published warning feeds (S3 static bucket).",
     )
+    // The global options genuinely apply after a subcommand, so surface them in
+    // every subcommand's --help (as a "Global Options:" section) rather than only
+    // on the root, matching the README's promise that they apply to every command.
+    .configureHelp({ showGlobalOptions: true })
     .version(VERSION)
     .option("--base-url <url>", "live web-service base URL", "https://app-prod-ws.warnwetter.de")
     .option("--static-base-url <url>", "static (S3) bucket base URL", DEFAULT_STATIC_BASE_URL)

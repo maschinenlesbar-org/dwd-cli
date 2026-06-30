@@ -124,3 +124,12 @@ test("the help command works for the program and a subcommand", async () => {
   assert.equal(await run(["help", "warnings"], group.deps), 0);
   assert.match(group.out.join("\n"), /Usage: dwd warnings/);
 });
+
+test("subcommand help lists the global options that apply to it", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["help", "station-overview"], cli.deps), 0);
+  const help = cli.out.join("\n");
+  assert.match(help, /Global Options:/);
+  assert.match(help, /--base-url/);
+  assert.match(help, /--user-agent/);
+});
