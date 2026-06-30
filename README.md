@@ -166,8 +166,11 @@ same thing.
 - **`command not found: dwd`** — the global npm bin directory isn't on your
   `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/dwd-cli …`.
-- **Exit `4` / "not found"** — the station id doesn't exist in the DWD catalogue.
-  Double-check the id against the DWD Warnwetter app or docs; DWD station ids are
+- **Exit `4` / "not found"** — a requested feed or resource returned `404`. Note
+  that an unknown **station id** is *not* a 404: `station-overview` returns `{}`
+  with exit `0` for an id the catalogue doesn't know (and silently drops unknown
+  ids from a multi-id response), so empty `{}` there means a bad id, not a server
+  error. Double-check the id against the DWD Warnwetter app; DWD station ids are
   typically 5-digit numeric codes.
 - **Exit `5` / API error** — the upstream service returned an unexpected status.
   The service is public but may be temporarily unavailable; retry later.
