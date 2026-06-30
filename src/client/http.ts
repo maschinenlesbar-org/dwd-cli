@@ -102,6 +102,12 @@ async function decode(
   }
 }
 
+/** Wrap a thrown value as a DwdNetworkError unless it already is one. */
+function toNetworkError(err: unknown): DwdNetworkError {
+  if (err instanceof DwdNetworkError) return err;
+  return new DwdNetworkError(err instanceof Error ? err.message : String(err), { cause: err });
+}
+
 /**
  * Default transport. Resolves with the raw response (including non-2xx) — status
  * interpretation is the client's job. Rejects only on transport-level failures
@@ -129,59 +135,65 @@ export const nodeHttpTransport: Transport = (request) =>
     const driver = isHttps ? https : http;
     const maxBytes = request.maxResponseBytes;
 
-    const req = driver.request(
-      url,
-      {
-        method: request.method,
-        headers: request.headers,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        let received = 0;
-        let aborted = false;
+    const onResponse = (res: http.IncomingMessage): void => {
+      const chunks: Buffer[] = [];
+      let received = 0;
+      let aborted = false;
 
-        res.on("data", (chunk: Buffer) => {
-          if (aborted) return;
-          received += chunk.length;
-          if (maxBytes !== undefined && received > maxBytes) {
-            aborted = true;
-            res.destroy();
-            reject(new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
-            return;
-          }
-          chunks.push(chunk);
-        });
-        res.on("end", () => {
-          if (aborted) return;
-          const raw = Buffer.concat(chunks);
-          decode(raw, res.headers["content-encoding"], maxBytes).then(
-            (body) => {
-              // The body is now decoded; drop the encoding header so downstream
-              // consumers don't try to decode it a second time.
-              const headers = { ...res.headers };
-              delete headers["content-encoding"];
-              resolve({ status: res.statusCode ?? 0, headers, body });
-            },
-            (err) => {
-              if (err instanceof DwdNetworkError) {
-                reject(err);
-                return;
-              }
-              reject(
-                new DwdNetworkError(
-                  `Failed to decode ${res.headers["content-encoding"]} response body`,
-                  { cause: err },
-                ),
-              );
-            },
-          );
-        });
-        res.on("error", (err) => {
-          if (aborted) return; // we already rejected with the size-cap error
-          reject(new DwdNetworkError(`Response stream error: ${err.message}`, { cause: err }));
-        });
-      },
-    );
+      res.on("data", (chunk: Buffer) => {
+        if (aborted) return;
+        received += chunk.length;
+        if (maxBytes !== undefined && received > maxBytes) {
+          aborted = true;
+          res.destroy();
+          reject(new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        if (aborted) return;
+        const raw = Buffer.concat(chunks);
+        decode(raw, res.headers["content-encoding"], maxBytes).then(
+          (body) => {
+            // The body is now decoded; drop the encoding header so downstream
+            // consumers don't try to decode it a second time.
+            const headers = { ...res.headers };
+            delete headers["content-encoding"];
+            resolve({ status: res.statusCode ?? 0, headers, body });
+          },
+          (err) => {
+            if (err instanceof DwdNetworkError) {
+              reject(err);
+              return;
+            }
+            reject(
+              new DwdNetworkError(
+                `Failed to decode ${res.headers["content-encoding"]} response body`,
+                { cause: err },
+              ),
+            );
+          },
+        );
+      });
+      res.on("error", (err) => {
+        if (aborted) return; // we already rejected with the size-cap error
+        reject(new DwdNetworkError(`Response stream error: ${err.message}`, { cause: err }));
+      });
+    };
+
+    let req: http.ClientRequest;
+    try {
+      // Node validates the outgoing headers synchronously here. A non-Latin-1
+      // header value (e.g. an emoji or CJK --user-agent) makes it throw a
+      // TypeError *before* the request is sent; surface it as the typed
+      // DwdNetworkError used for every other transport failure rather than
+      // letting a bare TypeError escape to the CLI's "Unexpected error" fallback.
+      req = driver.request(url, { method: request.method, headers: request.headers }, onResponse);
+    } catch (err) {
+      reject(toNetworkError(err));
+      return;
+    }
 
     if (request.timeoutMs && request.timeoutMs > 0) {
       req.setTimeout(request.timeoutMs, () => {
@@ -191,9 +203,13 @@ export const nodeHttpTransport: Transport = (request) =>
 
     req.on("error", (err) => {
       // A timeout destroy already passes a DwdNetworkError; don't double-wrap.
-      reject(err instanceof DwdNetworkError ? err : new DwdNetworkError(err.message, { cause: err }));
+      reject(toNetworkError(err));
     });
 
-    if (request.body !== undefined) req.write(request.body);
-    req.end();
+    try {
+      if (request.body !== undefined) req.write(request.body);
+      req.end();
+    } catch (err) {
+      reject(toNetworkError(err));
+    }
   });

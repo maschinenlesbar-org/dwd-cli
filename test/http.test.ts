@@ -158,6 +158,21 @@ test("caps the DECOMPRESSED size, not just the compressed wire bytes", async () 
   );
 });
 
+test("a non-Latin-1 header value rejects with DwdNetworkError, not a raw TypeError", async () => {
+  // Node's outgoing-header validation throws a synchronous TypeError for any
+  // value outside Latin-1 (emoji/CJK). It must surface as the typed transport
+  // error like every other failure, not escape as a bare TypeError.
+  await assert.rejects(
+    () =>
+      nodeHttpTransport({
+        method: "GET",
+        url: "https://example.test/x",
+        headers: { "User-Agent": "🌦" },
+      }),
+    (err) => err instanceof DwdNetworkError,
+  );
+});
+
 test("times out and rejects with DwdNetworkError", async () => {
   await withServer(
     (_req, _res) => {
