@@ -154,7 +154,8 @@ dwd --timeout 10000 --max-retries 3 --user-agent "my-monitor/1.0" \
 
 ## Global options recap
 
-Global options go **before** the command (e.g. `dwd --compact warnings nowcast`).
+Global options may be given **before or after** the command — both
+`dwd --compact warnings nowcast` and `dwd warnings nowcast --compact` work.
 
 | Option | Description |
 | --- | --- |
