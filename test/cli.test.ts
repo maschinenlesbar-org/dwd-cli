@@ -33,6 +33,21 @@ test("station-overview joins repeated --id into stationIds", async () => {
   assert.equal(url.searchParams.get("stationIds"), "10865,01766");
 });
 
+test("station-overview rejects a comma-only --id instead of injecting empty slots", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["station-overview", "--id", "10865", "--id", ","], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /must not be empty/);
+});
+
+test("station-overview trims padded --id values and splits comma lists", async () => {
+  const cli = makeCli(() => jsonResponse({ "10865": {} }));
+  const code = await run(["station-overview", "--id", " 10865 , 99999 "], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(new URL(cli.mt.last().url).searchParams.get("stationIds"), "10865,99999");
+});
+
 test("station-overview requires at least one --id", async () => {
   const cli = makeCli(() => jsonResponse({}));
   const code = await run(["station-overview"], cli.deps);

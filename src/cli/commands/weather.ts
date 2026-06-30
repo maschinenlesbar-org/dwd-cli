@@ -16,15 +16,21 @@ function langOption(): Option {
 }
 
 /**
- * commander accumulator for a repeatable station-id option. Validates each id up
- * front so an empty or blank `--id ""` is rejected as a usage error rather than
- * being sent as an empty `stationIds=` query parameter.
+ * commander accumulator for a repeatable station-id option. A single value may
+ * itself be a comma-separated list (the exact form the API expects, joined in
+ * client.ts), so split on commas, trim each id, and reject any empty/blank one
+ * up front. This keeps a stray `--id ""` *or* `--id ","` from re-injecting the
+ * empty `stationIds=` slots the validator exists to prevent (e.g.
+ * `--id 10865 --id ","` would otherwise send `stationIds=10865,,`), and
+ * normalises padded ids like `--id " 10865 "` instead of sending the surrounding
+ * whitespace verbatim.
  */
 function collectStationId(value: string, previous: string[] = []): string[] {
-  if (value.trim() === "") {
+  const ids = value.split(",").map((id) => id.trim());
+  if (ids.some((id) => id === "")) {
     throw new InvalidArgumentError("A station id must not be empty.");
   }
-  return previous.concat([value]);
+  return previous.concat(ids);
 }
 
 export function registerWeatherCommands(program: Command, deps: CliDeps): void {
