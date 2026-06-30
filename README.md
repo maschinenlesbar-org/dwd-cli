@@ -199,6 +199,11 @@ These apply to every command and may be given **before or after** it:
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
+> An option that takes a value consumes the **next token** as that value, so give
+> a value-taking option its value explicitly: `--user-agent "my-tool" --compact`,
+> not `--user-agent --compact` (which would treat the literal `--compact` as the
+> User-Agent and silently drop the flag).
+
 ## Learn more
 
 - **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for real-world weather questions.
