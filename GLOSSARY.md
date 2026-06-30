@@ -146,8 +146,9 @@ is large and DWD-specific enough that a hand-written interface would be a guess.
 
 **Rate limiting / transient errors.** The backend may answer with **429** (too
 many requests) or **503** (service unavailable). The client retries these
-automatically with linear backoff (`--max-retries`, default `2`;
-`--retry-delay`/`retryDelayMs` controls the base delay).
+automatically with linear backoff — the number of retries is tunable with
+`--max-retries` (default `2`); the base inter-attempt delay grows linearly and
+is an internal default, not a CLI flag.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
 redirects (301/302/303/307/308). On a cross-origin redirect, sensitive headers
