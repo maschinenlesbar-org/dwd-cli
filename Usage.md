@@ -74,12 +74,13 @@ dwd --compact warnings nowcast | jq '.warnings | length'
 
 ### 5. Nowcast warnings in English for a quick triage table
 
-Switch the feed language with `--lang en`, then flatten headline + region + event
-into a compact table with `jq`.
+Switch the feed language with `--lang en`, then flatten event + severity level +
+description into a compact table with `jq`. (The feed has no `headline`/`regionName`
+fields; in `--lang en` only `event`/`descriptionText` are translated.)
 
 ```bash
 dwd warnings nowcast --lang en \
-  | jq -r '.warnings[] | [.headline, .regionName, .event] | @tsv'
+  | jq -r '.warnings[] | [.event, .level, .descriptionText] | @tsv'
 ```
 
 `--lang` accepts `de` (default) or `en`.
@@ -93,11 +94,13 @@ the app uses when you select your home town.
 dwd warnings gemeinde --lang de
 ```
 
-Same envelope shape as nowcast (`time` + `warnings[]`). To find warnings
-mentioning a specific town:
+Same envelope shape as nowcast (`time` + `warnings[]`). Warnings carry no
+`regionName` field (only `regions[]` geometry), so to find ones mentioning a
+specific town, search the headline/description text:
 
 ```bash
-dwd --compact warnings gemeinde | jq '.warnings[] | select(.regionName | test("München"))'
+dwd --compact warnings gemeinde \
+  | jq '.warnings[] | select(((.headLine // "") + " " + (.descriptionText // "")) | test("München"))'
 ```
 
 ### 7. Coastal warnings by zone

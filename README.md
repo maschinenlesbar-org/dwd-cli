@@ -103,8 +103,10 @@ use-case-driven set.
 # Current nowcast warnings in English
 dwd warnings nowcast --lang en
 
-# Municipality-level warnings — find ones mentioning München
-dwd --compact warnings gemeinde | jq '.warnings[] | select(.regionName | test("München"))'
+# Municipality-level warnings — find ones whose text mentions München
+# (warnings have no `regionName`; search the headline/description text instead)
+dwd --compact warnings gemeinde \
+  | jq '.warnings[] | select(((.headLine // "") + " " + (.descriptionText // "")) | test("München"))'
 
 # Coastal-warning zones that currently carry a warning
 dwd --compact warnings coast | jq '.warnings | keys'
@@ -128,9 +130,10 @@ Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
 
 ```bash
-# Flatten nowcast warnings into a headline/region/event TSV
+# Flatten nowcast warnings into an event/level/description TSV
+# (the feed has no `headline`/`regionName`; in --lang en only event/description translate)
 dwd warnings nowcast --lang en \
-  | jq -r '.warnings[] | [.headline, .regionName, .event] | @tsv'
+  | jq -r '.warnings[] | [.event, .level, .descriptionText] | @tsv'
 
 # When was the Gemeinde feed last published? Read the time field.
 dwd --compact warnings gemeinde | jq '.time'
