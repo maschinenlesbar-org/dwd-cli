@@ -173,6 +173,37 @@ test("a non-Latin-1 header value rejects with DwdNetworkError, not a raw TypeErr
   );
 });
 
+test("a timeout above setTimeout's 32-bit ceiling is clamped, not warned about", async () => {
+  // 2^31 ms is one past Node's 32-bit timer ceiling: setTimeout would emit a
+  // TimeoutOverflowWarning to stderr and truncate. The transport must clamp it.
+  const warnings: string[] = [];
+  const onWarning = (w: Error): void => {
+    warnings.push(w.name);
+  };
+  process.on("warning", onWarning);
+  try {
+    await withServer(
+      (_req, res) => res.end("{}"),
+      async (baseUrl) => {
+        const resp = await nodeHttpTransport({
+          method: "GET",
+          url: baseUrl,
+          timeoutMs: 2_147_483_648,
+        });
+        assert.equal(resp.status, 200);
+      },
+    );
+    // process warnings fire on nextTick; let them drain before asserting.
+    await new Promise((resolve) => setImmediate(resolve));
+  } finally {
+    process.off("warning", onWarning);
+  }
+  assert.ok(
+    !warnings.includes("TimeoutOverflowWarning"),
+    `unexpected warnings: ${warnings.join(", ")}`,
+  );
+});
+
 test("times out and rejects with DwdNetworkError", async () => {
   await withServer(
     (_req, _res) => {

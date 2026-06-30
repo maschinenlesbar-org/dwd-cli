@@ -24,6 +24,12 @@ const inflate = promisify(zlib.inflate);
 const inflateRaw = promisify(zlib.inflateRaw);
 const brotliDecompress = promisify(zlib.brotliDecompress);
 
+// `req.setTimeout` holds the delay in a 32-bit signed integer. A larger value
+// makes Node emit a `TimeoutOverflowWarning` to stderr and silently truncate the
+// timer, so clamp here: the effective timeout is already unbounded for practical
+// purposes (~24.8 days) and the parser accepts up to Number.MAX_SAFE_INTEGER.
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 export interface HttpRequest {
   method: string;
   /** Fully-qualified absolute URL. */
@@ -196,8 +202,9 @@ export const nodeHttpTransport: Transport = (request) =>
     }
 
     if (request.timeoutMs && request.timeoutMs > 0) {
-      req.setTimeout(request.timeoutMs, () => {
-        req.destroy(new DwdNetworkError(`Request timed out after ${request.timeoutMs}ms`));
+      const timeoutMs = Math.min(request.timeoutMs, MAX_TIMEOUT_MS);
+      req.setTimeout(timeoutMs, () => {
+        req.destroy(new DwdNetworkError(`Request timed out after ${timeoutMs}ms`));
       });
     }
 
