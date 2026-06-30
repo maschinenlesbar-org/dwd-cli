@@ -84,8 +84,9 @@ Client: `client.crowd()`. CLI: `crowd`.
 
 **Station id.** The identifier of a DWD weather station, used by the Warnwetter
 app — typically a 5-digit numeric id (e.g. München-Stadt = `10865`). Repeatable
-on the CLI (`--id 10865 --id 01766`); sent to the web service joined by commas as
-`stationIds=10865,01766`.
+on the CLI (`--id 10865 --id 01766`); a single value may also be a comma-separated
+list (`--id 10865,01766`), and the two forms are equivalent — both are sent to the
+web service joined by commas as `stationIds=10865,01766`.
 
 **`forecast1` / `forecast2`.** Two forecast series carried per station in a
 station overview — hourly/short-range forecast data for that station.
