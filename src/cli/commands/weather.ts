@@ -1,8 +1,19 @@
 import type { Command } from "commander";
-import { InvalidArgumentError } from "commander";
+import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, renderJson, helpOrUnknownCommand } from "../shared.js";
-import { LangValues } from "../../client/enums.js";
+import { action, renderJson, helpOrUnknownCommand } from "../shared.js";
+import { LangValues, type Lang } from "../../client/enums.js";
+
+/**
+ * The `--lang` option, validated by commander's own `.choices()` so a bad value
+ * (e.g. `--lang fr`) is a usage error (exit 2) with a clear message — the same
+ * class and exit code as a bad `--timeout` — rather than a generic exit-1 error.
+ */
+function langOption(): Option {
+  return new Option("--lang <lang>", `feed language: ${LangValues.join(" | ")}`)
+    .choices([...LangValues])
+    .default("de");
+}
 
 /**
  * commander accumulator for a repeatable station-id option. Validates each id up
@@ -49,36 +60,33 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
       helpOrUnknownCommand(this);
     });
 
-  const lang = (opts: Record<string, unknown>) =>
-    assertEnum(String(opts["lang"] ?? "de"), LangValues, "lang");
-
   warnings
     .command("nowcast")
     .description("Short-term (nowcast) warnings")
-    .option("--lang <lang>", "de | en", "de")
+    .addOption(langOption())
     .action(
       action(deps, async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.nowcast(lang(opts)));
+        renderJson(deps, global, await client.warnings.nowcast(opts["lang"] as Lang));
       }),
     );
 
   warnings
     .command("gemeinde")
     .description("Municipality-level warnings")
-    .option("--lang <lang>", "de | en", "de")
+    .addOption(langOption())
     .action(
       action(deps, async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.gemeinde(lang(opts)));
+        renderJson(deps, global, await client.warnings.gemeinde(opts["lang"] as Lang));
       }),
     );
 
   warnings
     .command("coast")
     .description("Coastal warnings (keyed by coastal zone)")
-    .option("--lang <lang>", "de | en", "de")
+    .addOption(langOption())
     .action(
       action(deps, async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.coast(lang(opts)));
+        renderJson(deps, global, await client.warnings.coast(opts["lang"] as Lang));
       }),
     );
 }

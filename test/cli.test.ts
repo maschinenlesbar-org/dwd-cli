@@ -48,12 +48,12 @@ test("warnings nowcast --lang en uses the _en feed on the static host", async ()
   assert.match(url.pathname, /warnings_nowcast_en\.json$/);
 });
 
-test("warnings rejects an invalid lang before any request", async () => {
+test("warnings rejects an invalid lang as a usage error (exit 2) before any request", async () => {
   const cli = makeCli(() => jsonResponse({}));
   const code = await run(["warnings", "nowcast", "--lang", "fr"], cli.deps);
-  assert.notEqual(code, 0);
+  assert.equal(code, 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /Invalid lang/);
+  assert.match(cli.err.join("\n"), /option '--lang <lang>' argument 'fr' is invalid/);
 });
 
 test("--static-base-url overrides the static host", async () => {
