@@ -156,6 +156,37 @@ test("strips sensitive headers on a cross-origin redirect but keeps them same-or
   assert.equal(same.auth, "Bearer secret"); // preserved on the same origin
 });
 
+test("refuses to follow a redirect to a non-http(s) scheme (defends a custom transport)", async () => {
+  // A hostile server tries to steer a custom transport at file:. The engine must
+  // reject the scheme before ever calling the transport again.
+  const mt = makeMockTransport((req) => {
+    if (req.url.endsWith("/x")) {
+      return { status: 302, headers: { location: "file:///etc/passwd" }, body: Buffer.from("") };
+    }
+    return jsonResponse({ ok: 1 });
+  });
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof DwdNetworkError && /unsupported protocol/i.test(err.message),
+  );
+  // The redirect target was never fetched.
+  assert.equal(mt.calls.length, 1);
+});
+
+test("a malformed redirect Location surfaces as a typed DwdNetworkError", async () => {
+  const mt = makeMockTransport(() => ({
+    status: 302,
+    headers: { location: "http://[not-a-valid-host" },
+    body: Buffer.from(""),
+  }));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof DwdNetworkError && /invalid redirect location/i.test(err.message),
+  );
+});
+
 test("error detail is stripped of terminal control characters", async () => {
   // ESC + CSI + BEL interleaved with printable text, delivered as a JSON error body.
   const evil = `boom${ESC}[31mred${BEL}${CSI}2J`;

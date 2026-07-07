@@ -192,7 +192,27 @@ export class RequestEngine {
         }
         const location = response.headers["location"];
         if (typeof location === "string" && location.length > 0) {
-          const target = new URL(location, url);
+          // A malformed Location would make `new URL` throw a raw TypeError; wrap
+          // it so it surfaces as a typed DwdNetworkError rather than an untyped
+          // "Unexpected error".
+          let target: URL;
+          try {
+            target = new URL(location, url);
+          } catch {
+            throw new DwdNetworkError(
+              `Invalid redirect Location "${location}" for ${method} ${url}`,
+            );
+          }
+          // Enforce the http(s) scheme allowlist on the redirect target here in
+          // the engine. The default transport also rejects non-http(s), but
+          // Transport is an injectable library seam: a consumer's custom
+          // transport must not be steered to file:/other schemes by a hostile
+          // redirect.
+          if (target.protocol !== "http:" && target.protocol !== "https:") {
+            throw new DwdNetworkError(
+              `Refusing to follow redirect to unsupported protocol "${target.protocol}" for ${method} ${url}`,
+            );
+          }
           // Cross-origin credential strip: never forward sensitive headers to a
           // different origin than the one they were issued for. Today's headers
           // are non-sensitive (Accept/User-Agent), but a redirect can point at
