@@ -45,6 +45,28 @@ export interface EngineOptions {
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
+/**
+ * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
+ * string that originates in an attacker-controlled response — the error `detail`
+ * and the echoed Content-Type. `JSON.parse` decodes a backslash-u001b escape in an error
+ * body into a real ESC byte, so without this a hostile or MITM'd endpoint (or a
+ * redirect target — redirects are followed here) could drive ANSI/OSC escape
+ * sequences into the user's terminal when the message is printed to stderr.
+ * The success path is already safe (`JSON.stringify` escapes these), so this only
+ * needs to cover text that flows into an error message. `DwdApiError.body` still
+ * carries the raw, unsanitised body for library consumers.
+ */
+function sanitizeServerText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const n = ch.codePointAt(0) ?? 0;
+    // strip C0/C1 except tab (0x09) and newline (0x0a), plus DEL (0x7f)
+    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    out += ch;
+  }
+  return out;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -204,7 +226,7 @@ export class RequestEngine {
     // missing/empty Content-Type is treated leniently and still parsed.
     if (res.contentType && !isJsonContentType(res.contentType)) {
       throw new DwdParseError(
-        `Expected a JSON response from ${path} but got Content-Type "${mediaType(res.contentType)}"`,
+        `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(mediaType(res.contentType))}"`,
       );
     }
     const text = res.data.toString("utf8");
@@ -225,6 +247,9 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
+    // `detail` came from the response body; strip control characters so a hostile
+    // endpoint cannot inject terminal escape sequences via the stderr error message.
+    if (detail !== undefined) detail = sanitizeServerText(detail);
     return new DwdApiError({ status, url, method, body: text, detail });
   }
 }
