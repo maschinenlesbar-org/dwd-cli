@@ -17,14 +17,14 @@ userInvocable: true
 Surface what people on the ground are actually reporting — and optionally cross-check it
 against the official warnings — from the DWD Warnwetter **crowd** feed (`Meldungen`,
 user-submitted reports). The value of this skill is **filtering by place + category and
-summarising**, since the raw feed is thousands of unsorted points.
+summarising**, since the raw feed is hundreds to thousands of unsorted points.
 
 ## Tooling
 
 This skill drives the `dwd` command. **Before anything else, validate it is available** — run `command -v dwd` (or `dwd --version`). If it is not on your PATH, STOP and inform the user that the `dwd` CLI (`@maschinenlesbar.org/dwd-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
 
-Pass `--compact`. The feed is large (often **3000+ reports**) — bump `--timeout 60000` if
-it times out, and never dump it raw.
+Pass `--compact`. The feed is large (hundreds to thousands of reports; check
+`.meldungen | length`) — bump `--timeout 60000` if it times out, and never dump it raw.
 
 ## Step 1 — Fetch the crowd overview
 
@@ -34,12 +34,25 @@ dwd --compact crowd
 
 Envelope: `{ start, end, windowsSizeHours, highestSeverities, meldungen: [ … ] }`.
 
-- `start` / `end` — epoch ms; the window the reports cover.
-- `windowsSizeHours` — the window length (observed `1`, i.e. **reports are last-hour only**;
-  this is live "right now" ground truth, not history).
-- `highestSeverities` — the worst `auspraegung` seen per category in the window — a fast
-  one-line "what's the most extreme thing reported".
+- `start` / `end` — epoch ms; the window the reports cover. **Use these for the window
+  length.**
+- `windowsSizeHours` — **not the window length.** On 2026-09-15 it said `1` while `start` →
+  `end` spanned **12 hours** and the reports were spread over all 12 (fewer than one in ten
+  fell in the last hour). Don't call the feed "last hour" because of it.
+- `highestSeverities` — the worst `auspraegung` seen per category in the whole window — a
+  fast one-line "what's the most extreme thing reported", but not "right now".
 - `meldungen` — the report array.
+
+For **"right now"**, filter on each report's `timestamp`, e.g. the last hour before `end`:
+
+```bash
+dwd --compact crowd > crowd.json
+TZ=Europe/Berlin jq -r '
+  .end as $end
+  | "window \(.start / 1000 | strflocaltime("%d.%m. %H:%M"))–\($end / 1000 | strflocaltime("%H:%M")) (\(.meldungen | length) reports)",
+    "last hour: \([.meldungen[] | select(.timestamp >= $end - 3600000)] | length) reports",
+    ([.meldungen[] | select(.timestamp >= $end - 3600000)] | group_by(.category) | map("  \(.[0].category) \(length)") | .[])' crowd.json
+```
 
 ## Step 2 — The report fields
 
@@ -51,11 +64,17 @@ Each `meldungen[]` item:
 | `place` | Town/place name, e.g. `Mainz`, `Lauingen (Donau)` — the easiest filter handle. |
 | `category` | Phenomenon: `REGEN` (rain), `GEWITTER`/`BLITZE` (storm/lightning), `HAGEL` (hail), `WIND`, `NEBEL` (fog), `GLAETTE` (ice), `BEWOELKUNG` (cloud cover). |
 | `auspraegung` | The intensity variant, e.g. `HAGEL_2CM`, `BLITZE_EXTREM`, `REGEN_EXTREM`, `WIND_ORKAN`, `BEWOELKUNG_BEDECKT` — the severity within the category. |
-| `timestamp` | When it was reported — epoch ms. |
-| `zusatzAttribute` | Extra flags, e.g. `HAGEL_GESCHLOSSENE_HAGELDECKE` (closed hail cover). |
+| `timestamp` | When it was reported — epoch ms. The filter for "right now" (Step 1). |
+| `zusatzAttribute` | Array of extra flags, e.g. `HAGEL_GESCHLOSSENE_HAGELDECKE` (closed hail cover). Often empty `[]` (it was on every report on 2026-09-15). |
 | `likeCount` | Corroboration signal — how many users confirmed it. |
-| `blurHash` | Present ⇒ the report has a **photo**. |
+| `imageUrl`, `imageMediumUrl`, `imageThumbUrl` | Present ⇒ the report has a **photo** (also `…WebpUrl` variants and `imageThumbWidth`/`imageThumbHeight`). Use for the "with photo" flag only — never put the URLs in a summary. |
+| `blurHash` | Photo placeholder hash. It also appears on reports **without** any image URL, so don't use it alone as the photo flag. |
 | `meldungId` | The report id. |
+
+> **Privacy.** A single report can point to one person: its photo, its exact `lat`/`lon`
+> and its exact `timestamp`. Keep all three out of summaries — name the `place`, round
+> coordinates to about 0.1° (~10 km) if a map link helps, and give times as a span or hour
+> ("between 07:00 and 09:30"), not per report.
 
 ## Step 3 — Filter
 
@@ -67,9 +86,13 @@ The whole point is to narrow the thousands of reports to what the user asked abo
   (just cloud cover) dominates the feed — exclude it unless asked, it's noise for a
   severe-weather check.
 - **By category**: keep only the phenomena asked about (hail, lightning, rain…).
+- **By time**: for "right now", keep reports from the last hour or so (`timestamp`, see
+  Step 1); report the rest of the window separately if it matters.
 
-`BEWOELKUNG` and `REGEN` are by far the most common; `HAGEL`, `GLAETTE`, `NEBEL` are rare —
-a single one near the user is noteworthy.
+`BEWOELKUNG` usually dominates. How common the other categories are depends on the weather
+and the time of day — on 2026-09-15 `NEBEL` was the third most common category in the
+afternoon feed (morning fog still in the 12-hour window) and nearly absent in the evening.
+Count per category instead of assuming what is rare.
 
 ## Step 4 — (Optional) cross-check against official warnings
 
@@ -93,12 +116,14 @@ Crowd reports near Mainz (last 1 h) — 14 reports
 ```
 
 Rules:
-- Lead with the **count in the window** and the time window (`windowsSizeHours` h).
-- Group by `category`, show counts and the worst `auspraegung`; flag photos (`blurHash`)
-  and high `likeCount` as stronger evidence.
+- Lead with the **count** and the **time span you actually filtered to** (from `timestamp`,
+  e.g. the last hour before `end`) — never a span taken from `windowsSizeHours`.
+- Group by `category`, show counts and the worst `auspraegung`; flag photos (`imageUrl`
+  present) and high `likeCount` as stronger evidence.
 - Filter out `BEWOELKUNG` noise for severe-weather questions unless the user wants it.
-- Give a map link for a notable report from its `lat`/`lon` (`?q=lat,lon`).
-- Be explicit that crowd reports are **unverified user submissions**, last-hour only — useful
+- Keep photo URLs, exact coordinates and per-report timestamps out (see the privacy note in
+  Step 2). A map link for an area uses coordinates rounded to ~0.1° (`?q=lat,lon`).
+- Be explicit that crowd reports are **unverified user submissions** — useful
   corroboration, not authoritative; the official `warnings` feeds are the authority.
 - If nothing matches the place/category, say so plainly — "no crowd reports of hail near
   Mainz in the last hour" is a valid answer.
