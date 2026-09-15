@@ -52,8 +52,9 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
  * body into a real ESC byte, so without this a hostile or MITM'd endpoint (or a
  * redirect target — redirects are followed here) could drive ANSI/OSC escape
  * sequences into the user's terminal when the message is printed to stderr.
- * The success path is already safe (`JSON.stringify` escapes these), so this only
- * needs to cover text that flows into an error message. `DwdApiError.body` still
+ * The CLI's JSON output is escaped separately (`escapeControlChars` in
+ * cli/shared.ts): `JSON.stringify` alone leaves DEL and the C1 range raw.
+ * `DwdApiError.body` still
  * carries the raw, unsanitised body for library consumers.
  */
 function sanitizeServerText(text: string): string {
