@@ -24,9 +24,9 @@ const inflate = promisify(zlib.inflate);
 const inflateRaw = promisify(zlib.inflateRaw);
 const brotliDecompress = promisify(zlib.brotliDecompress);
 
-// `req.setTimeout` holds the delay in a 32-bit signed integer. A larger value
-// makes Node emit a `TimeoutOverflowWarning` to stderr and silently truncate the
-// timer, so clamp here: the effective timeout is already unbounded for practical
+// Node's timers hold the delay in a 32-bit signed integer. A larger value makes
+// Node emit a `TimeoutOverflowWarning` to stderr and mis-fire the timer, so clamp
+// here: the effective timeout is already unbounded for practical
 // purposes (~24.8 days) and the parser accepts up to Number.MAX_SAFE_INTEGER.
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
@@ -37,7 +37,7 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   /** Optional request body (already serialised). */
   body?: string | Buffer;
-  /** Per-request timeout in milliseconds. */
+  /** Timeout for the whole request, response body included, in milliseconds. */
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
@@ -141,6 +141,17 @@ export const nodeHttpTransport: Transport = (request) =>
     const driver = isHttps ? https : http;
     const maxBytes = request.maxResponseBytes;
 
+    // The timeout covers the whole exchange — connecting, waiting, reading and
+    // decoding the body. A socket idle timeout alone would let a server that
+    // trickles a byte now and then hold the request open indefinitely.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = <T>(fn: (value: T) => void) => (value: T) => {
+      clearTimeout(timer);
+      fn(value);
+    };
+    const done = settle(resolve);
+    const fail = settle(reject);
+
     const onResponse = (res: http.IncomingMessage): void => {
       const chunks: Buffer[] = [];
       let received = 0;
@@ -152,7 +163,7 @@ export const nodeHttpTransport: Transport = (request) =>
         if (maxBytes !== undefined && received > maxBytes) {
           aborted = true;
           res.destroy();
-          reject(new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+          fail(new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
           return;
         }
         chunks.push(chunk);
@@ -166,14 +177,14 @@ export const nodeHttpTransport: Transport = (request) =>
             // consumers don't try to decode it a second time.
             const headers = { ...res.headers };
             delete headers["content-encoding"];
-            resolve({ status: res.statusCode ?? 0, headers, body });
+            done({ status: res.statusCode ?? 0, headers, body });
           },
           (err) => {
             if (err instanceof DwdNetworkError) {
-              reject(err);
+              fail(err);
               return;
             }
-            reject(
+            fail(
               new DwdNetworkError(
                 `Failed to decode ${res.headers["content-encoding"]} response body`,
                 { cause: err },
@@ -184,7 +195,7 @@ export const nodeHttpTransport: Transport = (request) =>
       });
       res.on("error", (err) => {
         if (aborted) return; // we already rejected with the size-cap error
-        reject(new DwdNetworkError(`Response stream error: ${err.message}`, { cause: err }));
+        fail(new DwdNetworkError(`Response stream error: ${err.message}`, { cause: err }));
       });
     };
 
@@ -197,26 +208,28 @@ export const nodeHttpTransport: Transport = (request) =>
       // letting a bare TypeError escape to the CLI's "Unexpected error" fallback.
       req = driver.request(url, { method: request.method, headers: request.headers }, onResponse);
     } catch (err) {
-      reject(toNetworkError(err));
+      fail(toNetworkError(err));
       return;
     }
 
     if (request.timeoutMs && request.timeoutMs > 0) {
       const timeoutMs = Math.min(request.timeoutMs, MAX_TIMEOUT_MS);
-      req.setTimeout(timeoutMs, () => {
-        req.destroy(new DwdNetworkError(`Request timed out after ${timeoutMs}ms`));
-      });
+      timer = setTimeout(() => {
+        const err = new DwdNetworkError(`Request timed out after ${timeoutMs}ms`);
+        fail(err);
+        req.destroy(err);
+      }, timeoutMs);
     }
 
     req.on("error", (err) => {
       // A timeout destroy already passes a DwdNetworkError; don't double-wrap.
-      reject(toNetworkError(err));
+      fail(toNetworkError(err));
     });
 
     try {
       if (request.body !== undefined) req.write(request.body);
       req.end();
     } catch (err) {
-      reject(toNetworkError(err));
+      fail(toNetworkError(err));
     }
   });

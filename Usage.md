@@ -162,7 +162,7 @@ Global options may be given **before or after** the command — both
 | `-V, --version` | Output the version number |
 | `--base-url <url>` | Live web-service base URL (default `https://app-prod-ws.warnwetter.de`) — used by `station-overview` |
 | `--static-base-url <url>` | Static (S3) bucket base URL — used by the `warnings` and `crowd` feeds |
-| `--timeout <ms>` | Per-request timeout in milliseconds (default `30000`) |
+| `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default `104857600` / 100 MiB) |

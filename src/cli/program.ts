@@ -51,7 +51,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .version(VERSION)
     .option("--base-url <url>", "live web-service base URL", "https://app-prod-ws.warnwetter.de")
     .option("--static-base-url <url>", "static (S3) bucket base URL", DEFAULT_STATIC_BASE_URL)
-    .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg, 30_000)
+    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseIntArg, 30_000)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg, 2)
     .option(
