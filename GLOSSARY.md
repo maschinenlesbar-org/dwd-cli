@@ -71,8 +71,10 @@ warnings, i.e. warnings resolved to the German *Gemeinde* (municipality). Static
 feed. Client: `client.warnings.gemeinde(lang)`. CLI: `warnings gemeinde`.
 
 **Coast warnings (`warnings_coast.json`).** Coastal weather warnings, with
-`warnings` keyed by coastal zone (and inland-lake / *Binnensee* areas). Static
-feed. Client: `client.warnings.coast(lang)`. CLI: `warnings coast`.
+`warnings` keyed by coastal zone (and inland-lake / *Binnensee* areas). Unlike
+the nowcast and Gemeinde items, coast items carry no `regions` geometry and no
+`start`/`end`. Static feed. Client: `client.warnings.coast(lang)`. CLI:
+`warnings coast`.
 
 **Crowd overview (`crowd_meldungen_overview_v2.json`).** An overview of
 crowd-sourced weather reports (*Meldungen*) submitted by app users. Static feed.
@@ -89,7 +91,11 @@ list (`--id 10865,01766`), and the two forms are equivalent — both are sent to
 web service joined by commas as `stationIds=10865,01766`.
 
 **`forecast1` / `forecast2`.** Two forecast series carried per station in a
-station overview — hourly/short-range forecast data for that station.
+station overview. `forecast1` is hourly (`timeStep` 3600000) from midnight of the
+current day: `temperature` runs ten days from `start`, while the shorter arrays
+(`precipitationTotal`, `sunshine`, `humidity`, …) are end-aligned at `start` + 72 h
+rather than anchored at `start`. `forecast2` continues from there in three-hour
+steps (`timeStep` 10800000); it is not an hourly copy of `forecast1`.
 
 **`days`.** The multi-day forecast summary block of a station overview.
 
@@ -103,10 +109,13 @@ i.e. warnings relevant to that station's location.
 envelope, marking when that feed was generated.
 
 **`binnenSee`.** *Inland lake.* An optional block on the nowcast/gemeinde warning
-envelopes carrying inland-lake (large-lake) warnings.
+envelopes carrying inland-lake (large-lake) warnings. With none active it has come
+back as `null` (nowcast) and `{}` (gemeinde).
 
 **`meldungen`.** The array of crowd-sourced reports in the crowd overview. May be
-accompanied by `start`, `end` and `highestSeverities`.
+accompanied by `start`, `end` and `highestSeverities`. `start`/`end` bound the
+window the reports cover (12 hours when checked); the feed's `windowsSizeHours`
+field did not match that window, so each report's `timestamp` is the reliable time.
 
 **Coastal zone.** The key by which coastal warnings are grouped in the coast
 feed (each zone maps to its own warnings object).

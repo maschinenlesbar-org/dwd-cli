@@ -18,7 +18,7 @@ Claude doesn't have to rediscover them each time.
 |---|---|---|
 | **dwd-warning-briefing** | Merges the nowcast + Gemeinde + coast warning feeds into one severity-ranked briefing, drops stale and duplicate entries, and reports plain-language headlines. | "any weather warnings in Germany?", "is there a storm warning right now?" |
 | **dwd-station-forecast** | Decodes a raw `station-overview` (tenths-of-units integer arrays, epoch-ms timestamps) into a readable temperature/wind/precip forecast for one or more stations. | "forecast for Munich (10865)?", "will it rain tomorrow?", "compare two cities" |
-| **dwd-warning-map** | Exports the warning-area polygons from any feed as a valid GeoJSON `FeatureCollection` for Leaflet / geojson.io / QGIS. | "map the thunderstorm warnings", "export DWD warnings as GeoJSON" |
+| **dwd-warning-map** | Exports the warning-area polygons from the nowcast and Gemeinde feeds (coast warnings have no geometry) as a valid GeoJSON `FeatureCollection` for Leaflet / geojson.io / QGIS. | "map the thunderstorm warnings", "export DWD warnings as GeoJSON" |
 | **dwd-crowd-check** | Filters the crowd-sourced report feed by place + category and cross-checks it against the official warnings as ground truth. | "are people reporting hail near Mainz?", "is the storm warning actually happening?" |
 
 ## Requirements
@@ -89,8 +89,11 @@ non-obvious parts of this API, for example:
 
 - station-overview values are **scaled integers**, not real units — temperature/dew
   point/pressure/humidity/wind/precip are all **tenths** (`97` = 9.7 °C, `10216` = 1021.6
-  hPa, `2700` = 270°), and times are **epoch milliseconds**; printing the raw arrays gives
-  nonsense (see **dwd-station-forecast**);
+  hPa, `2700` = 270°), sunshine is in **tenths of a minute**, and times are **epoch
+  milliseconds**; printing the raw arrays gives nonsense (see **dwd-station-forecast**);
+- the hourly arrays are **not all anchored at `forecast1.start`**: only `temperature` is;
+  the shorter ones (`sunshine`, `humidity`, `precipitationTotal`, …) are end-aligned, and
+  `forecast2` is a 3-hourly continuation, not an hourly copy;
 - an **unknown station id returns `{}` with exit `0`**, not a 404 — "no data" is silently a
   bad id, not calm weather;
 - forecast value arrays can be **`null` even when the series exists** (live `windSpeed`,
@@ -98,17 +101,20 @@ non-obvious parts of this API, for example:
   `precipitationProbablity` upstream;
 - the warning feeds have **different envelope shapes** — nowcast/gemeinde give
   `warnings: [...]`, but **coast gives `warnings: { <zoneId>: [...] }`** (an object keyed by
-  zone), and the headline key differs (`headLine` vs coast's `headline`); in `--lang en`
-  only `event`/`descriptionText` translate and the headline is undefined;
+  zone) whose items carry no geometry or start/end, and the headline key differs
+  (`headLine` vs coast's `headline`); nowcast's `headLine` is just `NowCastMIX` (and absent
+  in `--lang en`), so its readable label is `event`;
 - warnings carry **no `regionName`** — `regions[]` is geometry only; for mapping, the
   region's `polygonGeometry` is already valid `[lon, lat]` GeoJSON (the flat `polygon` array
   is the opposite `[lat, lon]` order, and `triangles` is render data, not geometry) — see
   **dwd-warning-map**;
 - the nowcast feed emits several **near-duplicate** entries for one storm (same `warnId`
   prefix before the `_`); the briefing collapses them (see **dwd-warning-briefing**);
-- the **crowd feed is last-hour only** (`windowsSizeHours: 1`), thousands of unverified
-  user reports dominated by `BEWOELKUNG` cloud-cover noise — filter by place/category before
-  trusting it as ground truth (see **dwd-crowd-check**).
+- the **crowd feed spans about 12 hours, not one** (`windowsSizeHours: 1` notwithstanding —
+  use `start`/`end` and each report's `timestamp`), with hundreds to thousands of unverified
+  user reports dominated by `BEWOELKUNG` cloud-cover noise — filter by time, place and
+  category before trusting it as ground truth, and keep photo URLs and exact coordinates
+  out of answers (see **dwd-crowd-check**).
 
 ## Contributing
 

@@ -73,7 +73,9 @@ Statischer Feed. Client: `client.warnings.gemeinde(lang)`. CLI: `warnings gemein
 
 **Küstenwarnungen (`warnings_coast.json`).** Wetterwarnungen für die Küste, wobei
 `warnings` nach Küstenzone (und nach *Binnensee*-Gebieten) geschlüsselt ist.
-Statischer Feed. Client: `client.warnings.coast(lang)`. CLI: `warnings coast`.
+Anders als die Nowcast- und Gemeindewarnungen haben die Küstenwarnungen keine
+`regions`-Geometrie und kein `start`/`end`. Statischer Feed. Client:
+`client.warnings.coast(lang)`. CLI: `warnings coast`.
 
 **Crowd-Übersicht (`crowd_meldungen_overview_v2.json`).** Eine Übersicht der von
 App-Nutzern eingereichten Wetter-*Meldungen*. Statischer Feed.
@@ -90,7 +92,11 @@ kommagetrennte Liste sein (`--id 10865,01766`). Beide Formen sind gleichwertig �
 werden kommagetrennt als `stationIds=10865,01766` an den Webdienst gesendet.
 
 **`forecast1` / `forecast2`.** Zwei Vorhersagereihen je Station in einer
-Stationsübersicht – stündliche bzw. kurzfristige Vorhersagedaten für diese Station.
+Stationsübersicht. `forecast1` ist stündlich (`timeStep` 3600000) ab Mitternacht des
+aktuellen Tages: `temperature` reicht zehn Tage ab `start`, die kürzeren Arrays
+(`precipitationTotal`, `sunshine`, `humidity` …) sind dagegen am Ende ausgerichtet: Sie
+enden bei `start` + 72 h und beginnen nicht bei `start`. `forecast2` setzt dort in Dreistundenschritten fort
+(`timeStep` 10800000) und ist keine stündliche Kopie von `forecast1`.
 
 **`days`.** Der Block mit der mehrtägigen Vorhersagezusammenfassung einer Stationsübersicht.
 
@@ -104,10 +110,13 @@ also Warnungen, die für den Standort dieser Station relevant sind.
 er gibt an, wann der Feed erzeugt wurde.
 
 **`binnenSee`.** *Binnensee.* Ein optionaler Block in den Envelopes der Nowcast- und
-Gemeinde-Warnfeeds mit Warnungen für Binnenseen (große Seen).
+Gemeinde-Warnfeeds mit Warnungen für Binnenseen (große Seen). Ohne aktive Warnungen
+kam er als `null` (Nowcast) bzw. `{}` (Gemeinde) zurück.
 
 **`meldungen`.** Das Array der Crowd-Meldungen in der Crowd-Übersicht. Kann von
-`start`, `end` und `highestSeverities` begleitet sein.
+`start`, `end` und `highestSeverities` begleitet sein. `start`/`end` begrenzen das
+Zeitfenster der Meldungen (bei der Prüfung 12 Stunden); das Feld `windowsSizeHours`
+des Feeds passte nicht zu diesem Fenster, verlässlich ist der `timestamp` jeder Meldung.
 
 **Küstenzone.** Der Schlüssel, nach dem Küstenwarnungen im Küsten-Feed gruppiert
 sind (jede Zone verweist auf ihr eigenes Warnungsobjekt).
