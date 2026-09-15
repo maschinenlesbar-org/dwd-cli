@@ -49,8 +49,8 @@ Each station value has:
 
 | Key | What it is |
 |---|---|
-| `forecast1` | The main **hourly** series. `start` (epoch ms) + `timeStep` (ms, `3600000` = 1 h) + parallel value arrays (`temperature`, `precipitationTotal`, `humidity`, `surfacePressure`, `dewPoint2m`, `sunshine`, …). Index `i` ⇒ time `start + i*timeStep`. |
-| `forecast2` | A second/longer-range hourly series, same shape. |
+| `forecast1` | The main **hourly** series. `start` (epoch ms, midnight local time of the current day) + `timeStep` (ms, `3600000` = 1 h) + value arrays (`temperature`, `precipitationTotal`, `humidity`, `surfacePressure`, `dewPoint2m`, `sunshine`, …). The arrays have **different lengths and are not all anchored at `start`** — see "Align the arrays" below. |
+| `forecast2` | **Not** an hourly copy: a **3-hourly** continuation (`timeStep` `10800000`) that starts where the hourly arrays end (`forecast1.start` + 72 h). Element `j` covers the 3 h ending at `forecast2.start + (j+1)*timeStep` — totals (rain, sunshine) over those 3 h, other values at their end. Its `temperature` came back empty `[]`; use `days` for temperatures beyond day 3. |
 | `days` | Array of multi-day summaries (`temperatureMin/Max`, `precipitation`, `windSpeed`, `windGust`, `windDirection`, `sunrise`/`sunset`/`moonrise`/`moonset`, `icon`, `dayDate`). |
 | `threeHourSummaries` | 3-hourly aggregates — **often `null`**; tolerate it. |
 | `warnings` | Warnings for this station's location — usually `[]`. |
@@ -69,19 +69,55 @@ The DWD numbers are scaled integers; printing them raw gives nonsense like "temp
 | `windSpeed`, `windGust` | ÷ 10 → **km/h** | `167` → 16.7, `445` → 44.5 km/h |
 | `windDirection` | ÷ 10 → **degrees** | `2700` → 270° (W) |
 | `precipitation`, `precipitationTotal` | ÷ 10 → **mm** | `14` → 1.4 mm |
-| `sunshine` | minutes within the period (no scaling) | |
+| `sunshine` (hourly and `days`) | ÷ 10 → **minutes** of sunshine in the period (tenths of a minute) | `350` → 35 min in that hour, `3300` → 330 min that day |
 | `sunrise`/`sunset`/`moonrise`/`moonset`, `start` | **epoch milliseconds** — ÷ 1000 for a normal timestamp; format in local/CET time | |
 | `icon` / `icon1` / `icon2` | small int weather-symbol code — describe loosely or omit, don't fabricate an exact meaning | |
 
-> **Trap: value arrays can be `null`** even when the series exists — e.g. `windSpeed`,
-> `windGust`, `windDirection`, `precipitationProbablity`, `cloudCoverTotal` were all `null`
-> in live `forecast1` while `temperature` and `precipitationTotal` were populated. Always
-> null-check an array before indexing; report "not provided" rather than crashing or
-> printing `0`.
-> **Trap: array lengths can differ** between fields — align everything to the time axis
-> from `forecast1.start` + `i*timeStep`, not by assuming equal lengths.
+> **Trap: value arrays can be `null` or empty `[]`** even when the series exists — e.g.
+> `windSpeed`, `windGust`, `windDirection` and `precipitationProbablity` were `null` and
+> `cloudCoverTotal` was `[]` in live `forecast1` while `temperature` and
+> `precipitationTotal` were populated. Always check an array before indexing; report "not
+> provided" rather than crashing or printing `0`.
 > **Spelling:** the precipitation-probability key is misspelled `precipitationProbablity`
 > in the API (and `precipitationProbablityIndex`) — use the exact key.
+
+### Align the arrays — only `temperature` starts at `forecast1.start`
+
+Checked on 2026-09-15 against DWD's own MOSMIX forecast for the same stations:
+
+- **`temperature`** (and `temperatureStd`) is the full series: `temperature[i]` is the value
+  at `start + i*timeStep`.
+- **Every shorter array is end-aligned.** Its last element belongs to `start` + 72 h (where
+  `forecast2` begins), the one before to `start` + 71 h, and so on: in an array of length
+  `n`, element `j` belongs to `start + (73 − n + j) h`. `humidity`, `dewPoint2m` and
+  `surfacePressure` are the values at that time; `precipitationTotal` and `sunshine` are the
+  totals for the **hour ending** then.
+- The short arrays begin around the current hour and get shorter as the day goes on (at
+  22:10 CEST `sunshine` had 53 values, the first for 19:00–20:00; `humidity` had 51, the first at
+  22:00; `precipitationTotal` had 72, the first for 00:00–01:00). **Indexing them from
+  `start` puts sunshine at night and shifts humidity and pressure by up to a day.**
+
+A helper that does the alignment (next 6 hours; rain and sunshine for the hour that starts
+at the listed time):
+
+```bash
+dwd --compact station-overview --id 10147 > so.json
+TZ=Europe/Berlin jq -r --arg id 10147 '
+  .[$id].forecast1 as $f
+  | def at($name; $h):   # element of array $name stamped start + $h hours
+      ($f[$name] // []) as $a
+      | ($h - 73 + ($a | length)) as $j
+      | if $j >= 0 and $j < ($a | length) then $a[$j] / 10 else null end;
+  def show($v; $unit): if $v == null then "n/a" else "\($v) \($unit)" end;
+    ((now * 1000 - $f.start) / $f.timeStep | floor) as $i
+  | range($i; $i + 6) as $h
+  | [ ($f.start + $h * $f.timeStep) / 1000 | strflocaltime("%H:%M"),
+      show($f.temperature[$h] / 10; "°C"),
+      "rain " + show(at("precipitationTotal"; $h + 1); "mm"),
+      "sun " + show(at("sunshine"; $h + 1); "min"),
+      "humidity " + show(at("humidity"; $h); "%") ]
+  | join("  ")' so.json
+```
 
 ## Step 4 — Present the forecast
 
@@ -89,8 +125,9 @@ Pick the slice the user asked for; don't dump 240 hourly points.
 
 - **"forecast for <city>"** → today + next 2–3 days from `days`: per day show min/max °C,
   precipitation mm, wind km/h + direction, sunrise/sunset.
-- **"will it rain / next few hours"** → next ~12 entries of `forecast1`: hour, temp,
-  precip mm (and probability if present).
+- **"will it rain / next few hours"** → the next ~12 hours from **now**, not the first
+  entries (`forecast1` starts at midnight): hour, temp, precip mm (and probability if
+  present), aligned as in the helper above.
 - **city-vs-city** → one row per station, side by side.
 
 ```
