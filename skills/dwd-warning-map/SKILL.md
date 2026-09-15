@@ -5,8 +5,8 @@ description: >
   dwd-cli. Trigger when the user asks to "map the thunderstorm warnings",
   "export DWD warnings as GeoJSON", "show the warning areas on a map", "plot the
   Gemeinde warnings", or wants the warning polygons as geodata for Leaflet /
-  geojson.io / QGIS. Pulls the nowcast / Gemeinde / coast feeds and emits a clean
-  FeatureCollection of warning-area polygons.
+  geojson.io / QGIS. Pulls the nowcast and Gemeinde feeds (coast warnings carry
+  no geometry) and emits a clean FeatureCollection of warning-area polygons.
 version: 1.0.0
 userInvocable: true
 ---
@@ -31,18 +31,21 @@ Pick the feed(s) the user wants and fetch each:
 ```bash
 dwd --compact warnings nowcast    # short-fuse (thunderstorm) polygons
 dwd --compact warnings gemeinde   # municipality-level warning polygons
-dwd --compact warnings coast      # coastal zones
+dwd --compact warnings coast      # coastal zones — text only, no polygons (see below)
 ```
 
 Envelope shapes differ:
-- `nowcast` / `gemeinde`: `{ time, warnings: [ {…, regions:[…]}, … ] }` — `warnings` is an
-  **array**.
-- `coast`: `{ time, warnings: { <zoneId>: [ {…}, … ] } }` — `warnings` is an **object keyed
-  by zone**; iterate `Object.entries` and carry the zone id into properties.
+- `nowcast` / `gemeinde`: `{ time, warnings: [ {…, regions:[…]}, … ], binnenSee }` —
+  `warnings` is an **array**. `binnenSee` (inland-lake warnings) was `null` in nowcast and
+  `{}` in gemeinde when there were none.
+- `coast`: `{ time, warnings: { <zoneId>: [ {…}, … ] }, vorabInformation }` — `warnings` is
+  an **object keyed by zone**. Its items have **no `regions`** (checked live on
+  2026-09-15), so there is nothing to map: for a coast request, list the zone ids with
+  `event`/`level` instead and say the feed has no geometry.
 
 ## Step 2 — Build the GeoJSON — geometry handling is the whole job
 
-Each warning carries a `regions` array. Each region has, redundantly:
+Each nowcast/gemeinde warning carries a `regions` array. Each region has, redundantly:
 
 - `polygonGeometry` — **already a valid GeoJSON `Polygon`** in `[lon, lat]` order. **Use
   this directly** as the feature geometry.
@@ -63,12 +66,11 @@ const feature = {
   type: "Feature",
   geometry: region.polygonGeometry,          // already [lon,lat] GeoJSON Polygon
   properties: {
-    feed,                                     // "nowcast" | "gemeinde" | "coast"
-    zone,                                     // coast: the object key; else undefined
+    feed,                                     // "nowcast" | "gemeinde"
     warnId: w.warnId,
     event: w.event,
     level: w.level,
-    headline: w.headLine ?? w.headline,       // nowcast/gemeinde: headLine; coast: headline
+    headline: feed === "nowcast" ? w.event : w.headLine, // nowcast headLine is "NowCastMIX"
     description: w.descriptionText ?? w.description,
     start: w.start, end: w.end,               // epoch ms — keep raw, or ISO-ify
     isVorabinfo: w.isVorabinfo === true,
@@ -77,8 +79,9 @@ const feature = {
 ```
 
 Notes:
-- The headline key differs by feed: `headLine` (nowcast/gemeinde) vs `headline` (coast) —
-  read both. In `--lang en` the headline is undefined; fall back to `event`.
+- Gemeinde's `headLine` is a real headline (`Amtliche WARNUNG vor GEWITTER`, translated in
+  `--lang en`). Nowcast's `headLine` is only the product name `NowCastMIX` in German and is
+  absent in `--lang en` — label nowcast features with `event`.
 - Drop `undefined`/empty properties to keep output clean.
 - Skip (and count) any region with no usable geometry.
 - Wrap all features: `{ "type": "FeatureCollection", "features": [ … ] }`.
@@ -99,8 +102,9 @@ Validity checklist before handing it over:
 
 ## Known quirks
 
-- **Coast `warnings` is keyed by zone**, not a flat array — easy to iterate as an array by
-  mistake and get nothing. Use `Object.entries`.
+- **Coast has no geometry.** Its `warnings` is keyed by zone, not a flat array, and its items
+  carry no `regions` (nor `start`/`end`). A coast-only export yields zero features — say the
+  coast feed can't be mapped and list the affected zone ids instead.
 - Warning **volume is usually small** (a handful of active warnings), but each polygon can
   be dense (40+ vertices) — fine for a map layer, but warn before dumping the raw GeoJSON
   inline as text.
