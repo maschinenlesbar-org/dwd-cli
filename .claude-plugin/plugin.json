@@ -1,6 +1,6 @@
 {
   "name": "dwd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Live German weather-warning and forecast skills powered by the dwd-cli (DWD Warnwetter app API).",
   "author": {
     "name": "Sebastian Schürmann",
