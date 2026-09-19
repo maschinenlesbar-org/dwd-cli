@@ -21,9 +21,9 @@ user has to read and reconcile.
 
 ## Tooling
 
-All data comes from the `dwd` CLI — read-only, no API key, each feed is **one command**. The job of this skill is the cross-feed merge and the severity ranking the CLI deliberately doesn't do.
-
 This skill drives the `dwd` command. **Before anything else, validate it is available** — run `command -v dwd` (or `dwd --version`). If it is not on your PATH, STOP and inform the user that the `dwd` CLI (`@maschinenlesbar.org/dwd-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+All data comes from the `dwd` CLI — read-only, no API key, each feed is **one command**. The job of this skill is the cross-feed merge and the severity ranking the CLI deliberately doesn't do.
 
 Always pass `--compact` so each feed is one line, easy to pipe into `jq`. Bump
 `--timeout 60000` if a feed times out. An **empty `warnings` array (or empty coast object)
