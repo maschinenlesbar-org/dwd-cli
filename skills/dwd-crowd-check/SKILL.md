@@ -8,8 +8,11 @@ description: >
   flooding/lightning around me?", or wants ground-truth observations from the DWD
   Warnwetter crowd feed. Filters reports by location and category and summarises
   what users are actually seeing.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli) on PATH,
+  installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to app-prod-ws.warnwetter.de and
+  s3.eu-central-1.amazonaws.com (DWD static data).
 ---
 
 # DWD Crowd Report Check
@@ -22,6 +25,8 @@ summarising**, since the raw feed is hundreds to thousands of unsorted points.
 ## Tooling
 
 This skill drives the `dwd` command. **Before anything else, validate it is available** — run `command -v dwd` (or `dwd --version`). If it is not on your PATH, STOP and inform the user that the `dwd` CLI (`@maschinenlesbar.org/dwd-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Pass `--compact`. The feed is large (hundreds to thousands of reports; check
 `.meldungen | length`) — bump `--timeout 60000` if it times out, and never dump it raw.

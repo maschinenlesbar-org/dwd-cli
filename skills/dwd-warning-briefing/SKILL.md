@@ -8,8 +8,11 @@ description: >
   or wants a quick read on current official warnings. Merges the nowcast,
   Gemeinde (municipality) and coast feeds, ranks by DWD severity level, and
   reports plain-language headlines instead of three raw JSON envelopes.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli) on PATH,
+  installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to app-prod-ws.warnwetter.de and
+  s3.eu-central-1.amazonaws.com (DWD static data).
 ---
 
 # DWD Warning Briefing
@@ -22,6 +25,8 @@ user has to read and reconcile.
 ## Tooling
 
 This skill drives the `dwd` command. **Before anything else, validate it is available** — run `command -v dwd` (or `dwd --version`). If it is not on your PATH, STOP and inform the user that the `dwd` CLI (`@maschinenlesbar.org/dwd-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 All data comes from the `dwd` CLI — read-only, no API key, each feed is **one command**. The job of this skill is the cross-feed merge and the severity ranking the CLI deliberately doesn't do.
 

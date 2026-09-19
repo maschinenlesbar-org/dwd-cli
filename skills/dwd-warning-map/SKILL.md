@@ -7,8 +7,10 @@ description: >
   Gemeinde warnings", or wants the warning polygons as geodata for Leaflet /
   geojson.io / QGIS. Pulls the nowcast and Gemeinde feeds (coast warnings carry
   no geometry) and emits a clean FeatureCollection of warning-area polygons.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli) on PATH,
+  installed by the user; the skill never installs it. Network access to
+  app-prod-ws.warnwetter.de and s3.eu-central-1.amazonaws.com (DWD static data).
 ---
 
 # DWD Warnings → GeoJSON Export
