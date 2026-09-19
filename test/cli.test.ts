@@ -161,3 +161,19 @@ test("--timeout accepts up to the largest timer Node supports and rejects more",
   assert.equal(over.mt.calls.length, 0);
   assert.match(over.err.join("\n"), /2147483647/);
 });
+
+test("a non-http(s) or malformed --base-url / --static-base-url is a usage error before any request", async () => {
+  const cases: Array<[string, string[]]> = [
+    ["--base-url", ["station-overview", "--id", "10865"]],
+    ["--static-base-url", ["warnings", "gemeinde"]],
+  ];
+  for (const [option, command] of cases) {
+    for (const bad of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
+      const cli = makeCli(() => jsonResponse({}));
+      const code = await run([option, bad, ...command], cli.deps);
+      assert.equal(code, 2, `${option} ${bad} should exit 2`);
+      assert.equal(cli.mt.calls.length, 0, `${option} ${bad} must not reach the transport`);
+      assert.match(cli.err.join("\n"), new RegExp(`option '${option} <url>' argument`));
+    }
+  }
+});

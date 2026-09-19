@@ -25,6 +25,27 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/**
+ * commander value-parser for a URL-valued global option (`--base-url`,
+ * `--static-base-url`): an absolute `http:`/`https:` URL. Rejecting anything
+ * else here makes a `file:`, `ftp:` or malformed URL a usage error at parse
+ * time instead of a runtime error from the engine.
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError(
+      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
+    );
+  }
+  return value;
+}
+
 /** Build a commander value-parser for a non-negative integer within [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {
