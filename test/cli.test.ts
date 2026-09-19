@@ -147,3 +147,17 @@ test("subcommand help lists the global options that apply to it", async () => {
   assert.match(help, /--base-url/);
   assert.match(help, /--user-agent/);
 });
+
+test("--timeout accepts up to the largest timer Node supports and rejects more", async () => {
+  const { MAX_TIMEOUT_MS } = await import("../src/client/index.js");
+  assert.equal(MAX_TIMEOUT_MS, 2_147_483_647);
+
+  const cli = makeCli(() => jsonResponse({ "10865": {} }));
+  assert.equal(await run(["--timeout", "2147483647", "station-overview", "--id", "10865"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse({ "10865": {} }));
+  assert.notEqual(await run(["--timeout", "2147483648", "station-overview", "--id", "10865"], over.deps), 0);
+  assert.equal(over.mt.calls.length, 0);
+  assert.match(over.err.join("\n"), /2147483647/);
+});

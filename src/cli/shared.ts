@@ -25,6 +25,16 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/** Build a commander value-parser for a non-negative integer within [min, max]. */
+export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  return (value: string) => {
+    const n = parseIntArg(value);
+    if (n < min) throw new InvalidArgumentError(`Must be >= ${min}.`);
+    if (n > max) throw new InvalidArgumentError(`Must be <= ${max}.`);
+    return n;
+  };
+}
+
 /**
  * Default action for a command that only groups subcommands (the root program
  * and the `warnings` group). A bare invocation prints that command's help to

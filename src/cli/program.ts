@@ -8,7 +8,8 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL } from "../client/client.js";
-import { parseIntArg, helpOrUnknownCommand } from "./shared.js";
+import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { parseBoundedInt, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 
 /**
@@ -51,7 +52,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .version(VERSION)
     .option("--base-url <url>", "live web-service base URL", "https://app-prod-ws.warnwetter.de")
     .option("--static-base-url <url>", "static (S3) bucket base URL", DEFAULT_STATIC_BASE_URL)
-    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseIntArg, 30_000)
+    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg, 2)
     .option(
