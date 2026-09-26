@@ -257,3 +257,21 @@ test("a base URL ending in the version segment the CLI adds is a usage error wit
   assert.equal(await run(["--base-url", "https://mirror.test/v16", "station-overview", "--id", "1"], other.deps), 0);
   assert.equal(new URL(other.mt.last().url).pathname, "/v16/v30/stationOverviewExtended");
 });
+
+test("--user-agent rejects a blank or unsendable value as a usage error, before any request", async () => {
+  for (const [bad, message] of [
+    ["", /Expected a non-empty value\./],
+    ["   ", /Expected a non-empty value\./],
+    ["a\r\nX-Evil: 1", /Value contains control characters\./],
+    ["a" + String.fromCharCode(0x7f), /Value contains control characters\./],
+    ["\u{1F600}", /Value contains characters outside Latin-1 \(above U\+00FF\)\./],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(["--user-agent", bad, "crowd"], cli.deps), 2, JSON.stringify(bad));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+  }
+  const ok = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--user-agent", "my\ttool/1.0 (München)", "crowd"], ok.deps), 0);
+  assert.equal(ok.mt.last().headers?.["User-Agent"], "my\ttool/1.0 (München)");
+});
