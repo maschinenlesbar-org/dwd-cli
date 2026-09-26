@@ -91,8 +91,8 @@ export function parseRetryAfter(
 
 /**
  * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
- * string that originates in an attacker-controlled response — the error `detail`
- * and the echoed Content-Type. `JSON.parse` decodes a backslash-u001b escape in an error
+ * string that originates in an attacker-controlled response — the error `detail`,
+ * a redirect `Location` and the echoed Content-Type. `JSON.parse` decodes a backslash-u001b escape in an error
  * body into a real ESC byte, so without this a hostile or MITM'd endpoint (or a
  * redirect target — redirects are followed here) could drive ANSI/OSC escape
  * sequences into the user's terminal when the message is printed to stderr.
@@ -256,7 +256,7 @@ export class RequestEngine {
             target = new URL(location, url);
           } catch {
             throw new DwdNetworkError(
-              `Invalid redirect Location "${location}" for ${method} ${redactUrl(url)}`,
+              `Invalid redirect Location "${sanitizeServerText(location)}" for ${method} ${redactUrl(url)}`,
             );
           }
           // Enforce the http(s) scheme allowlist on the redirect target here in

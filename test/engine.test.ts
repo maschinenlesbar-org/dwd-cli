@@ -291,3 +291,16 @@ test("base-URL errors redact userinfo", () => {
     (err: unknown) => err instanceof DwdNetworkError && !err.message.includes("s3cret") && err.message.includes("***@"),
   );
 });
+
+test("a malformed redirect Location is printed without its control characters", async () => {
+  const mt = makeMockTransport(() => ({
+    status: 302,
+    headers: { location: `http://[x${CSI}2J${ESC}[31m` },
+    body: Buffer.from(""),
+  }));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) => err instanceof Error && !hasControlChars(err.message) && err.message.includes("http://[x2J[31m"),
+  );
+});
