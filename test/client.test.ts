@@ -64,3 +64,35 @@ test("a 404 raises DwdApiError with status 404", async () => {
     (err) => err instanceof DwdApiError && err.status === 404,
   );
 });
+
+test("an unsupported lang rejects with a DwdError instead of serving the German feed", async () => {
+  const { DwdError } = await import("../src/client/errors.js");
+  const mt = constantJson({ time: 1, warnings: [] });
+  const client = clientWith(mt);
+  for (const call of [
+    () => client.warnings.nowcast("fr" as never),
+    () => client.warnings.gemeinde("EN" as never),
+    () => client.warnings.coast(null as never),
+  ]) {
+    await assert.rejects(call, (err: unknown) => err instanceof DwdError && /^Invalid lang: expected one of de, en, got /.test(err.message));
+  }
+  assert.equal(mt.calls.length, 0);
+});
+
+test("stationOverview rejects an empty list, a blank id or an id with a comma before any request", async () => {
+  const { DwdError } = await import("../src/client/errors.js");
+  const mt = constantJson({});
+  const client = clientWith(mt);
+  await assert.rejects(
+    () => client.weather.stationOverview([]),
+    (err: unknown) => err instanceof DwdError && err.message === "Invalid stationIds: expected at least one station id.",
+  );
+  for (const ids of [["1,2"], ["10865", ""], [" "]]) {
+    await assert.rejects(
+      () => client.weather.stationOverview(ids),
+      (err: unknown) => err instanceof DwdError && /^Invalid station id: expected a non-blank id without commas/.test(err.message),
+      JSON.stringify(ids),
+    );
+  }
+  assert.equal(mt.calls.length, 0);
+});

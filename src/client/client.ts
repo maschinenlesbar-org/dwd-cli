@@ -12,7 +12,8 @@
 //   client.warnings.nowcast("de")
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
-import type { Lang } from "./enums.js";
+import { LangValues, type Lang } from "./enums.js";
+import { DwdError } from "./errors.js";
 import type {
   StationOverview,
   WarningsFeed,
@@ -32,37 +33,69 @@ export interface DwdClientOptions extends EngineOptions {
   staticBaseUrl?: string;
 }
 
-/** German feeds have no suffix; English feeds use the `_en` filename suffix. */
+/**
+ * German feeds have no suffix; English feeds use the `_en` filename suffix. Any
+ * other value (a JS caller, untyped input) throws instead of silently serving the
+ * German feed.
+ */
 function langSuffix(lang: Lang): string {
+  if (!(LangValues as readonly unknown[]).includes(lang)) {
+    throw new DwdError(`Invalid lang: expected one of ${LangValues.join(", ")}, got ${JSON.stringify(lang)}.`);
+  }
   return lang === "en" ? "_en" : "";
+}
+
+/**
+ * The ids joined for the `stationIds` parameter. An empty list, a blank id or one
+ * containing a comma would send an empty slot (`stationIds=` or `1,,2`), which the
+ * API answers with `{}` — indistinguishable from "no such station" — so they throw.
+ */
+function joinStationIds(stationIds: readonly string[]): string {
+  if (!Array.isArray(stationIds) || stationIds.length === 0) {
+    throw new DwdError("Invalid stationIds: expected at least one station id.");
+  }
+  for (const id of stationIds) {
+    if (typeof id !== "string" || id.trim() === "" || id.includes(",")) {
+      throw new DwdError(
+        `Invalid station id: expected a non-blank id without commas, got ${JSON.stringify(id)}.`,
+      );
+    }
+  }
+  return stationIds.join(",");
 }
 
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
   constructor(private readonly e: RequestEngine) {}
 
-  /** Forecasts/observations for one or more DWD station ids. */
-  stationOverview(stationIds: string[]): Promise<StationOverview> {
-    return this.e.getJson(`${WS}/stationOverviewExtended`, { stationIds: stationIds.join(",") });
+  /**
+   * Forecasts/observations for one or more DWD station ids. An empty list, a blank
+   * id or one with a comma rejects with a DwdError before any request.
+   */
+  async stationOverview(stationIds: string[]): Promise<StationOverview> {
+    return this.e.getJson(`${WS}/stationOverviewExtended`, { stationIds: joinStationIds(stationIds) });
   }
 }
 
-/** Static bucket: the published warning feeds. */
+/**
+ * Static bucket: the published warning feeds. A `lang` other than "de" / "en"
+ * rejects with a DwdError before any request.
+ */
 class WarningsResource {
   constructor(private readonly e: RequestEngine) {}
 
   /** Short-term (nowcast) warnings. */
-  nowcast(lang: Lang = "de"): Promise<WarningsFeed> {
+  async nowcast(lang: Lang = "de"): Promise<WarningsFeed> {
     return this.e.getJson(`${STATIC}/warnings_nowcast${langSuffix(lang)}.json`);
   }
 
   /** Municipality-level warnings. */
-  gemeinde(lang: Lang = "de"): Promise<WarningsFeed> {
+  async gemeinde(lang: Lang = "de"): Promise<WarningsFeed> {
     return this.e.getJson(`${STATIC}/gemeinde_warnings_v2${langSuffix(lang)}.json`);
   }
 
   /** Coastal warnings (keyed by coastal zone). */
-  coast(lang: Lang = "de"): Promise<CoastWarningsFeed> {
+  async coast(lang: Lang = "de"): Promise<CoastWarningsFeed> {
     return this.e.getJson(`${STATIC}/warnings_coast${langSuffix(lang)}.json`);
   }
 }
