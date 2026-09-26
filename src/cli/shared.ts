@@ -43,6 +43,17 @@ export function parseBaseUrl(value: string): string {
       `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
     );
   }
+  // The engine refuses a base URL with a query or fragment (request paths are
+  // appended to the base's path); catch it here so it is a usage error, not a
+  // network error after parsing.
+  if (/[?#]/.test(value)) {
+    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
+  }
+  // new URL() trims surrounding whitespace silently; the raw value is what the
+  // engine uses, so reject it rather than guess.
+  if (value !== value.trim()) {
+    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
+  }
   return value;
 }
 

@@ -202,3 +202,26 @@ test("leaf commands reject extra positional arguments instead of ignoring them",
     assert.match(cli.err.join("\n"), /too many arguments/, argv.join(" "));
   }
 });
+
+test("a --base-url / --static-base-url with a query, fragment or surrounding whitespace is a usage error", async () => {
+  const cases: Array<[string, string[]]> = [
+    ["--base-url", ["station-overview", "--id", "10865"]],
+    ["--static-base-url", ["crowd"]],
+  ];
+  for (const [option, command] of cases) {
+    for (const [bad, message] of [
+      ["http://127.0.0.1:1/ok?x=1", /query \(\?\) or fragment \(#\)/],
+      ["http://127.0.0.1:1/echo#frag", /query \(\?\) or fragment \(#\)/],
+      ["http://127.0.0.1:1/?", /query \(\?\) or fragment \(#\)/],
+      [" http://127.0.0.1:1/", /surrounding whitespace/],
+    ] as const) {
+      const cli = makeCli(() => jsonResponse({}));
+      assert.equal(await run([option, bad, ...command], cli.deps), 2, `${option} ${bad}`);
+      assert.equal(cli.mt.calls.length, 0);
+      assert.match(cli.err.join("\n"), message);
+    }
+  }
+  const ok = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--static-base-url", "https://mirror.test/prefix/", "crowd"], ok.deps), 0);
+  assert.equal(ok.mt.last().url, "https://mirror.test/prefix/v16/crowd_meldungen_overview_v2.json");
+});
