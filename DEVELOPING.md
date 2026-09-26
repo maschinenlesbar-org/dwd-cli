@@ -193,6 +193,11 @@ array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crow
 never the records inside. Anything else throws `DwdParseError` with the text
 `Unexpected response shape from <path>: expected <what>.`
 
+**Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when
+none is given; a leading byte-order mark is dropped); an unknown charset is a
+`DwdParseError`. A body that does not parse raises `DwdParseError`
+`Failed to parse JSON response from <path>: <the parser's reason>`.
+
 **Content-Type guard.** A `200` response whose `Content-Type` is clearly not JSON
 (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming the
 actual type, rather than being fed to `JSON.parse`.

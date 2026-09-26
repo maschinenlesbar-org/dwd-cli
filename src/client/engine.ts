@@ -350,11 +350,18 @@ export class RequestEngine {
         `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(mediaType(res.contentType))}"`,
       );
     }
-    const text = res.data.toString("utf8");
+    const text = decodeBody(res.data, res.contentType, path);
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new DwdParseError(`Failed to parse JSON response from ${path}`, { cause });
+      // Name the parser's reason (position/token, "Unexpected end of JSON input"):
+      // the CLI never prints `cause`, and an empty, truncated or garbled body
+      // otherwise all read the same. It can quote the body, so it is sanitised.
+      const reason = cause instanceof Error ? sanitizeServerText(cause.message) : "";
+      throw new DwdParseError(
+        `Failed to parse JSON response from ${path}${reason ? `: ${reason}` : ""}`,
+        { cause },
+      );
     }
   }
 
@@ -382,6 +389,25 @@ export class RequestEngine {
       status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
     return new DwdApiError({ status, url, method, body: text, detail, location });
   }
+}
+
+/**
+ * Decode a response body by the charset of its Content-Type (UTF-8 when none is
+ * given, as JSON requires). A leading byte-order mark is dropped: TextDecoder does
+ * that by default, where Buffer#toString kept it and JSON.parse then failed. DWD
+ * sends UTF-8; this matters for proxies and mirrors that re-encode.
+ */
+function decodeBody(body: Buffer, contentType: string, path: string): string {
+  const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(charset);
+  } catch {
+    throw new DwdParseError(
+      `Unsupported response charset "${sanitizeServerText(charset)}" from ${path}.`,
+    );
+  }
+  return decoder.decode(body);
 }
 
 /**

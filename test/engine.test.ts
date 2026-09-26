@@ -359,3 +359,40 @@ test("numeric engine options must be integers in range; a negative timeoutMs no 
   // 0 stays valid: no timeout, no retries, no redirects, no size cap.
   new RequestEngine({ timeoutMs: 0, maxRetries: 0, retryDelayMs: 0, maxRedirects: 0, maxResponseBytes: 0 });
 });
+
+test("a UTF-8 BOM is ignored and the Content-Type charset is honoured", async () => {
+  const bom = makeMockTransport(() =>
+    rawResponse(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}')]), "application/json"),
+  );
+  assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/x"), { a: 1 });
+
+  const latin1 = makeMockTransport(() =>
+    rawResponse(Buffer.from('{"place":"München"}', "latin1"), "application/json; charset=iso-8859-1"),
+  );
+  assert.deepEqual(await new RequestEngine({ transport: latin1.transport }).getJson("/x"), { place: "München" });
+
+  const unknown = makeMockTransport(() => rawResponse("{}", `application/json; charset=x-bogus${ESC}[2J`));
+  await assert.rejects(
+    () => new RequestEngine({ transport: unknown.transport }).getJson("/x"),
+    (err: unknown) =>
+      err instanceof DwdParseError && err.message === 'Unsupported response charset "x-bogus[2J" from /x.',
+  );
+});
+
+test("a JSON parse error names the parser's reason", async () => {
+  for (const [body, reason] of [
+    ["", /: Unexpected end of JSON input$/],
+    ['{"a":', /: Unexpected end of JSON input$/],
+    ["nope", /: Unexpected token/],
+  ] as const) {
+    const mt = makeMockTransport(() => rawResponse(body, "application/json"));
+    await assert.rejects(
+      () => new RequestEngine({ transport: mt.transport }).getJson("/x"),
+      (err: unknown) =>
+        err instanceof DwdParseError &&
+        err.message.startsWith("Failed to parse JSON response from /x: ") &&
+        reason.test(err.message),
+      JSON.stringify(body),
+    );
+  }
+});
