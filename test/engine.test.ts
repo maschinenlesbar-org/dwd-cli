@@ -332,3 +332,30 @@ test("only 301/302/303/307/308 are followed; another 3xx names its target and is
       err.message === "HTTP 302 for GET https://example.test/x: redirect not followed (no Location header)",
   );
 });
+
+test("numeric engine options must be integers in range; a negative timeoutMs no longer disables the timeout", () => {
+  const bad: Array<[string, number]> = [
+    ["timeoutMs", -5],
+    ["timeoutMs", Number.NaN],
+    ["timeoutMs", 1.5],
+    ["timeoutMs", 2 ** 31],
+    ["maxRetries", -1],
+    ["maxRetries", Number.POSITIVE_INFINITY],
+    ["maxRetries", 11],
+    ["retryDelayMs", 30_001],
+    ["maxRedirects", Number.NaN],
+    ["maxRedirects", 21],
+    ["maxResponseBytes", -1],
+  ];
+  for (const [name, value] of bad) {
+    assert.throws(
+      () => new RequestEngine({ [name]: value }),
+      (err: unknown) =>
+        err instanceof Error &&
+        err.message.startsWith(`Invalid option ${name}: expected an integer from 0 to `),
+      `${name}=${value}`,
+    );
+  }
+  // 0 stays valid: no timeout, no retries, no redirects, no size cap.
+  new RequestEngine({ timeoutMs: 0, maxRetries: 0, retryDelayMs: 0, maxRedirects: 0, maxResponseBytes: 0 });
+});

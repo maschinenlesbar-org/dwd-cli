@@ -158,6 +158,12 @@ failure/timeout), `DwdParseError` (bad/non-JSON body), all extending `DwdError`.
 The CLI maps `404` to exit code `4`, other API statuses to `5`, network failures
 to `6`, parse failures to `7`, and any other error to `1`.
 
+**Engine options.** The numeric options (`timeoutMs`, `maxRetries`,
+`retryDelayMs`, `maxRedirects`, `maxResponseBytes`) must be integers within their
+documented range (`0` = off for the timeout and the size cap); anything else — a
+negative, fractional, `NaN` or oversized value — makes the constructor throw a
+`DwdError` naming the option.
+
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
 the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed by

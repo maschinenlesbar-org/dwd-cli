@@ -2,9 +2,9 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DwdApiError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
+import { DwdApiError, DwdError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://app-prod-ws.warnwetter.de";
 const DEFAULT_USER_AGENT = "dwd-cli";
@@ -19,6 +19,11 @@ export interface RawResponse {
   status: number;
 }
 
+/**
+ * Options for {@link RequestEngine} and the client. The numeric options must be
+ * integers within their documented range; anything else (negative, fractional,
+ * NaN, Infinity, too large) makes the constructor throw a DwdError.
+ */
 export interface EngineOptions {
   /** Base URL of the API. Defaults to https://app-prod-ws.warnwetter.de */
   baseUrl?: string;
@@ -28,19 +33,23 @@ export interface EngineOptions {
   userAgent?: string;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables).
+   * only idle gaps (0 = no timeout; at most `MAX_TIMEOUT_MS`, 2^31 - 1 ms).
    */
   timeoutMs?: number;
   /**
-   * Number of automatic retries for transient (429/503) responses. Each waits the
+   * Number of automatic retries for transient (429/503) responses, 0..`MAX_RETRIES`
+   * (10). Each waits the
    * response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
    * retried), or else `retryDelayMs * attempt`.
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly); used without a
+   * Retry-After. At most `MAX_RETRY_AFTER_MS`.
+   */
   retryDelayMs?: number;
   /**
-   * Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. Any
+   * Number of HTTP redirects (301/302/303/307/308) to follow, 0..20. Defaults to 5. Any
    * other 3xx (300, 304, 305, ...) is not followed and surfaces as a DwdApiError
    * naming the target.
    */
@@ -63,7 +72,7 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
  */
 const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
-/** The most retries the CLI's `--max-retries` accepts. */
+/** Most automatic retries a caller may ask for (the CLI's --max-retries shares it). */
 export const MAX_RETRIES = 10;
 
 /**
@@ -142,6 +151,24 @@ function mediaType(contentType: string): string {
   return (semi === -1 ? contentType : contentType.slice(0, semi)).trim();
 }
 
+/** Most redirects a caller may let the engine follow (the Fetch standard's limit). */
+const MAX_REDIRECTS = 20;
+
+/**
+ * Read a numeric engine option: `undefined` gives the default; anything but an
+ * integer in [0, max] throws. Without this a negative or NaN `timeoutMs` silently
+ * disabled the timeout, and `maxResponseBytes: -1` the size cap.
+ */
+function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+    throw new DwdError(
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+    );
+  }
+  return value;
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -157,11 +184,16 @@ export class RequestEngine {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.maxRetries = options.maxRetries ?? 2;
-    this.retryDelayMs = options.retryDelayMs ?? 200;
-    this.maxRedirects = options.maxRedirects ?? 5;
-    this.maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
+    this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
+    this.maxRedirects = intOption("maxRedirects", options.maxRedirects, 5, MAX_REDIRECTS);
+    this.maxResponseBytes = intOption(
+      "maxResponseBytes",
+      options.maxResponseBytes,
+      DEFAULT_MAX_RESPONSE_BYTES,
+      Number.MAX_SAFE_INTEGER,
+    );
     this.sleep = options.sleep ?? realSleep;
   }
 

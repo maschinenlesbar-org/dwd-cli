@@ -63,7 +63,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       parseServiceBaseUrl("/v16"),
       DEFAULT_STATIC_BASE_URL,
     )
-    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)
+    .option("--timeout <ms>", "time limit per request in milliseconds, whole response included (0 = no timeout)", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)
     .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
     .option(
       "--max-retries <n>",
