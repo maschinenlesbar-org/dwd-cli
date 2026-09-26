@@ -164,9 +164,10 @@ not retried) or else backing off linearly — the number of retries is tunable w
 and is an internal default, not a CLI flag.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
-redirects (301/302/303/307/308). On a cross-origin redirect, sensitive headers
-(`Authorization`/`X-API-Key`/`Cookie`) are stripped so credentials issued for one
-host are never forwarded to another.
+redirects (301/302/303/307/308). Any other 3xx (such as `304`) is not followed: it
+surfaces as an API error that names the target (exit `5`). On a cross-origin
+redirect, sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) are stripped so
+credentials issued for one host are never forwarded to another.
 
 **Decompression bomb cap.** `maxResponseBytes` (default 100 MiB; `0` = unlimited)
 bounds both the wire bytes and the *decompressed* output, so a small compressed

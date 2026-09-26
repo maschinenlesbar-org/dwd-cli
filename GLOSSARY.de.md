@@ -167,9 +167,11 @@ wird nicht wiederholt), sonst mit linearem Backoff – die Zahl der Retries läs
 Versuchen wächst linear und ist ein interner Standardwert, keine CLI-Option.
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
-HTTP-Weiterleitungen (301/302/303/307/308). Bei einer Weiterleitung auf einen anderen
-Origin werden sensible Header (`Authorization`/`X-API-Key`/`Cookie`) entfernt, sodass
-Zugangsdaten für einen Host nie an einen anderen weitergegeben werden.
+HTTP-Weiterleitungen (301/302/303/307/308). Jeder andere 3xx-Status (etwa `304`) wird
+nicht verfolgt, sondern als API-Fehler gemeldet, der das Ziel nennt (Exit `5`). Bei einer
+Weiterleitung auf einen anderen Origin werden sensible Header
+(`Authorization`/`X-API-Key`/`Cookie`) entfernt, sodass Zugangsdaten für einen Host nie
+an einen anderen weitergegeben werden.
 
 **Schutz vor Dekompressionsbomben.** `maxResponseBytes` (Standard 100 MiB; `0` =
 unbegrenzt) begrenzt sowohl die übertragenen Bytes als auch die *entpackte* Ausgabe,

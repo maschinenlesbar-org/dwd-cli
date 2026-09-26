@@ -39,7 +39,11 @@ export interface EngineOptions {
   maxRetries?: number;
   /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
   retryDelayMs?: number;
-  /** Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. */
+  /**
+   * Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. Any
+   * other 3xx (300, 304, 305, ...) is not followed and surfaces as a DwdApiError
+   * naming the target.
+   */
   maxRedirects?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
@@ -51,6 +55,13 @@ export interface EngineOptions {
 }
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+
+/**
+ * The redirect statuses the engine follows. 300 (a choice for the user), 304 (a
+ * cache answer to a conditional request this client never sends) and 305/306
+ * (deprecated) are not redirects to follow; they surface as a DwdApiError.
+ */
+const FOLLOWED_REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
 /** The most retries the CLI's `--max-retries` accepts. */
 export const MAX_RETRIES = 10;
@@ -239,14 +250,16 @@ export class RequestEngine {
         }
       }
 
-      // Follow redirects, resolving the Location relative to the current URL.
-      if (status >= 300 && status < 400 && response.headers["location"]) {
+      // Follow redirects, resolving the Location relative to the current URL. Any
+      // other 3xx falls through and surfaces as a DwdApiError naming the target.
+      const locationHeader = response.headers["location"];
+      if (FOLLOWED_REDIRECTS.has(status) && locationHeader) {
         if (redirects >= this.maxRedirects) {
           throw new DwdNetworkError(
             `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${redactUrl(url)}`,
           );
         }
-        const location = response.headers["location"];
+        const location = locationHeader;
         if (typeof location === "string" && location.length > 0) {
           // A malformed Location would make `new URL` throw a raw TypeError; wrap
           // it so it surfaces as a typed DwdNetworkError rather than an untyped
@@ -286,7 +299,7 @@ export class RequestEngine {
 
       const contentType = String(response.headers["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body);
+        throw this.toApiError(method, url, status, response.body, locationHeader);
       }
 
       return { data: response.body, contentType, status };
@@ -313,7 +326,13 @@ export class RequestEngine {
     }
   }
 
-  private toApiError(method: string, url: string, status: number, body: Buffer): DwdApiError {
+  private toApiError(
+    method: string,
+    url: string,
+    status: number,
+    body: Buffer,
+    locationHeader?: string,
+  ): DwdApiError {
     const text = body.toString("utf8");
     let detail: string | undefined;
     try {
@@ -326,6 +345,25 @@ export class RequestEngine {
     // `detail` came from the response body; strip control characters so a hostile
     // endpoint cannot inject terminal escape sequences via the stderr error message.
     if (detail !== undefined) detail = sanitizeServerText(detail);
-    return new DwdApiError({ status, url, method, body: text, detail });
+    // Name the target of a redirect that was not followed.
+    const location =
+      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
+    return new DwdApiError({ status, url, method, body: text, detail, location });
   }
+}
+
+/**
+ * The absolute, printable form of a `Location` header: resolved against the request
+ * URL, userinfo redacted, control characters stripped (it is server text bound for
+ * stderr). An unparseable value is shown sanitised as it came.
+ */
+function redirectTarget(requestUrl: string, location: string): string | undefined {
+  let resolved: URL | undefined;
+  try {
+    resolved = new URL(location, requestUrl);
+  } catch {
+    resolved = undefined;
+  }
+  const clean = sanitizeServerText(resolved ? redactUrl(resolved.href) : location).trim();
+  return clean === "" ? undefined : clean;
 }

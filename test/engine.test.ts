@@ -304,3 +304,31 @@ test("a malformed redirect Location is printed without its control characters", 
     (err: unknown) => err instanceof Error && !hasControlChars(err.message) && err.message.includes("http://[x2J[31m"),
   );
 });
+
+test("only 301/302/303/307/308 are followed; another 3xx names its target and is not followed", async () => {
+  for (const status of [300, 304, 305, 306]) {
+    const mt = makeMockTransport(() => ({
+      status,
+      headers: { location: "/ok" },
+      body: Buffer.from(""),
+    }));
+    const e = new RequestEngine({ baseUrl: "https://user:pw@example.test", transport: mt.transport });
+    await assert.rejects(
+      () => e.getJson("/x"),
+      (err: unknown) =>
+        err instanceof DwdApiError &&
+        err.status === status &&
+        err.location === "https://***@example.test/ok" &&
+        err.message === `HTTP ${status} for GET https://***@example.test/x: redirect to https://***@example.test/ok not followed`,
+    );
+    assert.equal(mt.calls.length, 1, String(status));
+  }
+  const noLocation = makeMockTransport(() => ({ status: 302, headers: {}, body: Buffer.from("") }));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: noLocation.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) =>
+      err instanceof DwdApiError &&
+      err.message === "HTTP 302 for GET https://example.test/x: redirect not followed (no Location header)",
+  );
+});
