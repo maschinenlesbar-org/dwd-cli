@@ -63,7 +63,8 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * however, is reported as an unknown command (exit 2) rather than commander's
  * misleading "too many arguments. Expected 0 arguments" wording.
  *
- * This relies on the command calling `.allowExcessArguments()` so a stray token
+ * This relies on the command calling `.allowExcessArguments(true)` — after its
+ * subcommands are created, so they don't inherit it — so a stray token
  * reaches this handler (as `command.args[0]`) instead of tripping the arity
  * check first, and on `.helpCommand(true)` so `help` / `help <cmd>` still
  * dispatch to the built-in help command before this action ever runs.

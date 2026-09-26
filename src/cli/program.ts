@@ -73,11 +73,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     // can run `--help` (which exits 0).
     .showHelpAfterError(false)
     // Keep the built-in `help` / `help <command>` command available even though
-    // this command carries an action handler (commander otherwise disables it),
-    // and let a stray token through the arity check so the action below can
-    // report it as an unknown command rather than "too many arguments".
+    // this command carries an action handler (commander otherwise disables it).
     .helpCommand(true)
-    .allowExcessArguments()
     // Bare `dwd` is a "what can I do" gesture: print top-level help to stdout and
     // exit 0. An unrecognized token (`dwd bogus`, a misplaced `dwd nowcast`) is
     // reported as an unknown command (exit 2).
@@ -86,6 +83,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     });
 
   registerWeatherCommands(program, deps);
+  // Let a stray token through the root's arity check so the action above can
+  // report it as an unknown command rather than "too many arguments". Set after
+  // the subcommands exist: commander copies this setting into every command
+  // created later, and a leaf (`crowd extra`, `warnings nowcast en`) must keep
+  // rejecting excess arguments instead of silently ignoring them.
+  program.allowExcessArguments(true);
 
   return program;
 }

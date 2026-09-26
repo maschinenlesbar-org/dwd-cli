@@ -186,3 +186,19 @@ test("--max-retries is bounded to 0..10", async () => {
     if (!ok) assert.match(cli.err.join("\n"), /Must be <= 10\./);
   }
 });
+
+test("leaf commands reject extra positional arguments instead of ignoring them", async () => {
+  const cases = [
+    ["warnings", "nowcast", "en"],
+    ["warnings", "gemeinde", "x"],
+    ["warnings", "coast", "x"],
+    ["crowd", "extra"],
+    ["station-overview", "--id", "1", "extra"],
+  ];
+  for (const argv of cases) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    assert.match(cli.err.join("\n"), /too many arguments/, argv.join(" "));
+  }
+});

@@ -57,7 +57,6 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .command("warnings")
     .description(`Published warning feeds (pass --lang ${LangValues.join("|")} to a subcommand, default de)`)
     .helpCommand(true)
-    .allowExcessArguments()
     // Bare `dwd warnings` is a "what can I do here" gesture: print this group's
     // help to stdout and exit 0 (like --help). An unrecognized subcommand
     // (`dwd warnings nowcst`) is reported as an unknown command (exit 2) rather
@@ -95,4 +94,9 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
         renderJson(deps, global, await client.warnings.coast(opts["lang"] as Lang));
       }),
     );
+
+  // Let a stray token reach the group's action above (reported as an unknown
+  // command). Set only after the leaves exist, which would otherwise inherit it
+  // and silently ignore extra arguments (`warnings nowcast en`).
+  warnings.allowExcessArguments(true);
 }
