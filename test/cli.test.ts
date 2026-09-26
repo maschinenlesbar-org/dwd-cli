@@ -177,3 +177,12 @@ test("a non-http(s) or malformed --base-url / --static-base-url is a usage error
     }
   }
 });
+
+test("--max-retries is bounded to 0..10", async () => {
+  for (const [value, ok] of [["0", true], ["10", true], ["11", false], ["1000000", false]] as const) {
+    const cli = makeCli(() => jsonResponse({ "10865": {} }));
+    const code = await run(["--max-retries", value, "station-overview", "--id", "10865"], cli.deps);
+    assert.equal(code, ok ? 0 : 2, value);
+    if (!ok) assert.match(cli.err.join("\n"), /Must be <= 10\./);
+  }
+});

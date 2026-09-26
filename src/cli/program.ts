@@ -9,6 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { MAX_RETRIES } from "../client/engine.js";
 import { parseBaseUrl, parseBoundedInt, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 
@@ -54,7 +55,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option("--static-base-url <url>", "static (S3) bucket base URL", parseBaseUrl, DEFAULT_STATIC_BASE_URL)
     .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)
     .option("--user-agent <ua>", "User-Agent header value")
-    .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg, 2)
+    .option(
+      "--max-retries <n>",
+      "retries for transient 429/503 responses (0..10; each waits the server's Retry-After, up to 30 s)",
+      parseBoundedInt(0, MAX_RETRIES),
+      2,
+    )
     .option(
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; 100 MiB)",

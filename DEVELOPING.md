@@ -58,7 +58,7 @@ new DwdClient({
   baseUrl: "https://app-prod-ws.warnwetter.de",          // live web service
   staticBaseUrl: "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
+  maxRetries: 3,              // 429 / 503 are retried (Retry-After, else linear backoff)
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -153,8 +153,12 @@ The CLI maps `404` to exit code `4`, other API statuses to `5`, network failures
 to `6`, parse failures to `7`, and any other error to `1`.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with backoff, up to `--max-retries`. `DwdApiError` exposes
-`isRetryable` (true for `429`/`503`).
+retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
+the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed by
+`parseRetryAfter` — or, without a usable one, `retryDelayMs * attempt`. A
+`Retry-After` longer than `MAX_RETRY_AFTER_MS` (30 s) is not retried: the
+`DwdApiError` surfaces at once. `DwdApiError` exposes `isRetryable` (true for
+`429`/`503`).
 
 **maxResponseBytes.** A cap on the response body size in bytes — applied to both
 the wire bytes and the *decompressed* output (`0` = unlimited; default 100 MiB),

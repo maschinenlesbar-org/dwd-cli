@@ -158,9 +158,10 @@ Schnittstelle nur geraten wäre.
 
 **Rate-Limiting / vorübergehende Fehler.** Das Backend kann mit **429** (Too Many
 Requests) oder **503** (Service Unavailable) antworten. Der Client wiederholt diese
-automatisch mit linearem Backoff – die Zahl der Retries lässt sich mit
-`--max-retries` einstellen (Standard `2`); die Grundwartezeit zwischen den Versuchen
-wächst linear und ist ein interner Standardwert, keine CLI-Option.
+automatisch und wartet dabei das `Retry-After` der Antwort ab (bis 30 s; ein längeres
+wird nicht wiederholt), sonst mit linearem Backoff – die Zahl der Retries lässt sich mit
+`--max-retries` einstellen (`0`–`10`, Standard `2`); die Grundwartezeit zwischen den
+Versuchen wächst linear und ist ein interner Standardwert, keine CLI-Option.
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
 HTTP-Weiterleitungen (301/302/303/307/308). Bei einer Weiterleitung auf einen anderen

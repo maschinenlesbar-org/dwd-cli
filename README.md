@@ -198,7 +198,7 @@ These apply to every command and may be given **before or after** it:
 | `--static-base-url <url>` | Static S3 bucket base URL |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 > An option that takes a value consumes the **next token** as that value, so give
