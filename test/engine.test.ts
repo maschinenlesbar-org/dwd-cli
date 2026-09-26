@@ -283,3 +283,11 @@ test("the echoed Content-Type in a parse error is stripped of control characters
     },
   );
 });
+
+test("base-URL errors redact userinfo", () => {
+  const e = new RequestEngine({ baseUrl: "http://user:s3cret@example.test/?x=1" });
+  assert.throws(
+    () => e.buildUrl("/v30/x"),
+    (err: unknown) => err instanceof DwdNetworkError && !err.message.includes("s3cret") && err.message.includes("***@"),
+  );
+});

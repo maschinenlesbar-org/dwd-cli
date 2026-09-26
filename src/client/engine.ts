@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DwdApiError, DwdNetworkError, DwdParseError } from "./errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://app-prod-ws.warnwetter.de";
 const DEFAULT_USER_AGENT = "dwd-cli";
@@ -170,25 +170,31 @@ export class RequestEngine {
     try {
       base = new URL(this.baseUrl);
     } catch {
-      throw new DwdNetworkError(`Invalid base URL: "${this.baseUrl}"`);
+      throw new DwdNetworkError(`Invalid base URL: "${redactUrl(this.baseUrl)}"`);
     }
     if (base.protocol !== "http:" && base.protocol !== "https:") {
       throw new DwdNetworkError(
-        `Unsupported protocol "${base.protocol}" in base URL: "${this.baseUrl}"`,
+        `Unsupported protocol "${base.protocol}" in base URL: "${redactUrl(this.baseUrl)}"`,
       );
     }
     if (!base.host) {
-      throw new DwdNetworkError(`Base URL "${this.baseUrl}" has no host`);
+      throw new DwdNetworkError(`Base URL "${redactUrl(this.baseUrl)}" has no host`);
     }
     if (base.search || base.hash) {
       throw new DwdNetworkError(
-        `Base URL "${this.baseUrl}" must not contain a query string or fragment`,
+        `Base URL "${redactUrl(this.baseUrl)}" must not contain a query string or fragment`,
       );
     }
     const basePath = base.pathname.replace(/\/+$/, "");
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${base.origin}${basePath}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    // Keep any userinfo (`http://user:pw@proxy/`): the transport sends it as Basic
+    // auth, for a proxy or mirror behind a login. Error messages show it redacted.
+    const userinfo =
+      base.username || base.password
+        ? `${base.username}${base.password ? `:${base.password}` : ""}@`
+        : "";
+    return `${base.protocol}//${userinfo}${base.host}${basePath}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */
@@ -237,7 +243,7 @@ export class RequestEngine {
       if (status >= 300 && status < 400 && response.headers["location"]) {
         if (redirects >= this.maxRedirects) {
           throw new DwdNetworkError(
-            `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${url}`,
+            `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${redactUrl(url)}`,
           );
         }
         const location = response.headers["location"];
@@ -250,7 +256,7 @@ export class RequestEngine {
             target = new URL(location, url);
           } catch {
             throw new DwdNetworkError(
-              `Invalid redirect Location "${location}" for ${method} ${url}`,
+              `Invalid redirect Location "${location}" for ${method} ${redactUrl(url)}`,
             );
           }
           // Enforce the http(s) scheme allowlist on the redirect target here in
@@ -260,7 +266,7 @@ export class RequestEngine {
           // redirect.
           if (target.protocol !== "http:" && target.protocol !== "https:") {
             throw new DwdNetworkError(
-              `Refusing to follow redirect to unsupported protocol "${target.protocol}" for ${method} ${url}`,
+              `Refusing to follow redirect to unsupported protocol "${target.protocol}" for ${method} ${redactUrl(url)}`,
             );
           }
           // Cross-origin credential strip: never forward sensitive headers to a

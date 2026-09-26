@@ -241,3 +241,32 @@ test("times out and rejects with DwdNetworkError", async () => {
     },
   );
 });
+
+test("userinfo in a --base-url reaches the server as Basic auth, and error messages redact it", async () => {
+  const { DwdClient } = await import("../src/client/client.js");
+  const { DwdApiError } = await import("../src/client/errors.js");
+  const seen: Array<string | undefined> = [];
+  await withServer(
+    (req, res) => {
+      seen.push(req.headers.authorization);
+      res.statusCode = req.url?.includes("missing") ? 404 : 200;
+      res.setHeader("content-type", "application/json");
+      res.end("{}");
+    },
+    async (baseUrl) => {
+      const withAuth = baseUrl.replace("http://", "http://user:s3cret@");
+      const client = new DwdClient({ baseUrl: withAuth, staticBaseUrl: `${withAuth}/missing` });
+      assert.deepEqual(await client.weather.stationOverview(["1"]), {});
+      assert.equal(seen[0], `Basic ${Buffer.from("user:s3cret").toString("base64")}`);
+      await assert.rejects(
+        () => client.crowd(),
+        (err: unknown) =>
+          err instanceof DwdApiError &&
+          err.status === 404 &&
+          !err.message.includes("s3cret") &&
+          !err.url.includes("s3cret") &&
+          err.message.includes("http://***@127.0.0.1:"),
+      );
+    },
+  );
+});
