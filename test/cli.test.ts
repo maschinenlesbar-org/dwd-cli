@@ -221,7 +221,7 @@ test("a --base-url / --static-base-url with a query, fragment or surrounding whi
       assert.match(cli.err.join("\n"), message);
     }
   }
-  const ok = makeCli(() => jsonResponse({}));
+  const ok = makeCli(() => jsonResponse({ meldungen: [] }));
   assert.equal(await run(["--static-base-url", "https://mirror.test/prefix/", "crowd"], ok.deps), 0);
   assert.equal(ok.mt.last().url, "https://mirror.test/prefix/v16/crowd_meldungen_overview_v2.json");
 });
@@ -271,14 +271,15 @@ test("--user-agent rejects a blank or unsendable value as a usage error, before 
     assert.equal(cli.mt.calls.length, 0);
     assert.match(cli.err.join("\n"), message);
   }
-  const ok = makeCli(() => jsonResponse({}));
+  const ok = makeCli(() => jsonResponse({ meldungen: [] }));
   assert.equal(await run(["--user-agent", "my\ttool/1.0 (München)", "crowd"], ok.deps), 0);
   assert.equal(ok.mt.last().headers?.["User-Agent"], "my\ttool/1.0 (München)");
 });
 
 test("a deeply nested response fails pretty-printing cleanly and still prints with --compact", async () => {
   const depth = 200_000;
-  const deep = () => rawResponse("[".repeat(depth) + "]".repeat(depth), "application/json");
+  const body = `{"meldungen":${"[".repeat(depth)}${"]".repeat(depth)}}`;
+  const deep = () => rawResponse(body, "application/json");
   const pretty = makeCli(deep);
   assert.equal(await run(["crowd"], pretty.deps), 1);
   assert.deepEqual(pretty.out, []);
@@ -288,6 +289,16 @@ test("a deeply nested response fails pretty-printing cleanly and still prints wi
   // should a runtime's stack still be too small, it must fail just as cleanly.
   const compact = makeCli(deep);
   const code = await run(["--compact", "crowd"], compact.deps);
-  if (code === 0) assert.equal(compact.out.join("").length, 2 * depth);
+  if (code === 0) assert.equal(compact.out.join(""), body);
   else assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+});
+
+test("a 200 body of null is a parse error (exit 7), not printed with exit 0", async () => {
+  const cli = makeCli(() => rawResponse("null", "application/json"));
+  assert.equal(await run(["--compact", "crowd"], cli.deps), 7);
+  assert.deepEqual(cli.out, []);
+  assert.equal(
+    cli.err.join("\n"),
+    "Error: Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
+  );
 });

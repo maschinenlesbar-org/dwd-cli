@@ -38,7 +38,7 @@ test("warnings.gemeinde defaults to German", async () => {
 });
 
 test("warnings.coast (en) uses the static bucket with the _en suffix", async () => {
-  const mt = constantJson({ time: 1, warnings: [] });
+  const mt = constantJson({ time: 1, warnings: {}, vorabInformation: {} });
   await clientWith(mt).warnings.coast("en");
   const url = new URL(mt.last().url);
   assert.equal(url.host, "s3.eu-central-1.amazonaws.com");
@@ -95,4 +95,28 @@ test("stationOverview rejects an empty list, a blank id or an id with a comma be
     );
   }
   assert.equal(mt.calls.length, 0);
+});
+
+test("a 2xx body without the promised top-level shape is a DwdParseError", async () => {
+  const { DwdParseError } = await import("../src/client/errors.js");
+  const cases: Array<[unknown, (c: DwdClient) => Promise<unknown>, string]> = [
+    [null, (c) => c.crowd(), "/v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array."],
+    [{}, (c) => c.crowd(), "/v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array."],
+    [{ time: 1, warnings: {} }, (c) => c.warnings.nowcast(), "/v16/warnings_nowcast.json: expected a JSON object with a warnings array."],
+    [[], (c) => c.warnings.gemeinde(), "/v16/gemeinde_warnings_v2.json: expected a JSON object with a warnings array."],
+    [{ time: 1, warnings: [] }, (c) => c.warnings.coast(), "/v16/warnings_coast.json: expected a JSON object with a warnings object."],
+    [null, (c) => c.weather.stationOverview(["1"]), "/v30/stationOverviewExtended: expected a JSON object."],
+    [[1], (c) => c.weather.stationOverview(["1"]), "/v30/stationOverviewExtended: expected a JSON object."],
+  ];
+  for (const [body, call, message] of cases) {
+    await assert.rejects(
+      () => call(clientWith(constantJson(body))),
+      (err: unknown) => err instanceof DwdParseError && err.message === `Unexpected response shape from ${message}`,
+      message,
+    );
+  }
+  // The live shapes pass, empty feeds included.
+  assert.deepEqual(await clientWith(constantJson({})).weather.stationOverview(["nope"]), {});
+  await clientWith(constantJson({ time: 1, warnings: [], binnenSee: null })).warnings.nowcast();
+  await clientWith(constantJson({ time: 1, warnings: {}, vorabInformation: {} })).warnings.coast();
 });

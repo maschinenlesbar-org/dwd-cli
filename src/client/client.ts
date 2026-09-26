@@ -13,7 +13,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
-import { DwdError } from "./errors.js";
+import { DwdError, DwdParseError } from "./errors.js";
 import type {
   StationOverview,
   WarningsFeed,
@@ -64,6 +64,38 @@ function joinStationIds(stationIds: readonly string[]): string {
   return stationIds.join(",");
 }
 
+/** A non-null, non-array JSON object. */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function shapeError(path: string, expected: string): DwdParseError {
+  return new DwdParseError(`Unexpected response shape from ${path}: expected ${expected}.`);
+}
+
+/**
+ * Check the top-level shape the types promise — never the records inside. A 200
+ * body of `null`, `[]` or an S3/proxy error document would otherwise be returned
+ * typed as a feed (and printed with exit 0).
+ */
+async function getChecked<T>(
+  e: RequestEngine,
+  path: string,
+  query: Record<string, string> | undefined,
+  key: string | undefined,
+  kind: "array" | "object",
+): Promise<T> {
+  const body = await e.getJson<unknown>(path, query);
+  if (key === undefined) {
+    if (!isObject(body)) throw shapeError(path, "a JSON object");
+    return body as T;
+  }
+  const value = isObject(body) ? body[key] : undefined;
+  const ok = kind === "array" ? Array.isArray(value) : isObject(value);
+  if (!ok) throw shapeError(path, `a JSON object with a ${key} ${kind}`);
+  return body as T;
+}
+
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
   constructor(private readonly e: RequestEngine) {}
@@ -73,7 +105,8 @@ class WeatherResource {
    * id or one with a comma rejects with a DwdError before any request.
    */
   async stationOverview(stationIds: string[]): Promise<StationOverview> {
-    return this.e.getJson(`${WS}/stationOverviewExtended`, { stationIds: joinStationIds(stationIds) });
+    const query = { stationIds: joinStationIds(stationIds) };
+    return getChecked(this.e, `${WS}/stationOverviewExtended`, query, undefined, "object");
   }
 }
 
@@ -86,17 +119,17 @@ class WarningsResource {
 
   /** Short-term (nowcast) warnings. */
   async nowcast(lang: Lang = "de"): Promise<WarningsFeed> {
-    return this.e.getJson(`${STATIC}/warnings_nowcast${langSuffix(lang)}.json`);
+    return getChecked(this.e, `${STATIC}/warnings_nowcast${langSuffix(lang)}.json`, undefined, "warnings", "array");
   }
 
   /** Municipality-level warnings. */
   async gemeinde(lang: Lang = "de"): Promise<WarningsFeed> {
-    return this.e.getJson(`${STATIC}/gemeinde_warnings_v2${langSuffix(lang)}.json`);
+    return getChecked(this.e, `${STATIC}/gemeinde_warnings_v2${langSuffix(lang)}.json`, undefined, "warnings", "array");
   }
 
   /** Coastal warnings (keyed by coastal zone). */
   async coast(lang: Lang = "de"): Promise<CoastWarningsFeed> {
-    return this.e.getJson(`${STATIC}/warnings_coast${langSuffix(lang)}.json`);
+    return getChecked(this.e, `${STATIC}/warnings_coast${langSuffix(lang)}.json`, undefined, "warnings", "object");
   }
 }
 
@@ -120,7 +153,7 @@ export class DwdClient {
   }
 
   /** Crowd-sourced weather reports overview (static bucket). */
-  crowd(): Promise<CrowdOverview> {
-    return this.static_.getJson(`${STATIC}/crowd_meldungen_overview_v2.json`);
+  async crowd(): Promise<CrowdOverview> {
+    return getChecked(this.static_, `${STATIC}/crowd_meldungen_overview_v2.json`, undefined, "meldungen", "array");
   }
 }

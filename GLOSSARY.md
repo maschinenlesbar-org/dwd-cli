@@ -144,13 +144,21 @@ payload is exposed as a faithful raw `JsonObject` rather than a guessed type.
 `{ time: number; warnings: JsonObject[]; binnenSee?: JsonValue }`.
 
 **`CoastWarningsFeed`.** The coast feed envelope: `{ time: number; warnings:
-JsonObject }` — `warnings` is keyed by coastal zone (an object, not an array).
+JsonObject; vorabInformation?: JsonObject }` — `warnings` is keyed by coastal zone
+(an object, not an array); `vorabInformation` (advance information) is keyed the same
+way.
 
-**`CrowdOverview`.** The crowd feed envelope: `{ start?, end?,
+**`CrowdOverview`.** The crowd feed envelope: `{ start?, end?, windowsSizeHours?,
 highestSeverities?, meldungen: JsonObject[] }`.
 
 **`JsonObject` / `JsonValue`.** The general JSON value types used where a payload
 is large and DWD-specific enough that a hand-written interface would be a guess.
+
+**Shape check.** The client checks only the top level of each response: the
+station overview must be a JSON object, the nowcast/gemeinde feeds need a `warnings`
+array, the coast feed a `warnings` object and the crowd feed a `meldungen` array.
+Anything else (`null`, `[]`, an error document from S3 or a proxy) raises a
+`DwdParseError` (exit `7`) instead of being printed as a feed.
 
 ---
 

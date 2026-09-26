@@ -183,9 +183,15 @@ guarding against decompression bombs and unbounded responses.
 
 - **`StationOverview`.** `{ [stationId: string]: JsonObject }` — the station-overview response keyed by station id.
 - **`WarningsFeed`.** The common envelope of the nowcast and gemeinde feeds: `{ time: number; warnings: JsonObject[]; binnenSee?: JsonValue }`.
-- **`CoastWarningsFeed`.** The coast feed envelope: `{ time: number; warnings: JsonObject }` — `warnings` is keyed by coastal zone.
-- **`CrowdOverview`.** The crowd feed envelope: `{ start?, end?, highestSeverities?, meldungen: JsonObject[] }`.
+- **`CoastWarningsFeed`.** The coast feed envelope: `{ time: number; warnings: JsonObject; vorabInformation?: JsonObject }` — `warnings` (and `vorabInformation`) keyed by coastal zone.
+- **`CrowdOverview`.** The crowd feed envelope: `{ start?, end?, windowsSizeHours?, highestSeverities?, meldungen: JsonObject[] }`.
 - **`JsonObject` / `JsonValue`.** General JSON value types used where a payload is large and DWD-specific enough that a hand-written interface would be a guess.
+
+**Shape check.** The client (`getChecked` in `client.ts`) checks only the top
+level the types promise — a JSON object for the station overview, a `warnings`
+array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crowd) —
+never the records inside. Anything else throws `DwdParseError` with the text
+`Unexpected response shape from <path>: expected <what>.`
 
 **Content-Type guard.** A `200` response whose `Content-Type` is clearly not JSON
 (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming the

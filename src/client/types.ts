@@ -30,12 +30,16 @@ export interface WarningsFeed {
 export interface CoastWarningsFeed {
   time: number;
   warnings: JsonObject;
+  /** Advance information ("Vorabinformation"), keyed like `warnings`. */
+  vorabInformation?: JsonObject;
 }
 
 /** Crowd-sourced reports overview. */
 export interface CrowdOverview {
   start?: number;
   end?: number;
+  /** Not the length of the `start`–`end` window (see GLOSSARY). */
+  windowsSizeHours?: number;
   highestSeverities?: JsonValue;
   meldungen: JsonObject[];
 }

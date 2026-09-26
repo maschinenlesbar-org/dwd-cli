@@ -146,14 +146,22 @@ werden als unverändertes Roh-`JsonObject` bereitgestellt statt als geratener Ty
 `{ time: number; warnings: JsonObject[]; binnenSee?: JsonValue }`.
 
 **`CoastWarningsFeed`.** Der Envelope des Küsten-Feeds: `{ time: number; warnings:
-JsonObject }` – `warnings` ist nach Küstenzone geschlüsselt (ein Objekt, kein Array).
+JsonObject; vorabInformation?: JsonObject }` – `warnings` ist nach Küstenzone
+geschlüsselt (ein Objekt, kein Array); `vorabInformation` (Vorabinformationen) ist
+genauso geschlüsselt.
 
-**`CrowdOverview`.** Der Envelope des Crowd-Feeds: `{ start?, end?,
+**`CrowdOverview`.** Der Envelope des Crowd-Feeds: `{ start?, end?, windowsSizeHours?,
 highestSeverities?, meldungen: JsonObject[] }`.
 
 **`JsonObject` / `JsonValue`.** Die allgemeinen JSON-Werttypen, die dort verwendet
 werden, wo Nutzdaten so umfangreich und DWD-spezifisch sind, dass eine handgeschriebene
 Schnittstelle nur geraten wäre.
+
+**Formprüfung.** Der Client prüft nur die oberste Ebene jeder Antwort: Die
+Stationsübersicht muss ein JSON-Objekt sein, die Nowcast- und Gemeinde-Feeds brauchen ein
+`warnings`-Array, der Küsten-Feed ein `warnings`-Objekt und der Crowd-Feed ein
+`meldungen`-Array. Alles andere (`null`, `[]`, ein Fehlerdokument von S3 oder einem Proxy)
+löst einen `DwdParseError` aus (Exit `7`), statt als Feed ausgegeben zu werden.
 
 ---
 
