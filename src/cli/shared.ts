@@ -57,6 +57,29 @@ export function parseBaseUrl(value: string): string {
   return value;
 }
 
+/**
+ * Build a commander value-parser for a base URL whose client adds a fixed version
+ * segment itself (`/v30` for `--base-url`, `/v16` for `--static-base-url`). The
+ * hosts are documented with that segment, so passing the documented address would
+ * request `/v30/v30/...` (a 404) or `/v16/v16/...` (S3 answers a missing key with
+ * 403, which reads like an outage). Reject it with a hint naming the value to use.
+ */
+export function parseServiceBaseUrl(segment: string): (value: string) => string {
+  return (value: string) => {
+    parseBaseUrl(value);
+    const url = new URL(value);
+    const path = url.pathname.replace(/\/+$/, "");
+    if (path.endsWith(segment)) {
+      // (url.origin carries no userinfo, so nothing secret is echoed.)
+      const suggestion = `${url.origin}${path.slice(0, -segment.length)}`;
+      throw new InvalidArgumentError(
+        `Leave out ${segment}: the CLI adds ${segment} itself (try ${suggestion}).`,
+      );
+    }
+    return value;
+  };
+}
+
 /** Build a commander value-parser for a non-negative integer within [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {

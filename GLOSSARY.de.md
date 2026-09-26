@@ -41,12 +41,15 @@ brauchen keinen API-Schlüssel. Alle sind `GET` und nur lesend; `dwd-cli` schrei
 
 **Live-Webdienst.** `https://app-prod-ws.warnwetter.de/v30` – das Live-Backend,
 das Anfragen zur Stationsübersicht beantwortet und mit Parametern abgefragt wird.
-Überschreiben in der CLI: `--base-url`; das Versionssegment im Pfad ist **`/v30`**.
+Überschreiben in der CLI: `--base-url`; das Versionssegment im Pfad ist **`/v30`**. Der
+Client ergänzt es selbst, der überschriebene Wert ist also nur der Host
+(`https://app-prod-ws.warnwetter.de`).
 
 **Statischer S3-Bucket.** `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16`
 – ein Amazon-S3-Bucket, der die regelmäßig veröffentlichten Warn- und Crowd-Feeds als
 statische JSON-Dateien bereithält. Überschreiben in der CLI: `--static-base-url`; das
-Versionssegment im Pfad ist **`/v16`**.
+Versionssegment im Pfad ist **`/v16`**. Der Client ergänzt es selbst, der überschriebene
+Wert ist also die Bucket-Wurzel. S3 beantwortet eine fehlende Datei mit **403**, nicht 404.
 
 **gzip-kodierte Feeds.** Die statischen Warndateien liegen auf S3 mit
 `Content-Encoding: gzip` und werden unabhängig vom `Accept-Encoding` der Anfrage

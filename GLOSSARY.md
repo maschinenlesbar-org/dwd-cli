@@ -40,12 +40,14 @@ They are all `GET` and read-only; `dwd-cli` never writes.
 
 **Live web service.** `https://app-prod-ws.warnwetter.de/v30` — the live backend
 that answers station-overview requests, queried with parameters. CLI override:
-`--base-url`; the path version segment is **`/v30`**.
+`--base-url`; the path version segment is **`/v30`**, which the client adds, so the
+override is the host alone (`https://app-prod-ws.warnwetter.de`).
 
 **Static S3 bucket.** `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16`
 — an Amazon S3 bucket holding the periodically-published warning and crowd feeds
 as static JSON files. CLI override: `--static-base-url`; the path version segment
-is **`/v16`**.
+is **`/v16`**, which the client adds, so the override is the bucket root. S3 answers a
+missing file with **403**, not 404.
 
 **gzip-encoded feeds.** The static warning files are stored on S3 with
 `Content-Encoding: gzip` and are served compressed regardless of the request's

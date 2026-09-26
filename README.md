@@ -94,7 +94,10 @@ The DWD app data lives on two hosts; `dwd` talks to both automatically:
 - **Static S3 bucket** — `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16` — used by `warnings` and `crowd`.
 
 Override them with `--base-url` (live) and `--static-base-url` (static) if you
-need to point at a proxy or staging host.
+need to point at a proxy or staging host. Pass the host or bucket root **without**
+the version segment — `--base-url https://app-prod-ws.warnwetter.de`,
+`--static-base-url https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`;
+the CLI adds `/v30` and `/v16` itself (a value ending in them is rejected with a hint).
 
 ## Common tasks
 
@@ -175,7 +178,9 @@ same thing.
   error. Double-check the id against the DWD Warnwetter app; DWD station ids are
   typically 5-digit numeric codes.
 - **Exit `5` / API error** — the upstream service returned an unexpected status.
-  The service is public but may be temporarily unavailable; retry later.
+  The service is public but may be temporarily unavailable; retry later. With a
+  custom `--static-base-url`, an `HTTP 403` usually means a wrong path, not an
+  outage: S3 answers a missing file with `403`.
 - **Exit `6` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`. If a feed is large and getting cut off,
   try `--max-response-bytes 0` (unlimited).
@@ -194,8 +199,8 @@ These apply to every command and may be given **before or after** it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | Live web-service base URL (default `https://app-prod-ws.warnwetter.de`) |
-| `--static-base-url <url>` | Static S3 bucket base URL |
+| `--base-url <url>` | Live web-service base URL, without `/v30` (default `https://app-prod-ws.warnwetter.de`) |
+| `--static-base-url <url>` | Static S3 bucket base URL, without `/v16` (default `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`) |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |

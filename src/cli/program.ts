@@ -10,7 +10,7 @@ import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
-import { parseBaseUrl, parseBoundedInt, parseIntArg, helpOrUnknownCommand } from "./shared.js";
+import { parseServiceBaseUrl, parseBoundedInt, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 
 /**
@@ -51,8 +51,18 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     // on the root, matching the README's promise that they apply to every command.
     .configureHelp({ showGlobalOptions: true })
     .version(VERSION)
-    .option("--base-url <url>", "live web-service base URL", parseBaseUrl, "https://app-prod-ws.warnwetter.de")
-    .option("--static-base-url <url>", "static (S3) bucket base URL", parseBaseUrl, DEFAULT_STATIC_BASE_URL)
+    .option(
+      "--base-url <url>",
+      "live web-service base URL, without /v30 (the CLI adds it)",
+      parseServiceBaseUrl("/v30"),
+      "https://app-prod-ws.warnwetter.de",
+    )
+    .option(
+      "--static-base-url <url>",
+      "static (S3) bucket base URL, without /v16 (the CLI adds it)",
+      parseServiceBaseUrl("/v16"),
+      DEFAULT_STATIC_BASE_URL,
+    )
     .option("--timeout <ms>", "time limit per request in milliseconds, whole response included", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)
     .option("--user-agent <ua>", "User-Agent header value")
     .option(
