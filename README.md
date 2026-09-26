@@ -119,7 +119,7 @@ dwd --compact warnings gemeinde \
 dwd --compact warnings coast | jq '.warnings | keys'
 
 # Forecast for several stations at once
-dwd station-overview --id 10865 --id 01766
+dwd station-overview --id 10865 --id 10147
 
 # Address a single station from a multi-station response
 dwd station-overview --id 10865 --id 10147 | jq '."10865"'
