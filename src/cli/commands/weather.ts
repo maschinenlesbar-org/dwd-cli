@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, renderJson, helpOrUnknownCommand } from "../shared.js";
+import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues, type Lang } from "../../client/enums.js";
 
 /**
@@ -56,7 +56,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
   const warnings = program
     .command("warnings")
     .description(`Published warning feeds (pass --lang ${LangValues.join("|")} to a subcommand, default de)`)
-    .helpCommand(true)
+    .helpCommand(false)
     // Bare `dwd warnings` is a "what can I do here" gesture: print this group's
     // help to stdout and exit 0 (like --help). An unrecognized subcommand
     // (`dwd warnings nowcst`) is reported as an unknown command (exit 2) rather
@@ -95,6 +95,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
       }),
     );
 
+  addHelpCommand(warnings);
   // Let a stray token reach the group's action above (reported as an unknown
   // command). Set only after the leaves exist, which would otherwise inherit it
   // and silently ignore extra arguments (`warnings nowcast en`).

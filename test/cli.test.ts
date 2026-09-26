@@ -302,3 +302,16 @@ test("a 200 body of null is a parse error (exit 7), not printed with exit 0", as
     "Error: Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
   );
 });
+
+test("help with an unknown command name reports it as an unknown command", async () => {
+  for (const argv of [["help", "bogus"], ["warnings", "help", "nope"]]) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.deepEqual(cli.out, []);
+    assert.equal(cli.err.join("\n"), `error: unknown command '${argv[argv.length - 1]}'`);
+  }
+  const leaf = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["warnings", "help", "nowcast"], leaf.deps), 0);
+  assert.match(leaf.out.join("\n"), /Usage: dwd warnings nowcast/);
+  assert.equal(leaf.err.length, 0);
+});

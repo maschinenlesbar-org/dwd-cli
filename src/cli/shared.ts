@@ -131,8 +131,8 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * This relies on the command calling `.allowExcessArguments(true)` — after its
  * subcommands are created, so they don't inherit it — so a stray token
  * reaches this handler (as `command.args[0]`) instead of tripping the arity
- * check first, and on `.helpCommand(true)` so `help` / `help <cmd>` still
- * dispatch to the built-in help command before this action ever runs.
+ * check first, and on `addHelpCommand` so `help` / `help <cmd>` still dispatch to
+ * a help subcommand before this action ever runs.
  */
 export function helpOrUnknownCommand(command: Command): void {
   const [unknown] = command.args;
@@ -140,6 +140,29 @@ export function helpOrUnknownCommand(command: Command): void {
     command.error(`error: unknown command '${unknown}'`, { code: "commander.unknownCommand" });
   }
   command.outputHelp();
+}
+
+/**
+ * Add a `help [command]` subcommand to a command group (the root and `warnings`),
+ * in place of commander's built-in one: that one prints the group's whole help to
+ * stderr with no error line for an unknown name (`dwd help bogus`). This one prints
+ * the group's help (bare `help`) or the named command's help to stdout, exit 0, and
+ * reports an unknown name as `error: unknown command '<name>'` (usage error), like
+ * `dwd bogus`. Call it after the group's other subcommands exist (it is listed
+ * last) and with `.helpCommand(false)` on the group.
+ */
+export function addHelpCommand(parent: Command): void {
+  parent
+    .command("help [command]")
+    .description("display help for command")
+    .action((name: string | undefined) => {
+      if (name === undefined) parent.help();
+      const target = parent.commands.find((c) => c.name() === name || c.aliases().includes(name as string));
+      if (target === undefined) {
+        parent.error(`error: unknown command '${name}'`, { code: "commander.unknownCommand" });
+      }
+      (target as Command).help();
+    });
 }
 
 export interface GlobalOptions {
