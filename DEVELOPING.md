@@ -44,8 +44,14 @@ const nowcast = await client.warnings.nowcast("de");
 const gemeinde = await client.warnings.gemeinde("en");
 const crowd = await client.crowd();
 
+// An unknown station id is not an error: the API answers {} (and drops unknown
+// ids from a multi-id request), so check the keys.
+const unknown = await client.weather.stationOverview(["nope"]); // {}
+if (!("nope" in unknown)) console.error("no such station");
+
+// A non-2xx status (the service down, a feed missing) throws DwdApiError.
 try {
-  await client.weather.stationOverview(["nope"]);
+  await client.crowd();
 } catch (err) {
   if (err instanceof DwdApiError) console.error(err.status, err.detail);
 }
