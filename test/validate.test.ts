@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, type Problem } from "../src/client/validate.js";
+import { assertValid, headerValueProblem, type Problem } from "../src/client/validate.js";
 import * as lib from "../src/index.js";
 import { DwdError, DwdValidationError } from "../src/client/errors.js";
 import { DwdClient } from "../src/client/client.js";
@@ -68,4 +68,29 @@ test("parity() runs one input through the CLI and the library on one recording t
   assert.equal(l.requests.length, 1);
   assert.equal(cli.requests[0]!.url, l.requests[0]!.url);
   assert.deepEqual(JSON.parse(cli.out), l.ok ? l.value : undefined);
+});
+
+test("headerValueProblem: blank, controls other than tab, DEL and above U+00FF have a reason", () => {
+  assert.equal(headerValueProblem("my-app/1.0"), undefined);
+  assert.equal(headerValueProblem("é"), undefined);
+  assert.equal(headerValueProblem("a\tb"), undefined);
+  assert.equal(headerValueProblem(""), "Expected a non-empty value.");
+  assert.equal(headerValueProblem("   "), "Expected a non-empty value.");
+  assert.equal(headerValueProblem(5), "Expected a string.");
+  for (const bad of ["a\r\nb", "a\u0000b", "a\u007fb"]) {
+    assert.equal(headerValueProblem(bad), "Value contains control characters.", JSON.stringify(bad));
+  }
+  assert.equal(headerValueProblem("€"), "Value contains characters outside Latin-1 (above U+00FF).");
+});
+
+test("DwdClient: userAgent is checked in the constructor; only an omitted one selects the default", () => {
+  for (const ua of ["", "   ", "a\r\nb", "a\u007fb", "€"]) {
+    assert.throws(
+      () => new DwdClient({ userAgent: ua }),
+      (err: unknown) => err instanceof DwdValidationError && err.message.startsWith("Invalid userAgent: "),
+      JSON.stringify(ua),
+    );
+  }
+  assert.equal(lib.headerValueProblem, headerValueProblem);
+  assert.equal(typeof lib.assertHeaderValue, "function");
 });

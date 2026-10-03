@@ -5,6 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { DwdApiError, DwdError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
+import { assertValid, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://app-prod-ws.warnwetter.de";
 const DEFAULT_USER_AGENT = "dwd-cli";
@@ -29,7 +30,11 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header (default `dwd-cli`). A blank value, a control
+   * character other than tab, or a character above U+00FF throws a
+   * DwdValidationError.
+   */
   userAgent?: string;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
@@ -169,6 +174,15 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   return value;
 }
 
+/**
+ * Check a value bound for an HTTP header (see {@link headerValueProblem}) and
+ * return it unchanged; anything else throws a DwdValidationError naming `name`
+ * ("Invalid userAgent: Value contains control characters.").
+ */
+export function assertHeaderValue(name: string, value: string): string {
+  return assertValid(name, value, headerValueProblem);
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -183,7 +197,10 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Only an omitted userAgent selects the default: a blank one is an error, not
+    // a blank header, and a malformed one fails here rather than at request time.
+    this.userAgent =
+      options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);

@@ -6,6 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { DwdClientOptions } from "../client/client.js";
 import { DwdError } from "../client/errors.js";
+import { headerValueProblem, nonBlankProblem } from "../client/validate.js";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
@@ -28,31 +29,20 @@ export function parseIntArg(value: string): number {
 
 /** commander value-parser: a value that is not blank (`""` or whitespace only). */
 export function parseNonEmpty(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
+  const problem = nonBlankProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 
 /**
  * commander value-parser for a value that ends up in an HTTP header (`--user-agent`).
- * Node's HTTP layer throws an opaque "Invalid character in header content" at request
- * time for a CR/LF (or any other C0 control or DEL) and for any character above
- * U+00FF, which surfaced as a network error (exit 6) although nothing was sent.
- * Reject those here as a usage error, along with a blank value. Tab is allowed, as in
- * HTTP. Checked by char code so the source stays free of control bytes.
+ * The rule is the library's {@link headerValueProblem} — blank, control characters
+ * other than tab, DEL and characters above U+00FF are rejected — so a bad value is a
+ * usage error (exit 2) here, as it is a DwdValidationError in the client.
  */
 export function parseHeaderValue(value: string): string {
-  parseNonEmpty(value);
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
-      throw new InvalidArgumentError("Value contains control characters.");
-    }
-    if (c > 0xff) {
-      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
-    }
-  }
+  const problem = headerValueProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

@@ -181,6 +181,12 @@ documented range (`0` = off for the timeout and the size cap); anything else —
 negative, fractional, `NaN` or oversized value — makes the constructor throw a
 `DwdError` naming the option.
 
+`userAgent` is checked there too, with the same rule as the CLI's `--user-agent`
+(`headerValueProblem`, also exported as `assertHeaderValue(name, value)`): a blank
+value, a control character other than tab (CR/LF would inject a header), DEL or a
+character above U+00FF throws a `DwdValidationError` before any request, whatever
+the transport. Only an omitted `userAgent` selects the default `dwd-cli`.
+
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
 the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed by
