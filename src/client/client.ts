@@ -11,7 +11,7 @@
 //   client.weather.stationOverview(["10865"])
 //   client.warnings.nowcast("de")
 
-import { RequestEngine, type EngineOptions } from "./engine.js";
+import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
 import { DwdError, DwdParseError } from "./errors.js";
 import type {
@@ -29,7 +29,10 @@ export const DEFAULT_STATIC_BASE_URL =
 
 /** Options for the DWD client. `baseUrl` is the live web service host. */
 export interface DwdClientOptions extends EngineOptions {
-  /** Base URL of the static S3 bucket. Defaults to the production bucket. */
+  /**
+   * Base URL of the static S3 bucket. Defaults to the production bucket. It must
+   * pass the same rules as `baseUrl`; a bad value throws a DwdValidationError.
+   */
   staticBaseUrl?: string;
 }
 
@@ -145,7 +148,9 @@ export class DwdClient {
     this.ws = new RequestEngine(engineOptions);
     this.static_ = new RequestEngine({
       ...engineOptions,
-      baseUrl: staticBaseUrl ?? DEFAULT_STATIC_BASE_URL,
+      // Checked here first so an error names the option the caller set.
+      baseUrl:
+        staticBaseUrl === undefined ? DEFAULT_STATIC_BASE_URL : validateBaseUrl(staticBaseUrl, "staticBaseUrl"),
     });
 
     this.weather = new WeatherResource(this.ws);

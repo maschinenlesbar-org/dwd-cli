@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, headerValueProblem, type Problem } from "../src/client/validate.js";
+import { assertValid, baseUrlProblem, headerValueProblem, type Problem } from "../src/client/validate.js";
+import { validateBaseUrl } from "../src/client/engine.js";
 import * as lib from "../src/index.js";
-import { DwdError, DwdValidationError } from "../src/client/errors.js";
+import { DwdError, DwdNetworkError, DwdValidationError } from "../src/client/errors.js";
 import { DwdClient } from "../src/client/client.js";
 import { run } from "../src/cli/run.js";
 import type { CliDeps } from "../src/cli/io.js";
-import { parity, jsonResponse } from "./helpers.js";
+import { parity, jsonResponse, makeMockTransport } from "./helpers.js";
 
 const nonBlank: Problem<string> = (v) => (v.trim() === "" ? "Expected a non-empty value." : undefined);
 
@@ -93,4 +94,43 @@ test("DwdClient: userAgent is checked in the constructor; only an omitted one se
   }
   assert.equal(lib.headerValueProblem, headerValueProblem);
   assert.equal(typeof lib.assertHeaderValue, "function");
+});
+
+test("baseUrlProblem: the base-URL rules, in order, each with its reason", () => {
+  for (const ok of ["https://app-prod-ws.warnwetter.de", "http://127.0.0.1:1/prefix/", "https://u:p@proxy.test/"]) {
+    assert.equal(baseUrlProblem(ok), undefined, ok);
+  }
+  assert.equal(baseUrlProblem(5), "Expected a string.");
+  assert.equal(baseUrlProblem(""), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem("   "), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem(" https://h.example"), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("https://h.example/\n"), "A base URL cannot have surrounding whitespace.");
+  for (const bad of ["https://h.example/a b", "https://h.ex\tample", "https://h.example/\u0000x", "https://h/\u007fx"]) {
+    assert.equal(baseUrlProblem(bad), "A base URL cannot contain whitespace or control characters.", JSON.stringify(bad));
+  }
+  assert.equal(baseUrlProblem("not-a-url"), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem("ftp://h.example"), 'Unsupported scheme "ftp:". Expected an http(s) URL.');
+  for (const bad of ["https://h.example/?", "https://h.example?x=1", "https://h.example/#"]) {
+    assert.equal(baseUrlProblem(bad), "A base URL cannot have a query (?) or fragment (#).", bad);
+  }
+});
+
+test("validateBaseUrl strips trailing slashes and throws DwdValidationError naming the option", () => {
+  assert.equal(validateBaseUrl("https://h.example/prefix//"), "https://h.example/prefix");
+  assert.throws(
+    () => validateBaseUrl("ftp://h.example", "staticBaseUrl"),
+    (err: unknown) =>
+      err instanceof DwdValidationError &&
+      !(err instanceof DwdNetworkError) &&
+      err.message === 'Invalid staticBaseUrl: Unsupported scheme "ftp:". Expected an http(s) URL.',
+  );
+  assert.equal(lib.validateBaseUrl, validateBaseUrl);
+  assert.equal(lib.baseUrlProblem, baseUrlProblem);
+});
+
+test("DwdClient checks both base URLs in the constructor, before any request", () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  assert.throws(() => new DwdClient({ transport: mt.transport, baseUrl: "https://h.example/ " }), DwdValidationError);
+  assert.throws(() => new DwdClient({ transport: mt.transport, staticBaseUrl: "https://h.example/?" }), DwdValidationError);
+  assert.equal(mt.calls.length, 0);
 });

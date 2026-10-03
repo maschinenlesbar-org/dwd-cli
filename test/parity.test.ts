@@ -52,3 +52,55 @@ test("parity: a Latin-1 or tab-carrying User-Agent is sent the same by both", as
     assert.equal(r.lib.requests[0]!.headers?.["User-Agent"], ua);
   }
 });
+
+test("parity: a malformed --base-url / baseUrl is rejected by both, as a validation error", async () => {
+  for (const [bad, message] of [
+    [" https://app-prod-ws.warnwetter.de ", /A base URL cannot have surrounding whitespace\./],
+    ["https://app-prod-ws.warnwetter.de\t", /A base URL cannot have surrounding whitespace\./],
+    ["https://app-prod-ws.warnwetter.de/?", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["https://h.example?x=1", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["https://h.example/#f", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["ftp://h.example", /Unsupported scheme "ftp:"\. Expected an http\(s\) URL\./],
+    ["https:", /Expected an absolute http\(s\) URL\./],
+    ["h.example", /Expected an absolute http\(s\) URL\./],
+    ["not a url", /A base URL cannot contain whitespace or control characters\./],
+    ["", /Expected an absolute http\(s\) URL\./],
+  ] as const) {
+    const r = await parity(
+      ["--compact", "--base-url", bad, "station-overview", "--id", "10865"],
+      (transport) => new DwdClient({ transport, baseUrl: bad }).weather.stationOverview(["10865"]),
+      overview,
+    );
+    assertBothReject(r, message);
+    assert.ok(!r.lib.ok && r.lib.error instanceof Error && r.lib.error.message.startsWith("Invalid baseUrl: "));
+  }
+});
+
+test("parity: a malformed --static-base-url / staticBaseUrl is rejected by both, as a validation error", async () => {
+  for (const [bad, message] of [
+    ["https://s3.example/bucket ", /A base URL cannot have surrounding whitespace\./],
+    ["https://s3.example/bucket?", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["ftp://s3.example", /Unsupported scheme "ftp:"\. Expected an http\(s\) URL\./],
+    ["", /Expected an absolute http\(s\) URL\./],
+  ] as const) {
+    const r = await parity(
+      ["--compact", "--static-base-url", bad, "crowd"],
+      (transport) => new DwdClient({ transport, staticBaseUrl: bad }).crowd(),
+      () => jsonResponse({ meldungen: [] }),
+    );
+    assertBothReject(r, message);
+    assert.ok(!r.lib.ok && r.lib.error instanceof Error && r.lib.error.message.startsWith("Invalid staticBaseUrl: "));
+  }
+});
+
+test("parity: a well-formed base URL with a path prefix is sent the same by both", async () => {
+  const r = await parity(
+    ["--compact", "--static-base-url", "https://mirror.test/prefix/", "crowd"],
+    (transport) => new DwdClient({ transport, staticBaseUrl: "https://mirror.test/prefix/" }).crowd(),
+    () => jsonResponse({ meldungen: [] }),
+  );
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.equal(r.lib.ok, true);
+  assert.deepEqual(r.cli.requests, r.lib.requests);
+  assert.equal(r.lib.requests[0]!.url, "https://mirror.test/prefix/v16/crowd_meldungen_overview_v2.json");
+});

@@ -52,3 +52,29 @@ export const headerValueProblem: Problem<unknown> = (value) => {
   }
   return undefined;
 };
+
+/**
+ * A base URL (`baseUrl`, `staticBaseUrl`) must be an absolute `http:`/`https:` URL
+ * without a query or fragment, and without whitespace or control characters.
+ * `new URL()` trims surrounding whitespace and drops tab/CR/LF silently, so the raw
+ * string is checked rather than the parsed one; request paths are appended to the
+ * base's path, so a `?` or `#` would swallow them. Userinfo (`user:pw@`) is allowed:
+ * the transport sends it as Basic auth, for a proxy or mirror behind a login.
+ */
+export const baseUrlProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected a string.";
+  if (value.trim() === "") return "Expected an absolute http(s) URL.";
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  if (/[\s\u0000-\u001f\u007f]/.test(value)) return "A base URL cannot contain whitespace or control characters.";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "Expected an absolute http(s) URL.";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
+  }
+  if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  return undefined;
+};

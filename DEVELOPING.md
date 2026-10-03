@@ -187,6 +187,15 @@ value, a control character other than tab (CR/LF would inject a header), DEL or 
 character above U+00FF throws a `DwdValidationError` before any request, whatever
 the transport. Only an omitted `userAgent` selects the default `dwd-cli`.
 
+`baseUrl` and `staticBaseUrl` are checked in the constructor as well, with the same
+rule as the CLI's `--base-url` / `--static-base-url` (`baseUrlProblem`, also exported
+as `validateBaseUrl(raw, name)`): a blank value, surrounding or inner whitespace or
+control characters, an unparseable URL, a scheme other than `http:`/`https:`, or a
+query or fragment throws a `DwdValidationError` ("Invalid baseUrl: …" /
+"Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
+`DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
+auth. Only an omitted value selects the default host.
+
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
 the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed by

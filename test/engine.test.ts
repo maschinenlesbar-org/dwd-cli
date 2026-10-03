@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, parseRetryAfter } from "../src/client/engine.js";
-import { DwdApiError, DwdNetworkError, DwdParseError } from "../src/client/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 // Control chars are built via char codes so no raw control bytes ever appear in
@@ -32,14 +32,28 @@ test("buildUrl preserves a base URL path prefix", () => {
   assert.equal(e.buildUrl("/v16/x"), "https://host.test/api/v16/x");
 });
 
-test("buildUrl rejects a scheme-only base URL instead of mangling the host", () => {
-  const e = new RequestEngine({ baseUrl: "https:" });
-  assert.throws(() => e.buildUrl("/v30/stationOverviewExtended"), DwdNetworkError);
+test("the constructor rejects a scheme-only base URL instead of mangling the host", () => {
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "https:" }),
+    (err: unknown) => err instanceof DwdValidationError && !(err instanceof DwdNetworkError),
+  );
 });
 
-test("buildUrl rejects a base URL carrying a query string", () => {
-  const e = new RequestEngine({ baseUrl: "https://example.test/?foo=bar" });
-  assert.throws(() => e.buildUrl("/v30/x"), DwdNetworkError);
+test("the constructor rejects a base URL carrying a query string", () => {
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "https://example.test/?foo=bar" }),
+    (err: unknown) =>
+      err instanceof DwdValidationError &&
+      err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#).",
+  );
+});
+
+test("the constructor rejects every malformed base-URL shape, with no request", () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  for (const bad of ["", " https://h.example", "https://h.example/ ", "https://h.example/p\t", "ftp://h.example", "https://h.example#f"]) {
+    assert.throws(() => new RequestEngine({ baseUrl: bad, transport: mt.transport }), DwdValidationError, JSON.stringify(bad));
+  }
+  assert.equal(mt.calls.length, 0);
 });
 
 test("getJson parses a JSON body", async () => {
@@ -284,11 +298,10 @@ test("the echoed Content-Type in a parse error is stripped of control characters
   );
 });
 
-test("base-URL errors redact userinfo", () => {
-  const e = new RequestEngine({ baseUrl: "http://user:s3cret@example.test/?x=1" });
+test("base-URL errors do not echo userinfo", () => {
   assert.throws(
-    () => e.buildUrl("/v30/x"),
-    (err: unknown) => err instanceof DwdNetworkError && !err.message.includes("s3cret") && err.message.includes("***@"),
+    () => new RequestEngine({ baseUrl: "http://user:s3cret@example.test/?x=1" }),
+    (err: unknown) => err instanceof DwdValidationError && !err.message.includes("s3cret"),
   );
 });
 

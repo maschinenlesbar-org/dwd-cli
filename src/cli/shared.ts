@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { DwdClientOptions } from "../client/client.js";
 import { DwdError } from "../client/errors.js";
-import { headerValueProblem, nonBlankProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem, nonBlankProblem } from "../client/validate.js";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
@@ -48,33 +48,14 @@ export function parseHeaderValue(value: string): string {
 
 /**
  * commander value-parser for a URL-valued global option (`--base-url`,
- * `--static-base-url`): an absolute `http:`/`https:` URL. Rejecting anything
- * else here makes a `file:`, `ftp:` or malformed URL a usage error at parse
- * time instead of a runtime error from the engine.
+ * `--static-base-url`). The rule is the library's {@link baseUrlProblem}: an
+ * absolute `http:`/`https:` URL without a query, fragment, whitespace or control
+ * characters. A bad value is a usage error (exit 2) here, as it is a
+ * DwdValidationError in the client; the CLI keeps no rules of its own.
  */
 export function parseBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError(
-      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
-    );
-  }
-  // The engine refuses a base URL with a query or fragment (request paths are
-  // appended to the base's path); catch it here so it is a usage error, not a
-  // network error after parsing.
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
-  // new URL() trims surrounding whitespace silently; the raw value is what the
-  // engine uses, so reject it rather than guess.
-  if (value !== value.trim()) {
-    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
-  }
+  const problem = baseUrlProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

@@ -5,7 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { DwdApiError, DwdError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
-import { assertValid, headerValueProblem } from "./validate.js";
+import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://app-prod-ws.warnwetter.de";
 const DEFAULT_USER_AGENT = "dwd-cli";
@@ -26,7 +26,11 @@ export interface RawResponse {
  * NaN, Infinity, too large) makes the constructor throw a DwdError.
  */
 export interface EngineOptions {
-  /** Base URL of the API. Defaults to https://app-prod-ws.warnwetter.de */
+  /**
+   * Base URL of the API. Defaults to https://app-prod-ws.warnwetter.de. A value that
+   * breaks a rule of {@link validateBaseUrl} (blank, whitespace or control
+   * characters, not http(s), a query or fragment) throws a DwdValidationError.
+   */
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
@@ -183,6 +187,18 @@ export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
 
+/**
+ * Check a base URL against every rule of {@link baseUrlProblem} — blank, whitespace
+ * or control characters, unparseable, a scheme other than `http:`/`https:`, a query
+ * or fragment — and return it with trailing slashes stripped. A bad value throws a
+ * DwdValidationError ("Invalid <name>: <reason>"): it is a configuration error, not
+ * a transport failure. The raw value is checked, before the slash strip, so
+ * "https://h/ " cannot slip past it.
+ */
+export function validateBaseUrl(raw: string, name = "baseUrl"): string {
+  return assertValid(name, raw, baseUrlProblem).replace(/\/+$/, "");
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -195,7 +211,9 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Only an omitted baseUrl selects the default; any given value must pass the
+    // library's base-URL rules here, before any request.
+    this.baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -217,11 +235,11 @@ export class RequestEngine {
   /**
    * Build a fully-qualified URL from a path and optional query parameters.
    *
-   * The base URL is validated and decomposed via the WHATWG URL parser rather
-   * than blindly concatenated, so a scheme-only base (`https:`) or one carrying
-   * a query string (`https://host/?x=1`) is rejected with a clear,
-   * base-url-specific error instead of silently producing a malformed URL — e.g.
-   * promoting an internal path segment to the hostname, or emitting a double-`?`.
+   * The base URL is decomposed via the WHATWG URL parser rather than blindly
+   * concatenated. The constructor has already checked it (validateBaseUrl); the
+   * checks here are defence in depth and would fail as a DwdNetworkError — e.g.
+   * instead of promoting an internal path segment to the hostname, or emitting a
+   * double-`?`.
    * The base's own path prefix (such as the static bucket's
    * `/app-prod-static.warnwetter.de`) is preserved.
    */
