@@ -132,3 +132,36 @@ test("parity: a blank station id is rejected by both, with no request", async ()
   );
   assertBothReject(r, /A station id must not be empty\./);
 });
+
+test("parity: a base URL ending in the /v30 or /v16 the client adds is rejected by both, with a hint", async () => {
+  const S3 = "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de";
+  for (const [option, bad, call, hint] of [
+    ["--base-url", "https://app-prod-ws.warnwetter.de/v30", "ws", "Leave out /v30: the client adds /v30 itself (try https://app-prod-ws.warnwetter.de)."],
+    ["--base-url", "https://h.example/api/v30/", "ws", "Leave out /v30: the client adds /v30 itself (try https://h.example/api)."],
+    ["--static-base-url", `${S3}/v16`, "static", `Leave out /v16: the client adds /v16 itself (try ${S3}).`],
+    ["--static-base-url", `${S3}/v16/`, "static", `Leave out /v16: the client adds /v16 itself (try ${S3}).`],
+  ] as const) {
+    const r = await parity(
+      ["--compact", option, bad, ...(call === "ws" ? ["station-overview", "--id", "10865"] : ["crowd"])],
+      (transport) =>
+        call === "ws"
+          ? new DwdClient({ transport, baseUrl: bad }).weather.stationOverview(["10865"])
+          : new DwdClient({ transport, staticBaseUrl: bad }).crowd(),
+      () => jsonResponse({ meldungen: [], "10865": {} }),
+    );
+    assertBothReject(r, new RegExp(hint.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")));
+    const name = call === "ws" ? "baseUrl" : "staticBaseUrl";
+    assert.ok(!r.lib.ok && r.lib.error instanceof Error && r.lib.error.message === `Invalid ${name}: ${hint}`);
+  }
+});
+
+test("parity: the other host's segment is just a path prefix for both", async () => {
+  const r = await parity(
+    ["--compact", "--base-url", "https://mirror.test/v16", "station-overview", "--id", "1"],
+    (transport) => new DwdClient({ transport, baseUrl: "https://mirror.test/v16" }).weather.stationOverview(["1"]),
+    overview,
+  );
+  assert.equal(r.cli.code, 0, r.cli.err);
+  assert.deepEqual(r.cli.requests, r.lib.requests);
+  assert.equal(new URL(r.lib.requests[0]!.url).pathname, "/v16/v30/stationOverviewExtended");
+});

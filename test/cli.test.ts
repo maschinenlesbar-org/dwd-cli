@@ -226,7 +226,7 @@ test("a --base-url / --static-base-url with a query, fragment or surrounding whi
   assert.equal(ok.mt.last().url, "https://mirror.test/prefix/v16/crowd_meldungen_overview_v2.json");
 });
 
-test("a base URL ending in the version segment the CLI adds is a usage error with a hint", async () => {
+test("a base URL ending in the version segment the client adds is a usage error with a hint", async () => {
   const live = makeCli(() => jsonResponse({}));
   assert.equal(
     await run(["--base-url", "https://app-prod-ws.warnwetter.de/v30", "station-overview", "--id", "10865"], live.deps),
@@ -235,7 +235,7 @@ test("a base URL ending in the version segment the CLI adds is a usage error wit
   assert.equal(live.mt.calls.length, 0);
   assert.match(
     live.err.join("\n"),
-    /Leave out \/v30: the CLI adds \/v30 itself \(try https:\/\/app-prod-ws\.warnwetter\.de\)\./,
+    /Leave out \/v30: the client adds \/v30 itself \(try https:\/\/app-prod-ws\.warnwetter\.de\)\./,
   );
 
   const bucket = makeCli(() => jsonResponse({}));
@@ -249,7 +249,7 @@ test("a base URL ending in the version segment the CLI adds is a usage error wit
   assert.equal(bucket.mt.calls.length, 0);
   assert.match(
     bucket.err.join("\n"),
-    /Leave out \/v16: the CLI adds \/v16 itself \(try https:\/\/s3\.eu-central-1\.amazonaws\.com\/app-prod-static\.warnwetter\.de\)\./,
+    /Leave out \/v16: the client adds \/v16 itself \(try https:\/\/s3\.eu-central-1\.amazonaws\.com\/app-prod-static\.warnwetter\.de\)\./,
   );
 
   // The other host's segment is not special: /v16 on the live URL is just a prefix.

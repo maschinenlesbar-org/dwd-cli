@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { DwdClientOptions } from "../client/client.js";
 import { DwdError } from "../client/errors.js";
-import { baseUrlProblem, headerValueProblem, nonBlankProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem, nonBlankProblem, serviceBaseUrlProblem } from "../client/validate.js";
 
 /** commander value-parser: a non-negative integer. */
 export function parseIntArg(value: string): number {
@@ -61,23 +61,16 @@ export function parseBaseUrl(value: string): string {
 
 /**
  * Build a commander value-parser for a base URL whose client adds a fixed version
- * segment itself (`/v30` for `--base-url`, `/v16` for `--static-base-url`). The
- * hosts are documented with that segment, so passing the documented address would
- * request `/v30/v30/...` (a 404) or `/v16/v16/...` (S3 answers a missing key with
- * 403, which reads like an outage). Reject it with a hint naming the value to use.
+ * segment itself (`/v30` for `--base-url`, `/v16` for `--static-base-url`). The rules
+ * are the library's {@link baseUrlProblem} and {@link serviceBaseUrlProblem}, so a
+ * value ending in the segment is a usage error with the library's hint.
  */
 export function parseServiceBaseUrl(segment: string): (value: string) => string {
+  const segmentProblem = serviceBaseUrlProblem(segment);
   return (value: string) => {
     parseBaseUrl(value);
-    const url = new URL(value);
-    const path = url.pathname.replace(/\/+$/, "");
-    if (path.endsWith(segment)) {
-      // (url.origin carries no userinfo, so nothing secret is echoed.)
-      const suggestion = `${url.origin}${path.slice(0, -segment.length)}`;
-      throw new InvalidArgumentError(
-        `Leave out ${segment}: the CLI adds ${segment} itself (try ${suggestion}).`,
-      );
-    }
+    const problem = segmentProblem(value);
+    if (problem !== undefined) throw new InvalidArgumentError(problem);
     return value;
   };
 }

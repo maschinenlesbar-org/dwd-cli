@@ -98,3 +98,28 @@ export const stationIdProblem: Problem<unknown> = (id) =>
   typeof id !== "string" || id.trim() === "" || id.includes(",")
     ? `expected a non-blank id without commas, got ${JSON.stringify(id)}.`
     : undefined;
+
+/**
+ * A rule for a base URL whose client adds a fixed version segment itself (`/v30`
+ * for the live web service, `/v16` for the static bucket). The hosts are documented
+ * with that segment, so passing the documented address would request `/v30/v30/...`
+ * (a 404) or `/v16/v16/...` (S3 answers a missing key with 403, which reads like an
+ * outage). The reason names the value to use instead. A value that does not parse
+ * is left to {@link baseUrlProblem}.
+ */
+export function serviceBaseUrlProblem(segment: string): Problem<unknown> {
+  return (value) => {
+    if (typeof value !== "string") return undefined;
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return undefined;
+    }
+    const path = url.pathname.replace(/\/+$/, "");
+    if (!path.endsWith(segment)) return undefined;
+    // (url.origin carries no userinfo, so nothing secret is echoed.)
+    const suggestion = `${url.origin}${path.slice(0, -segment.length)}`;
+    return `Leave out ${segment}: the client adds ${segment} itself (try ${suggestion}).`;
+  };
+}

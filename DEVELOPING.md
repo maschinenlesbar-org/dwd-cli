@@ -196,7 +196,10 @@ control characters, an unparseable URL, a scheme other than `http:`/`https:`, or
 query or fragment throws a `DwdValidationError` ("Invalid baseUrl: …" /
 "Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
 `DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
-auth. Only an omitted value selects the default host.
+auth. Only an omitted value selects the default host. The client adds the version
+segment itself (`WS_VERSION` `/v30`, `STATIC_VERSION` `/v16`), so a value whose path
+ends in it throws a `DwdValidationError` with a hint (`serviceBaseUrlProblem`):
+`Invalid baseUrl: Leave out /v30: the client adds /v30 itself (try https://app-prod-ws.warnwetter.de).`
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits

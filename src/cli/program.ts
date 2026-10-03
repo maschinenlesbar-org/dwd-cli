@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
-import { DwdClient, DEFAULT_STATIC_BASE_URL } from "../client/client.js";
+import { DwdClient, DEFAULT_STATIC_BASE_URL, STATIC_VERSION, WS_VERSION } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
 import { addHelpCommand, parseServiceBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, helpOrUnknownCommand } from "./shared.js";
@@ -53,14 +53,14 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .version(VERSION)
     .option(
       "--base-url <url>",
-      "live web-service base URL, without /v30 (the CLI adds it)",
-      parseServiceBaseUrl("/v30"),
+      `live web-service base URL, without ${WS_VERSION} (the client adds it)`,
+      parseServiceBaseUrl(WS_VERSION),
       "https://app-prod-ws.warnwetter.de",
     )
     .option(
       "--static-base-url <url>",
-      "static (S3) bucket base URL, without /v16 (the CLI adds it)",
-      parseServiceBaseUrl("/v16"),
+      `static (S3) bucket base URL, without ${STATIC_VERSION} (the client adds it)`,
+      parseServiceBaseUrl(STATIC_VERSION),
       DEFAULT_STATIC_BASE_URL,
     )
     .option("--timeout <ms>", "time limit per request in milliseconds, whole response included (0 = no timeout)", parseBoundedInt(0, MAX_TIMEOUT_MS), 30_000)

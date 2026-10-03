@@ -5,6 +5,7 @@ import {
   baseUrlProblem,
   headerValueProblem,
   normalizeStationIds,
+  serviceBaseUrlProblem,
   stationIdProblem,
   type Problem,
 } from "../src/client/validate.js";
@@ -160,4 +161,25 @@ test("stationOverview rejects a bad id list with DwdValidationError and no reque
     await assert.rejects(() => client.weather.stationOverview(bad), DwdValidationError, JSON.stringify(bad));
   }
   assert.equal(mt.calls.length, 0);
+});
+
+test("serviceBaseUrlProblem: a path ending in the segment has a hint naming the value to use", () => {
+  const v30 = serviceBaseUrlProblem("/v30");
+  assert.equal(v30("https://app-prod-ws.warnwetter.de"), undefined);
+  assert.equal(v30("https://h.example/v300"), undefined);
+  assert.equal(v30("https://h.example/v16"), undefined);
+  assert.equal(v30("not a url"), undefined); // left to baseUrlProblem
+  assert.equal(v30("https://h.example/v30"), "Leave out /v30: the client adds /v30 itself (try https://h.example).");
+  assert.equal(v30("https://u:p@h.example/a/v30//"), "Leave out /v30: the client adds /v30 itself (try https://h.example/a).");
+  assert.equal(lib.serviceBaseUrlProblem, serviceBaseUrlProblem);
+  assert.equal(lib.WS_VERSION, "/v30");
+  assert.equal(lib.STATIC_VERSION, "/v16");
+});
+
+test("DwdClient rejects a base URL ending in its version segment in the constructor", () => {
+  assert.throws(() => new DwdClient({ baseUrl: "https://app-prod-ws.warnwetter.de/v30/" }), DwdValidationError);
+  assert.throws(
+    () => new DwdClient({ staticBaseUrl: "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16" }),
+    DwdValidationError,
+  );
 });

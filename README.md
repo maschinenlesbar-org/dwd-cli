@@ -97,7 +97,7 @@ Override them with `--base-url` (live) and `--static-base-url` (static) if you
 need to point at a proxy or staging host. Pass the host or bucket root **without**
 the version segment — `--base-url https://app-prod-ws.warnwetter.de`,
 `--static-base-url https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`;
-the CLI adds `/v30` and `/v16` itself (a value ending in them is rejected with a hint).
+the client adds `/v30` and `/v16` itself (a value ending in them is rejected with a hint).
 Credentials in the URL (`https://user:pw@proxy.example/`) are sent as HTTP Basic auth
 and shown as `***` in error messages.
 

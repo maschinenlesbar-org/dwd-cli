@@ -14,7 +14,7 @@
 import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
 import { DwdError, DwdParseError } from "./errors.js";
-import { assertValid, normalizeStationIds, stationIdProblem } from "./validate.js";
+import { assertValid, normalizeStationIds, serviceBaseUrlProblem, stationIdProblem } from "./validate.js";
 import type {
   StationOverview,
   WarningsFeed,
@@ -22,13 +22,21 @@ import type {
   CrowdOverview,
 } from "./types.js";
 
-const WS = "/v30";
-const STATIC = "/v16";
+/** The version segment the client adds to `baseUrl` (live web service). */
+export const WS_VERSION = "/v30";
+/** The version segment the client adds to `staticBaseUrl` (static bucket). */
+export const STATIC_VERSION = "/v16";
+const WS = WS_VERSION;
+const STATIC = STATIC_VERSION;
 
 export const DEFAULT_STATIC_BASE_URL =
   "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de";
 
-/** Options for the DWD client. `baseUrl` is the live web service host. */
+/**
+ * Options for the DWD client. `baseUrl` is the live web service host and
+ * `staticBaseUrl` the bucket root, both without the version segment the client adds
+ * (`/v30`, `/v16`); a value ending in it throws a DwdValidationError.
+ */
 export interface DwdClientOptions extends EngineOptions {
   /**
    * Base URL of the static S3 bucket. Defaults to the production bucket. It must
@@ -150,6 +158,11 @@ export class DwdClient {
       baseUrl:
         staticBaseUrl === undefined ? DEFAULT_STATIC_BASE_URL : validateBaseUrl(staticBaseUrl, "staticBaseUrl"),
     });
+
+    // The engines have checked the URL shapes; a value ending in the version
+    // segment the client adds would request /v30/v30/... or /v16/v16/...
+    if (options.baseUrl !== undefined) assertValid("baseUrl", options.baseUrl, serviceBaseUrlProblem(WS));
+    if (staticBaseUrl !== undefined) assertValid("staticBaseUrl", staticBaseUrl, serviceBaseUrlProblem(STATIC));
 
     this.weather = new WeatherResource(this.ws);
     this.warnings = new WarningsResource(this.static_);

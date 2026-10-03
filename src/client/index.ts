@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { DwdClient, DEFAULT_STATIC_BASE_URL } from "./client.js";
+export { DwdClient, DEFAULT_STATIC_BASE_URL, STATIC_VERSION, WS_VERSION } from "./client.js";
 export type { DwdClientOptions } from "./client.js";
 export {
   RequestEngine,
@@ -22,6 +22,7 @@ export {
   headerValueProblem,
   nonBlankProblem,
   normalizeStationIds,
+  serviceBaseUrlProblem,
   stationIdProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
