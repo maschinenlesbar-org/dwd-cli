@@ -78,3 +78,23 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
   return undefined;
 };
+
+/**
+ * Station ids in canonical form: each id trimmed (`" 10865 "` -> `"10865"`), so a
+ * padded id is not sent as `stationIds=%2010865%20`, which the API may drop like an
+ * unknown station. Idempotent; a non-string entry is left for the validator.
+ */
+export function normalizeStationIds(stationIds: readonly unknown[]): unknown[] {
+  return stationIds.map((id) => (typeof id === "string" ? id.trim() : id));
+}
+
+/**
+ * A station id (after {@link normalizeStationIds}) must be a non-blank string
+ * without commas: a blank id or a comma would send an empty slot in `stationIds`
+ * (`stationIds=` or `1,,2`), which the API answers with `{}` — indistinguishable
+ * from "no such station".
+ */
+export const stationIdProblem: Problem<unknown> = (id) =>
+  typeof id !== "string" || id.trim() === "" || id.includes(",")
+    ? `expected a non-blank id without commas, got ${JSON.stringify(id)}.`
+    : undefined;

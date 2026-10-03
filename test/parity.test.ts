@@ -104,3 +104,31 @@ test("parity: a well-formed base URL with a path prefix is sent the same by both
   assert.deepEqual(r.cli.requests, r.lib.requests);
   assert.equal(r.lib.requests[0]!.url, "https://mirror.test/prefix/v16/crowd_meldungen_overview_v2.json");
 });
+
+test("parity: padded station ids are trimmed by both and send the same request", async () => {
+  const both = () => jsonResponse({ "10865": { forecast1: {} }, "10870": { forecast1: {} } });
+  for (const [argv, ids, expected] of [
+    [["--id", " 10865 "], [" 10865 "], "10865"],
+    [["--id", "\t10865"], ["\t10865"], "10865"],
+    [["--id", " 10865 ", "--id", "10870"], [" 10865 ", "10870"], "10865,10870"],
+  ] as const) {
+    const r = await parity(
+      ["--compact", "station-overview", ...argv],
+      (transport) => new DwdClient({ transport }).weather.stationOverview([...ids]),
+      both,
+    );
+    assert.equal(r.cli.code, 0, r.cli.err);
+    assert.equal(r.lib.ok, true);
+    assert.deepEqual(r.cli.requests, r.lib.requests);
+    assert.equal(new URL(r.lib.requests[0]!.url).searchParams.get("stationIds"), expected);
+  }
+});
+
+test("parity: a blank station id is rejected by both, with no request", async () => {
+  const r = await parity(
+    ["--compact", "station-overview", "--id", "  "],
+    (transport) => new DwdClient({ transport }).weather.stationOverview(["  "]),
+    overview,
+  );
+  assertBothReject(r, /A station id must not be empty\./);
+});

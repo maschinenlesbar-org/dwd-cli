@@ -14,6 +14,7 @@
 import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
 import { DwdError, DwdParseError } from "./errors.js";
+import { assertValid, normalizeStationIds, stationIdProblem } from "./validate.js";
 import type {
   StationOverview,
   WarningsFeed,
@@ -49,22 +50,18 @@ function langSuffix(lang: Lang): string {
 }
 
 /**
- * The ids joined for the `stationIds` parameter. An empty list, a blank id or one
- * containing a comma would send an empty slot (`stationIds=` or `1,,2`), which the
- * API answers with `{}` — indistinguishable from "no such station" — so they throw.
+ * The ids joined for the `stationIds` parameter: each id trimmed
+ * ({@link normalizeStationIds}), then checked ({@link stationIdProblem}). An empty
+ * list, a blank id or one containing a comma would send an empty slot, which the
+ * API answers with `{}`, so they throw a DwdValidationError.
  */
 function joinStationIds(stationIds: readonly string[]): string {
-  if (!Array.isArray(stationIds) || stationIds.length === 0) {
-    throw new DwdError("Invalid stationIds: expected at least one station id.");
-  }
-  for (const id of stationIds) {
-    if (typeof id !== "string" || id.trim() === "" || id.includes(",")) {
-      throw new DwdError(
-        `Invalid station id: expected a non-blank id without commas, got ${JSON.stringify(id)}.`,
-      );
-    }
-  }
-  return stationIds.join(",");
+  assertValid("stationIds", stationIds, (v) =>
+    Array.isArray(v) && v.length > 0 ? undefined : "expected at least one station id.",
+  );
+  const ids = normalizeStationIds(stationIds);
+  for (const id of ids) assertValid("station id", id, stationIdProblem);
+  return ids.join(",");
 }
 
 /** A non-null, non-array JSON object. */
@@ -104,8 +101,9 @@ class WeatherResource {
   constructor(private readonly e: RequestEngine) {}
 
   /**
-   * Forecasts/observations for one or more DWD station ids. An empty list, a blank
-   * id or one with a comma rejects with a DwdError before any request.
+   * Forecasts/observations for one or more DWD station ids. Each id is trimmed; an
+   * empty list, a blank id or one with a comma rejects with a DwdValidationError
+   * before any request.
    */
   async stationOverview(stationIds: string[]): Promise<StationOverview> {
     const query = { stationIds: joinStationIds(stationIds) };

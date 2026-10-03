@@ -92,7 +92,10 @@ Client: `client.crowd()`. CLI: `crowd`.
 verwendet – meist eine 5-stellige numerische ID (z. B. München-Stadt = `10865`). In
 der CLI wiederholbar (`--id 10865 --id 01766`); ein einzelner Wert kann auch eine
 kommagetrennte Liste sein (`--id 10865,01766`). Beide Formen sind gleichwertig – beide
-werden kommagetrennt als `stationIds=10865,01766` an den Webdienst gesendet.
+werden kommagetrennt als `stationIds=10865,01766` an den Webdienst gesendet. Der
+Client entfernt Leerraum um jede ID (`" 10865 "` wird als `10865` gesendet) und weist
+eine leere ID oder eine mit Komma vor jeder Anfrage zurück – für die CLI wie für
+Aufrufe der Bibliothek.
 
 **`forecast1` / `forecast2`.** Zwei Vorhersagereihen je Station in einer
 Stationsübersicht. `forecast1` ist stündlich (`timeStep` 3600000) ab Mitternacht des

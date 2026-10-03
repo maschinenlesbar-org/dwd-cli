@@ -16,7 +16,14 @@ export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
 export type { QueryParams, QueryValue } from "./query.js";
-export { assertValid, baseUrlProblem, headerValueProblem, nonBlankProblem } from "./validate.js";
+export {
+  assertValid,
+  baseUrlProblem,
+  headerValueProblem,
+  nonBlankProblem,
+  normalizeStationIds,
+  stationIdProblem,
+} from "./validate.js";
 export type { Problem } from "./validate.js";
 export {
   DwdError,

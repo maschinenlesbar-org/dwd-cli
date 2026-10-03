@@ -75,9 +75,11 @@ new DwdClient({
 
 `client.weather.stationOverview(ids)`, `client.warnings` (`.nowcast(lang)` / `.gemeinde(lang)` / `.coast(lang)`),
 and `client.crowd()`. The arguments are checked before any request, as the CLI
-does: `lang` must be `"de"` or `"en"`, and `ids` must be a non-empty list of
-non-blank ids without commas; anything else rejects with a `DwdError` (an empty
-slot in `stationIds` would come back as `{}`, like an unknown station).
+does: `lang` must be `"de"` or `"en"` (else a `DwdError`). `ids` are trimmed
+(`normalizeStationIds`, so `" 10865 "` is sent as `10865`) and must then be a
+non-empty list of non-blank ids without commas (`stationIdProblem`); anything else
+rejects with a `DwdValidationError` (an empty slot in `stationIds` would come back as
+`{}`, like an unknown station). The CLI only splits an `--id` value on commas.
 
 ## Authentication internals
 

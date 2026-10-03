@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, baseUrlProblem, headerValueProblem, type Problem } from "../src/client/validate.js";
+import {
+  assertValid,
+  baseUrlProblem,
+  headerValueProblem,
+  normalizeStationIds,
+  stationIdProblem,
+  type Problem,
+} from "../src/client/validate.js";
 import { validateBaseUrl } from "../src/client/engine.js";
 import * as lib from "../src/index.js";
 import { DwdError, DwdNetworkError, DwdValidationError } from "../src/client/errors.js";
@@ -132,5 +139,25 @@ test("DwdClient checks both base URLs in the constructor, before any request", (
   const mt = makeMockTransport(() => jsonResponse({}));
   assert.throws(() => new DwdClient({ transport: mt.transport, baseUrl: "https://h.example/ " }), DwdValidationError);
   assert.throws(() => new DwdClient({ transport: mt.transport, staticBaseUrl: "https://h.example/?" }), DwdValidationError);
+  assert.equal(mt.calls.length, 0);
+});
+
+test("normalizeStationIds trims each id and is idempotent; stationIdProblem names a bad id", () => {
+  assert.deepEqual(normalizeStationIds([" 10865 ", "\t01766"]), ["10865", "01766"]);
+  assert.deepEqual(normalizeStationIds(normalizeStationIds([" 10865 "])), ["10865"]);
+  assert.equal(stationIdProblem("10865"), undefined);
+  assert.equal(stationIdProblem(""), 'expected a non-blank id without commas, got "".');
+  assert.equal(stationIdProblem("1,2"), 'expected a non-blank id without commas, got "1,2".');
+  assert.equal(stationIdProblem(5), "expected a non-blank id without commas, got 5.");
+  assert.equal(lib.normalizeStationIds, normalizeStationIds);
+  assert.equal(lib.stationIdProblem, stationIdProblem);
+});
+
+test("stationOverview rejects a bad id list with DwdValidationError and no request", async () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  const client = new DwdClient({ transport: mt.transport });
+  for (const bad of [[], ["  "], ["10865, 10870"], ["1", ""]]) {
+    await assert.rejects(() => client.weather.stationOverview(bad), DwdValidationError, JSON.stringify(bad));
+  }
   assert.equal(mt.calls.length, 0);
 });
