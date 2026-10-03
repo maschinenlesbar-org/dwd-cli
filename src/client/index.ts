@@ -14,7 +14,16 @@ export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
 export type { QueryParams, QueryValue } from "./query.js";
-export { DwdError, DwdApiError, DwdNetworkError, DwdParseError, redactUrl } from "./errors.js";
+export { assertValid } from "./validate.js";
+export type { Problem } from "./validate.js";
+export {
+  DwdError,
+  DwdApiError,
+  DwdNetworkError,
+  DwdParseError,
+  DwdValidationError,
+  redactUrl,
+} from "./errors.js";
 
 export * from "./enums.js";
 export * from "./types.js";

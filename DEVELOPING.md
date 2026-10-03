@@ -100,7 +100,8 @@ src/
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + node:http/https transport with gzip/deflate/br decoding
     engine.ts    # URL building, retry/backoff, redirects, JSON decoding, error mapping
-    errors.ts    # DwdError / DwdApiError / DwdNetworkError / DwdParseError
+    errors.ts    # DwdError / DwdApiError / DwdNetworkError / DwdParseError / DwdValidationError
+    validate.ts  # input rules (Problem functions) + assertValid, shared with the CLI
     client.ts    # DwdClient — two engines (live ws + static bucket) over one transport
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/file)
@@ -157,9 +158,22 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DwdApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `DwdNetworkError` (transport
-failure/timeout), `DwdParseError` (bad/non-JSON body), all extending `DwdError`.
-The CLI maps `404` to exit code `4`, other API statuses to `5`, network failures
-to `6`, parse failures to `7`, and any other error to `1`.
+failure/timeout), `DwdParseError` (bad/non-JSON body), `DwdValidationError` (an
+input the library rejects before any request), all extending `DwdError`.
+The CLI maps a `DwdValidationError` to the usage exit code `2`, `404` to exit
+code `4`, other API statuses to `5`, network failures to `6`, parse failures to
+`7`, and any other error to `1`.
+
+**Input validation.** Every rule about what a request may contain lives in the
+library, in [`validate.ts`](src/client/validate.ts) or next to the option it
+guards, as an exported `…Problem(value)` function that returns the reason a value
+is invalid (or `undefined`). The library enforces it with `assertValid(name,
+value, problem)`, which throws `DwdValidationError` with the message
+`Invalid <name>: <reason>` before any request (methods that return a promise
+reject; constructors throw). The CLI's option parsers call the same functions and
+turn the reason into a usage error, so the CLI keeps no rules of its own. Tests
+check this with the `parity()` helper in `test/helpers.ts`, which sends one input
+through `run()` and through the library on one recording mock transport.
 
 **Engine options.** The numeric options (`timeoutMs`, `maxRetries`,
 `retryDelayMs`, `maxRedirects`, `maxResponseBytes`) must be integers within their

@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { DwdApiError, DwdError, DwdNetworkError, DwdParseError } from "../client/errors.js";
+import { DwdApiError, DwdError, DwdNetworkError, DwdParseError, DwdValidationError } from "../client/errors.js";
 
 /**
  * Process exit codes. Distinct codes let scripts tell a usage mistake from a
@@ -17,7 +17,10 @@ export const EXIT = {
   ok: 0,
   /** A generic / unclassified error. */
   generic: 1,
-  /** A usage / argument-parse error (unknown command, bad flag, missing option). */
+  /**
+   * A usage / argument-parse error (unknown command, bad flag, missing option), or
+   * an input the library rejects with a DwdValidationError.
+   */
   usage: 2,
   /** The API returned 404. */
   notFound: 4,
@@ -56,6 +59,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // gets the dedicated usage code so scripts can tell it apart from a
       // runtime failure (which commander would otherwise also report as 1).
       return err.exitCode === 0 ? EXIT.ok : EXIT.usage;
+    }
+    if (err instanceof DwdValidationError) {
+      // The library rejected an input before any request: a usage error, like a
+      // value commander's parsers reject.
+      deps.io.err(`Error: ${err.message}`);
+      return EXIT.usage;
     }
     if (err instanceof DwdApiError) {
       deps.io.err(`Error: ${err.message}`);

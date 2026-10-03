@@ -83,3 +83,10 @@ export class DwdNetworkError extends DwdError {}
 
 /** The response body could not be parsed as the expected JSON shape. */
 export class DwdParseError extends DwdError {}
+
+/**
+ * A rejected input — a client option or a method argument that breaks one of the
+ * library's rules (see validate.ts). Thrown before any request is made; the CLI
+ * maps it to its usage exit code (2).
+ */
+export class DwdValidationError extends DwdError {}
