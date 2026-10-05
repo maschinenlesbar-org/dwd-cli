@@ -33,6 +33,8 @@ export {
   DwdParseError,
   DwdValidationError,
   redactUrl,
+  credentialsIn,
+  redactCredentials,
 } from "./errors.js";
 
 export * from "./enums.js";
