@@ -9,6 +9,7 @@ import {
   DwdError,
   DwdNetworkError,
   DwdParseError,
+  DwdValidationError,
   credentialsIn,
   redactCredentials,
   redactUrl,
@@ -31,7 +32,7 @@ export interface RawResponse {
 /**
  * Options for {@link RequestEngine} and the client. The numeric options must be
  * integers within their documented range; anything else (negative, fractional,
- * NaN, Infinity, too large) makes the constructor throw a DwdError.
+ * NaN, Infinity, too large) makes the constructor throw a DwdValidationError.
  */
 export interface EngineOptions {
   /**
@@ -139,6 +140,9 @@ export function parseRetryAfter(
  * cli/shared.ts): `JSON.stringify` alone leaves DEL and the C1 range raw.
  * `DwdApiError.body` still
  * carries the raw, unsanitised body for library consumers.
+ *
+ * The result is cut at MAX_SERVER_TEXT_LENGTH characters (ending in "…"), so a
+ * hostile or broken body can't flood stderr or a CI log with one huge line.
  */
 function sanitizeServerText(text: string): string {
   let out = "";
@@ -148,8 +152,15 @@ function sanitizeServerText(text: string): string {
     if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
     out += ch;
   }
-  return out;
+  return out.length > MAX_SERVER_TEXT_LENGTH ? `${out.slice(0, MAX_SERVER_TEXT_LENGTH)}…` : out;
 }
+
+/**
+ * Longest server text (in characters) an error message shows: an error `detail`, a
+ * redirect target, an echoed Content-Type or a transport's reason.
+ * `DwdApiError.body` keeps the full text.
+ */
+export const MAX_SERVER_TEXT_LENGTH = 500;
 
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -257,9 +268,22 @@ const MAX_REDIRECTS = 20;
 function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
-    throw new DwdError(
-      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
-    );
+    // A string or object is echoed by type, not value: it may be long or carry anything.
+    const shown = typeof value === "number" ? String(value) : `a ${typeof value}`;
+    throw new DwdValidationError(`Invalid option ${name}: expected an integer from 0 to ${max}, got ${shown}.`);
+  }
+  return value;
+}
+
+/**
+ * Read a function-valued option (`transport`, `sleep`): `undefined` gives the default,
+ * anything but a function throws a DwdValidationError here rather than a raw TypeError
+ * ("this.transport is not a function") at request time.
+ */
+function functionOption<F extends (...args: never[]) => unknown>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new DwdValidationError(`Invalid option ${name}: expected a function, got ${value === null ? "null" : typeof value}.`);
   }
   return value;
 }
@@ -302,6 +326,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    options = options ?? {};
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
     this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
@@ -312,7 +338,7 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
     this.userAgent =
@@ -327,7 +353,7 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**

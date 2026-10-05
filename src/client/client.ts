@@ -13,7 +13,7 @@
 
 import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
-import { DwdError, DwdParseError } from "./errors.js";
+import { DwdParseError, DwdValidationError } from "./errors.js";
 import { assertValid, normalizeStationIds, serviceBaseUrlProblem, stationIdProblem } from "./validate.js";
 import type {
   StationOverview,
@@ -47,12 +47,13 @@ export interface DwdClientOptions extends EngineOptions {
 
 /**
  * German feeds have no suffix; English feeds use the `_en` filename suffix. Any
- * other value (a JS caller, untyped input) throws instead of silently serving the
- * German feed.
+ * other value (a JS caller, untyped input) throws a DwdValidationError instead of
+ * silently serving the German feed.
  */
 function langSuffix(lang: Lang): string {
   if (!(LangValues as readonly unknown[]).includes(lang)) {
-    throw new DwdError(`Invalid lang: expected one of ${LangValues.join(", ")}, got ${JSON.stringify(lang)}.`);
+    const shown = typeof lang === "string" ? JSON.stringify(lang.length > 50 ? `${lang.slice(0, 50)}…` : lang) : `a ${typeof lang}`;
+    throw new DwdValidationError(`Invalid lang: expected one of ${LangValues.join(", ")}, got ${shown}.`);
   }
   return lang === "en" ? "_en" : "";
 }
@@ -145,7 +146,7 @@ class WeatherResource {
 
 /**
  * Static bucket: the published warning feeds. A `lang` other than "de" / "en"
- * rejects with a DwdError before any request.
+ * rejects with a DwdValidationError before any request.
  */
 class WarningsResource {
   constructor(private readonly e: RequestEngine) {}
@@ -174,7 +175,8 @@ export class DwdClient {
   readonly warnings: WarningsResource;
 
   constructor(options: DwdClientOptions = {}) {
-    const { staticBaseUrl, ...engineOptions } = options;
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    const { staticBaseUrl, ...engineOptions } = options ?? {};
     this.ws = new RequestEngine(engineOptions);
     this.static_ = new RequestEngine({
       ...engineOptions,
@@ -185,7 +187,7 @@ export class DwdClient {
 
     // The engines have checked the URL shapes; a value ending in the version
     // segment the client adds would request /v30/v30/... or /v16/v16/...
-    if (options.baseUrl !== undefined) assertValid("baseUrl", options.baseUrl, serviceBaseUrlProblem(WS));
+    if (engineOptions.baseUrl !== undefined) assertValid("baseUrl", engineOptions.baseUrl, serviceBaseUrlProblem(WS));
     if (staticBaseUrl !== undefined) assertValid("staticBaseUrl", staticBaseUrl, serviceBaseUrlProblem(STATIC));
 
     this.weather = new WeatherResource(this.ws);

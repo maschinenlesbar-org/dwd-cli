@@ -448,3 +448,13 @@ test("custom transports: a string body or missing headers is a DwdNetworkError, 
     await assert.rejects(() => e.getJson("/x"), DwdNetworkError);
   }
 });
+
+test("server text in a message is cut at 500 characters; the error body keeps it all", async () => {
+  const long = "x".repeat(200_000);
+  const mt = makeMockTransport(() => jsonResponse({ detail: long }, 500));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport, maxRetries: 0 });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof DwdApiError && err.detail?.length === 501 && err.detail.endsWith("…") && err.body.length > 200_000,
+  );
+});

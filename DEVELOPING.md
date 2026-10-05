@@ -75,7 +75,7 @@ new DwdClient({
 
 `client.weather.stationOverview(ids)`, `client.warnings` (`.nowcast(lang)` / `.gemeinde(lang)` / `.coast(lang)`),
 and `client.crowd()`. The arguments are checked before any request, as the CLI
-does: `lang` must be `"de"` or `"en"` (else a `DwdError`). `ids` are trimmed
+does: `lang` must be `"de"` or `"en"` (else a `DwdValidationError`). `ids` are trimmed
 (`normalizeStationIds`, so `" 10865 "` is sent as `10865`) and must then be a
 non-empty list of non-blank ids without commas (`stationIdProblem`); anything else
 rejects with a `DwdValidationError` (an empty slot in `stationIds` would come back as
@@ -196,8 +196,11 @@ through `run()` and through the library on one recording mock transport.
 **Engine options.** The numeric options (`timeoutMs`, `maxRetries`,
 `retryDelayMs`, `maxRedirects`, `maxResponseBytes`) must be integers within their
 documented range (`0` = off for the timeout and the size cap); anything else — a
-negative, fractional, `NaN` or oversized value — makes the constructor throw a
-`DwdError` naming the option.
+negative, fractional, `NaN`, oversized or non-number value — makes the constructor
+throw a `DwdValidationError` naming the option; so does a `transport` or `sleep` that
+isn't a function. Server text in a message (an error `detail`, a redirect target, an
+echoed Content-Type, a transport's reason) is cut at 500 characters
+(`MAX_SERVER_TEXT_LENGTH`); `DwdApiError.body` keeps all of it.
 
 `userAgent` is checked there too, with the same rule as the CLI's `--user-agent`
 (`headerValueProblem`, also exported as `assertHeaderValue(name, value)`): a blank

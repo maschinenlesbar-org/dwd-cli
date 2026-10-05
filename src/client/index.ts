@@ -7,6 +7,7 @@ export {
   DEFAULT_BASE_URL,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
+  MAX_SERVER_TEXT_LENGTH,
   isTransientNetworkError,
   assertHeaderValue,
   parseRetryAfter,
