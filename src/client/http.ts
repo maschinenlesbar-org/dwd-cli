@@ -43,6 +43,12 @@ export interface HttpRequest {
   body?: string | Buffer;
   /** Timeout for the whole request, response body included, in milliseconds. */
   timeoutMs?: number;
+  /**
+   * Aborted when the engine's overall deadline (`timeoutMs`) passes. A transport should stop
+   * the request then (`fetch(url, { signal })`); the engine rejects at the deadline either way,
+   * and enforces `maxResponseBytes` on the body it gets back, so neither limit depends on it.
+   */
+  signal?: AbortSignal;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
   /**
@@ -67,6 +73,11 @@ export interface HttpResponse {
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 
+/** The message for a body over the size cap, naming the option on both sides. */
+export function sizeLimitMessage(maxBytes: number): string {
+  return `Response exceeded the size limit of ${maxBytes} bytes (maxResponseBytes; --max-response-bytes on the CLI)`;
+}
+
 /**
  * Decompress a body according to its Content-Encoding (identity if none/unknown).
  *
@@ -89,7 +100,7 @@ async function decode(
   // size-cap error the wire-size cap produces, so a decompression bomb reports
   // "Response exceeded maxResponseBytes" rather than looking like a corrupt body.
   const overCap = (): DwdNetworkError =>
-    new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`);
+    new DwdNetworkError(sizeLimitMessage(maxBytes ?? 0));
   const isOverCap = (err: unknown): boolean =>
     typeof err === "object" && err !== null && (err as { code?: unknown }).code === "ERR_BUFFER_TOO_LARGE";
   try {
@@ -179,7 +190,7 @@ export const nodeHttpTransport: Transport = (request) =>
         if (maxBytes !== undefined && received > maxBytes) {
           aborted = true;
           res.destroy();
-          fail(new DwdNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+          fail(new DwdNetworkError(sizeLimitMessage(maxBytes ?? 0)));
           return;
         }
         chunks.push(chunk);
@@ -235,6 +246,16 @@ export const nodeHttpTransport: Transport = (request) =>
         fail(err);
         req.destroy(err);
       }, timeoutMs);
+    }
+
+    if (request.signal !== undefined) {
+      const abort = (): void => {
+        const err = new DwdNetworkError(`Request timed out after ${request.timeoutMs ?? 0}ms`);
+        fail(err);
+        req.destroy(err);
+      };
+      if (request.signal.aborted) abort();
+      else request.signal.addEventListener("abort", abort, { once: true });
     }
 
     req.on("error", (err) => {

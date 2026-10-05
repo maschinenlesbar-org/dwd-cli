@@ -173,7 +173,8 @@ many requests) or **503** (service unavailable). The client retries these
 automatically, waiting the response's `Retry-After` (up to 30 s; a longer one is
 not retried) or else backing off linearly — the number of retries is tunable with
 `--max-retries` (`0`–`10`, default `2`); the base inter-attempt delay grows linearly
-and is an internal default, not a CLI flag.
+and is an internal default, not a CLI flag. A reset connection is retried the same way;
+a timeout is not.
 
 **Redirects.** The engine follows up to `maxRedirects` (default `5`) HTTP
 redirects (301/302/303/307/308). Any other 3xx (such as `304`) is not followed: it

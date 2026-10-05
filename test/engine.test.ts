@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, parseRetryAfter } from "../src/client/engine.js";
 import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import type { HttpResponse } from "../src/client/http.js";
 
 // Control chars are built via char codes so no raw control bytes ever appear in
 // this source file (which would otherwise be mangled by editors/tooling).
@@ -410,5 +411,40 @@ test("a JSON parse error names the parser's reason", async () => {
         reason.test(err.message),
       JSON.stringify(body),
     );
+  }
+});
+
+test("custom transports: header names in any case are read (Location, Content-Type)", async () => {
+  let n = 0;
+  const mt = makeMockTransport(() =>
+    n++ === 0
+      ? { status: 302, headers: { Location: "/moved" } as unknown as HttpResponse["headers"], body: Buffer.alloc(0) }
+      : { status: 200, headers: { "Content-Type": "text/html" } as unknown as HttpResponse["headers"], body: Buffer.from("<html>") },
+  );
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof DwdParseError && /Content-Type "text\/html"/.test(err.message),
+  );
+  assert.equal(new URL(mt.last().url).pathname, "/moved");
+});
+
+test("custom transports: a Uint8Array error body keeps its detail and text", async () => {
+  const body = new Uint8Array(Buffer.from('{"detail":"no such feed"}'));
+  const mt = makeMockTransport(() => ({ status: 404, headers: { "content-type": "application/json" }, body: body as Buffer }));
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof DwdApiError && err.detail === "no such feed" && err.body === '{"detail":"no such feed"}',
+  );
+});
+
+test("custom transports: a string body or missing headers is a DwdNetworkError, not a raw TypeError", async () => {
+  for (const response of [
+    { status: 200, headers: {}, body: "{}" },
+    { status: 200, body: Buffer.from("{}") },
+  ]) {
+    const e = new RequestEngine({ transport: async () => response as unknown as HttpResponse });
+    await assert.rejects(() => e.getJson("/x"), DwdNetworkError);
   }
 });

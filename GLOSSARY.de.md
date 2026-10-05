@@ -177,7 +177,8 @@ Requests) oder **503** (Service Unavailable) antworten. Der Client wiederholt di
 automatisch und wartet dabei das `Retry-After` der Antwort ab (bis 30 s; ein längeres
 wird nicht wiederholt), sonst mit linearem Backoff – die Zahl der Retries lässt sich mit
 `--max-retries` einstellen (`0`–`10`, Standard `2`); die Grundwartezeit zwischen den
-Versuchen wächst linear und ist ein interner Standardwert, keine CLI-Option.
+Versuchen wächst linear und ist ein interner Standardwert, keine CLI-Option. Eine
+abgebrochene Verbindung (Reset) wird ebenso wiederholt, ein Timeout nicht.
 
 **Weiterleitungen.** Die Engine folgt bis zu `maxRedirects` (Standard `5`)
 HTTP-Weiterleitungen (301/302/303/307/308). Jeder andere 3xx-Status (etwa `304`) wird

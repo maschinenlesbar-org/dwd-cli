@@ -230,11 +230,27 @@ the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, pars
 `parseRetryAfter` — or, without a usable one, `retryDelayMs * attempt`. A
 `Retry-After` longer than `MAX_RETRY_AFTER_MS` (30 s) is not retried: the
 `DwdApiError` surfaces at once. `DwdApiError` exposes `isRetryable` (true for
-`429`/`503`).
+`429`/`503`). A reset connection (`ECONNRESET`/`EPIPE`/`ECONNABORTED`, or undici's
+`UND_ERR_SOCKET`, anywhere in the error's `cause` chain — `isTransientNetworkError`)
+is retried with the linear backoff too, whichever transport reported it. Only `GET`
+and `HEAD` are retried; a timeout is not.
+
+**Transport contract.** The engine enforces its limits for every transport, not only
+the built-in one: each call runs under the `timeoutMs` deadline (the request carries
+an `AbortSignal` in `HttpRequest.signal`, which the built-in transport honours, and the
+engine rejects at the deadline whether the transport stops or not), and the body it
+gets back is checked against `maxResponseBytes`. It accepts any `ArrayBuffer` view
+(`Buffer`, a fetch `Uint8Array`, a `DataView`) or `ArrayBuffer` as the body, from any
+realm, and reads headers from a plain object in any case, a `Headers` object or a
+`Map`. A malformed response (no status, no headers, a string body) and anything a
+transport throws become a `DwdNetworkError`.
 
 **maxResponseBytes.** A cap on the response body size in bytes — applied to both
-the wire bytes and the *decompressed* output (`0` = unlimited; default 100 MiB),
-guarding against decompression bombs and unbounded responses.
+the wire bytes and the *decompressed* output by the built-in transport, and to the
+body any transport returns by the engine (`0` = unlimited; default 100 MiB), guarding
+against decompression bombs and unbounded responses. The message names the option and
+the CLI flag: `Response exceeded the size limit of <n> bytes (maxResponseBytes;
+--max-response-bytes on the CLI)`.
 
 **Feed envelopes (typed response shapes).**
 
