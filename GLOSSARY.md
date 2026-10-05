@@ -115,7 +115,18 @@ value — today's past hours at some stations (`temperature`, `precipitationTota
 so `null` inside an array means "no value for this hour", like a whole array that is
 `null`.
 
-**`days`.** The multi-day forecast summary block of a station overview.
+**`days`.** The multi-day forecast summary block of a station overview: per local
+date (`dayDate`) the min/max temperature, precipitation, wind, gust, sunrise/sunset
+and an icon, which matched DWD's MOSMIX forecast when checked.
+
+**`days[].sunshine`.** Not reliable. It is either exactly the day's sum of the hourly
+(`forecast1`) and 3-hourly (`forecast2`) `sunshine` values, or `0` — and it was `0` on
+about 44 % of the future days checked (49 stations on 2026-10-05 and 06), in runs of
+unsettled weather, on days with up to 6–7 h of sun in the hourly data and in MOSMIX.
+Neither MOSMIX's daily elements (`SunD`, `RSunD`) nor any threshold explains the zeros;
+the app backend's rule is not documented. Sum the series per local day instead (the
+`dwd-station-forecast` skill has the recipe); for today the series only cover the hours
+from about now.
 
 **`threeHourSummaries`.** Three-hour aggregated forecast summaries within a
 station overview.

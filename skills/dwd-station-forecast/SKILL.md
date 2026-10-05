@@ -74,7 +74,8 @@ The DWD numbers are scaled integers; printing them raw gives nonsense like "temp
 | `windSpeed`, `windGust` | ÷ 10 → **km/h** | `167` → 16.7, `445` → 44.5 km/h |
 | `windDirection` | ÷ 10 → **degrees** | `2700` → 270° (W) |
 | `precipitation`, `precipitationTotal` | ÷ 10 → **mm** | `14` → 1.4 mm |
-| `sunshine` (hourly and `days`) | ÷ 10 → **minutes** of sunshine in the period (tenths of a minute) | `350` → 35 min in that hour, `3300` → 330 min that day |
+| `sunshine` (`forecast1` hourly, `forecast2` 3-hourly) | ÷ 10 → **minutes** of sunshine in the period (tenths of a minute) | `350` → 35 min in that hour |
+| `days[].sunshine` | **don't use it** — see the trap below; sum the hourly values instead | `0` on a day with 4 h of sun |
 | `sunrise`/`sunset`/`moonrise`/`moonset`, `start` | **epoch milliseconds** — ÷ 1000 for a normal timestamp; format in local/CET time | |
 | `icon` / `icon1` / `icon2` | small int weather-symbol code — describe loosely or omit, don't fabricate an exact meaning | |
 
@@ -90,6 +91,12 @@ The DWD numbers are scaled integers; printing them raw gives nonsense like "temp
 > "no value"/"not provided" for that hour, leave it out of sums, minima and maxima, and never
 > divide it (in jq, `null / 10` is an error). If you ever see a raw `32767` (an old `dwd`),
 > treat it the same way — it is not 3276.7 of anything.
+> **Trap: `days[].sunshine` is often `0` on sunny days.** Checked against the hourly data
+> on 2026-10-05 and 06 (49 stations, 531 future days): it is either exactly the day's sum of
+> the hourly/3-hourly `sunshine` values or `0` — and it was `0` on about 44 % of the days,
+> in runs of unsettled weather, with up to 6–7 h of sun in the hourly data (and in DWD's
+> MOSMIX). A `0` there does not mean "no sun". **Take a day's sunshine from the series**
+> (recipe in "Daily sunshine" below), never from `days[].sunshine`.
 > **Spelling:** the precipitation-probability key is misspelled `precipitationProbablity`
 > in the API (and `precipitationProbablityIndex`) — use the exact key.
 
@@ -132,12 +139,37 @@ TZ=Europe/Berlin jq -r --arg id 10147 '
   | join("  ")' so.json
 ```
 
+### Daily sunshine — sum the series, not `days[].sunshine`
+
+Sunshine per day (local date) from the hourly `forecast1` values (end-aligned, as above)
+and the 3-hourly `forecast2` values, skipping `null`:
+
+```bash
+TZ=Europe/Berlin jq -r --arg id 10147 '
+  .[$id] as $s | $s.forecast1 as $f | $s.forecast2 as $g
+  | ( [ ($f.sunshine // []) as $a | range(0; $a | length) as $j
+        | {end: ($f.start + (73 - ($a | length) + $j) * $f.timeStep), v: $a[$j]} ]
+    + [ ($g.sunshine // []) as $a | range(0; $a | length) as $j
+        | {end: ($g.start + ($j + 1) * $g.timeStep), v: $a[$j]} ] )
+  | map(select(.v != null and .v != 32767)
+        | .day = ((.end - 1) / 1000 | strflocaltime("%Y-%m-%d")))
+  | map(select(.day >= (now | strflocaltime("%Y-%m-%d"))))
+  | group_by(.day)
+  | map({day: .[0].day, sun_min: ((map(.v) | add) / 10)})
+  | .[] | "\(.day)  sun \(.sun_min) min"' so.json
+```
+
+For **today** the series only start around the current hour, so today's sum is the
+sunshine **still to come**; say so ("another 2 h of sun this afternoon"). The series end
+about ten days out, so the last `days` entries may have no sum — say "not provided".
+
 ## Step 4 — Present the forecast
 
 Pick the slice the user asked for; don't dump 240 hourly points.
 
 - **"forecast for <city>"** → today + next 2–3 days from `days`: per day show min/max °C,
-  precipitation mm, wind km/h + direction, sunrise/sunset.
+  precipitation mm, wind km/h + direction, sunrise/sunset, and sunshine hours from the
+  daily-sunshine recipe (not from `days[].sunshine`).
 - **"will it rain / next few hours"** → the next ~12 hours from **now**, not the first
   entries (`forecast1` starts at midnight): hour, temp, precip mm (and probability if
   present), aligned as in the helper above.

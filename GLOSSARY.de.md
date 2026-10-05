@@ -117,7 +117,19 @@ vergangen wie künftig, an Bergstationen (Zugspitze, Feldberg, Fichtelberg …).
 `threeHourSummaries`; `null` in einem Array heißt also „kein Wert für diese Stunde“, wie
 ein ganzes Array, das `null` ist.
 
-**`days`.** Der Block mit der mehrtägigen Vorhersagezusammenfassung einer Stationsübersicht.
+**`days`.** Der Block mit der mehrtägigen Vorhersagezusammenfassung einer
+Stationsübersicht: je lokalem Datum (`dayDate`) Tiefst- und Höchsttemperatur,
+Niederschlag, Wind, Böen, Sonnenauf- und -untergang und ein Symbol; beim Abgleich
+stimmten sie mit der MOSMIX-Vorhersage des DWD überein.
+
+**`days[].sunshine`.** Nicht verlässlich. Der Wert ist entweder genau die Tagessumme der
+stündlichen (`forecast1`) und dreistündlichen (`forecast2`) `sunshine`-Werte oder `0` –
+und er war an etwa 44 % der geprüften künftigen Tage `0` (49 Stationen am 05. und
+06.10.2026), in Phasen wechselhaften Wetters, an Tagen mit bis zu 6–7 h Sonne in den
+Stundenwerten und in MOSMIX. Weder die Tageselemente von MOSMIX (`SunD`, `RSunD`) noch
+ein Schwellenwert erklären die Nullen; die Regel des App-Backends ist nicht
+dokumentiert. Stattdessen die Reihen je lokalem Tag summieren (das Rezept steht im Skill
+`dwd-station-forecast`); für heute decken die Reihen nur die Stunden ab etwa jetzt ab.
 
 **`threeHourSummaries`.** Auf drei Stunden aggregierte Vorhersagezusammenfassungen
 innerhalb einer Stationsübersicht.
