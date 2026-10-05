@@ -265,8 +265,9 @@ the CLI flag: `Response exceeded the size limit of <n> bytes (maxResponseBytes;
 
 **Shape check.** The client (`getChecked` in `client.ts`) checks only the top
 level the types promise — a JSON object for the station overview, a `warnings`
-array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crowd) —
-never the records inside. Anything else throws `DwdParseError` with the text
+array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crowd),
+a numeric `time` on the three warning feeds and, when present, a numeric `start`/`end`
+on the crowd feed — never the records inside. Anything else throws `DwdParseError` with the text
 `Unexpected response shape from <path>: expected <what>.`
 
 **Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when

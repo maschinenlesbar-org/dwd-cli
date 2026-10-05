@@ -21,6 +21,7 @@ export type StationOverview = { [stationId: string]: JsonObject };
 
 /** Common envelope of the warning feeds (nowcast / gemeinde). */
 export interface WarningsFeed {
+  /** When DWD published the feed, epoch milliseconds (checked: a feed without it is a DwdParseError). */
   time: number;
   warnings: JsonObject[];
   binnenSee?: JsonValue;
@@ -28,6 +29,7 @@ export interface WarningsFeed {
 
 /** Coastal warnings feed — `warnings` is keyed by coastal zone. */
 export interface CoastWarningsFeed {
+  /** When DWD published the feed, epoch milliseconds (checked, as for WarningsFeed). */
   time: number;
   warnings: JsonObject;
   /** Advance information ("Vorabinformation"), keyed like `warnings`. */

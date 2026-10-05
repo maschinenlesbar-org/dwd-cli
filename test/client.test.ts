@@ -107,6 +107,11 @@ test("a 2xx body without the promised top-level shape is a DwdParseError", async
     [{ time: 1, warnings: [] }, (c) => c.warnings.coast(), "/v16/warnings_coast.json: expected a JSON object with a warnings object."],
     [null, (c) => c.weather.stationOverview(["1"]), "/v30/stationOverviewExtended: expected a JSON object."],
     [[1], (c) => c.weather.stationOverview(["1"]), "/v30/stationOverviewExtended: expected a JSON object."],
+    // A warning feed must carry its publication time (finding 02#1).
+    [{ warnings: [] }, (c) => c.warnings.nowcast(), "/v16/warnings_nowcast.json: expected a numeric time (epoch milliseconds)."],
+    [{ time: "yesterday", warnings: [] }, (c) => c.warnings.gemeinde("en"), "/v16/gemeinde_warnings_v2_en.json: expected a numeric time (epoch milliseconds)."],
+    [{ warnings: {} }, (c) => c.warnings.coast(), "/v16/warnings_coast.json: expected a numeric time (epoch milliseconds)."],
+    [{ start: "x", meldungen: [] }, (c) => c.crowd(), "/v16/crowd_meldungen_overview_v2.json: expected a numeric start (epoch milliseconds) when it is present."],
   ];
   for (const [body, call, message] of cases) {
     await assert.rejects(
@@ -119,4 +124,6 @@ test("a 2xx body without the promised top-level shape is a DwdParseError", async
   assert.deepEqual(await clientWith(constantJson({})).weather.stationOverview(["nope"]), {});
   await clientWith(constantJson({ time: 1, warnings: [], binnenSee: null })).warnings.nowcast();
   await clientWith(constantJson({ time: 1, warnings: {}, vorabInformation: {} })).warnings.coast();
+  await clientWith(constantJson({ meldungen: [] })).crowd();
+  await clientWith(constantJson({ start: 1, end: 2, meldungen: [] })).crowd();
 });

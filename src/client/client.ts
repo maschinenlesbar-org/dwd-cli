@@ -82,6 +82,16 @@ function shapeError(path: string, expected: string): DwdParseError {
 }
 
 /**
+ * Envelope fields that must be a finite number: `required` ones always, `optional` ones
+ * when present. The warning feeds' `time` is what a briefing states as "feed time"; a
+ * feed without it (or with a string) would make `new Date(feed.time)` an Invalid Date.
+ */
+interface NumberFields {
+  required?: readonly string[];
+  optional?: readonly string[];
+}
+
+/**
  * Check the top-level shape the types promise — never the records inside. A 200
  * body of `null`, `[]` or an S3/proxy error document would otherwise be returned
  * typed as a feed (and printed with exit 0).
@@ -92,6 +102,7 @@ async function getChecked<T>(
   query: Record<string, string> | undefined,
   key: string | undefined,
   kind: "array" | "object",
+  numbers: NumberFields = {},
 ): Promise<T> {
   const body = await e.getJson<unknown>(path, query);
   if (key === undefined) {
@@ -101,8 +112,21 @@ async function getChecked<T>(
   const value = isObject(body) ? body[key] : undefined;
   const ok = kind === "array" ? Array.isArray(value) : isObject(value);
   if (!ok) throw shapeError(path, `a JSON object with a ${key} ${kind}`);
+  const envelope = body as Record<string, unknown>;
+  const isNumber = (v: unknown): boolean => typeof v === "number" && Number.isFinite(v);
+  for (const field of numbers.required ?? []) {
+    if (!isNumber(envelope[field])) throw shapeError(path, `a numeric ${field} (epoch milliseconds)`);
+  }
+  for (const field of numbers.optional ?? []) {
+    if (field in envelope && !isNumber(envelope[field])) {
+      throw shapeError(path, `a numeric ${field} (epoch milliseconds) when it is present`);
+    }
+  }
   return body as T;
 }
+
+/** The warning feeds' `time`: when DWD published the feed, epoch ms. */
+const FEED_TIME: NumberFields = { required: ["time"] };
 
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
@@ -128,17 +152,17 @@ class WarningsResource {
 
   /** Short-term (nowcast) warnings. */
   async nowcast(lang: Lang = "de"): Promise<WarningsFeed> {
-    return getChecked(this.e, `${STATIC}/warnings_nowcast${langSuffix(lang)}.json`, undefined, "warnings", "array");
+    return getChecked(this.e, `${STATIC}/warnings_nowcast${langSuffix(lang)}.json`, undefined, "warnings", "array", FEED_TIME);
   }
 
   /** Municipality-level warnings. */
   async gemeinde(lang: Lang = "de"): Promise<WarningsFeed> {
-    return getChecked(this.e, `${STATIC}/gemeinde_warnings_v2${langSuffix(lang)}.json`, undefined, "warnings", "array");
+    return getChecked(this.e, `${STATIC}/gemeinde_warnings_v2${langSuffix(lang)}.json`, undefined, "warnings", "array", FEED_TIME);
   }
 
   /** Coastal warnings (keyed by coastal zone). */
   async coast(lang: Lang = "de"): Promise<CoastWarningsFeed> {
-    return getChecked(this.e, `${STATIC}/warnings_coast${langSuffix(lang)}.json`, undefined, "warnings", "object");
+    return getChecked(this.e, `${STATIC}/warnings_coast${langSuffix(lang)}.json`, undefined, "warnings", "object", FEED_TIME);
   }
 }
 
@@ -170,6 +194,8 @@ export class DwdClient {
 
   /** Crowd-sourced weather reports overview (static bucket). */
   async crowd(): Promise<CrowdOverview> {
-    return getChecked(this.static_, `${STATIC}/crowd_meldungen_overview_v2.json`, undefined, "meldungen", "array");
+    return getChecked(this.static_, `${STATIC}/crowd_meldungen_overview_v2.json`, undefined, "meldungen", "array", {
+      optional: ["start", "end"],
+    });
   }
 }
