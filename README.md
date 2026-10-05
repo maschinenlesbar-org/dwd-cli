@@ -169,6 +169,10 @@ same thing.
 | `7` | Response body could not be parsed as JSON |
 | `1` | Any other error |
 
+A reader that stops early (`dwd crowd | head -c 100`) is ordinary use: the CLI exits `0`
+quietly. If stderr's reader is gone (`2>&1 | true`), a failed run still exits with its
+own code.
+
 ## Troubleshooting
 
 - **`command not found: dwd`** — the global npm bin directory isn't on your
