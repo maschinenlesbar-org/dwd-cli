@@ -3,7 +3,7 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `dwd`, eines pro Skill: eine
 Anfrage, die `dwd`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 15. September 2026 mit `dwd` 0.0.7 gegen die Live-API.
+Jedes Beispiel lief gegen die Live-API; jeder Abschnitt nennt Datum und `dwd`-Version.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs und
 Schlüsseln können Sie die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 
@@ -13,41 +13,42 @@ Skills: [dwd-crowd-check](#dwd-crowd-check) · [dwd-station-forecast](#dwd-stati
 
 ## dwd-crowd-check
 
+Lief am 6. Oktober 2026 um 00:58 mit `dwd` 0.2.0.
+
 > Melden Leute rund um Hamburg heute Regen oder starken Wind? Warnt der DWD davor?
 
 ```bash
-dwd --compact crowd                      # 998 Meldungen bundesweit
+dwd --compact crowd                      # 418 Meldungen bundesweit
 dwd --compact warnings nowcast
 dwd --compact warnings gemeinde
 ```
 
-Laut Feed ist `windowsSizeHours: 1`, aber `start`/`end` umfassen 12 Stunden (05:41–17:41), und
-die Meldungen verteilen sich über die ganze Zeit. Der Skill hat deshalb das ganze Fenster und die
-letzte Stunde getrennt ausgewiesen. Berücksichtigt wurden Meldungen im Umkreis von ±0,5° um Hamburg
-(53,55 N, 10,0 O), ohne die 24 `BEWOELKUNG`-Meldungen. Genannt werden nur Orte, nichts, was auf
-einzelne Meldende schließen lässt.
+Laut Feed ist `windowsSizeHours: 1`, aber `start`/`end` umfassen 12 Stunden (05.10. 12:58 bis
+06.10. 00:58), und in der letzten Stunde lag keine einzige Meldung. Der Skill hat deshalb das ganze
+Fenster und die letzte Stunde getrennt ausgewiesen. Berücksichtigt wurden Meldungen im Umkreis von
+±0,5° um Hamburg (53,55 N, 10,0 O), ohne die 9 `BEWOELKUNG`-Meldungen. Genannt werden nur der Ort
+und eine Stundenspanne, nichts, was auf einzelne Meldende schließen lässt.
 
 ```
-Crowd-Meldungen rund um Hamburg, 15.09. 05:41–17:41: 44 Meldungen, 20 ohne Bewölkung
+Crowd-Meldungen rund um Hamburg, 05.10. 12:58 – 06.10. 00:58: 10 Meldungen, 1 ohne Bewölkung
 
-  REGEN   11×  9 REGEN_LEICHT, 1 REGEN_MITTEL, 1 REGEN_KRAEFTIG
-               alle zwischen 07:16 und 09:36, seitdem keine; 2 mit Foto, meiste Likes: 5
-               Hamburg (inkl. Hamburg-Nord, Hamburg-Bergedorf), Norderstedt, Reinbek,
-               Buxtehude, Braak, Amelinghausen
-  WIND     9×  8 WIND_SCHWACH, 1 WIND_STARK (Bad Oldesloe), keine Fotos
-  keine Meldungen zu GEWITTER, BLITZE, HAGEL, NEBEL oder GLAETTE in der Gegend
+  WIND     1×  WIND_STARK (Norderstedt), am frühen Nachmittag (14:00–15:00), kein Foto, keine Likes
+  keine Meldungen zu REGEN, GEWITTER, BLITZE, HAGEL, NEBEL oder GLAETTE in der Gegend
+  die Bewölkungsmeldungen waren alle wolkenlos bis leicht bewölkt (WOLKENLOS, LEICHT_BEWOELKT)
 
-  Letzte Stunde (16:41–17:41): 3 Meldungen, nur Bewölkung (Hamburg, Lüneburg) und schwacher Wind (Lüneburg)
-  Gegend der stärksten Regenmeldung (auf ca. 10 km gerundet): https://maps.google.com/?q=53.6,10.2
+  Letzte Stunde (23:58–00:58): in ganz Deutschland keine Meldungen
 
   Abgleich mit dem DWD: keine aktiven Nowcast- oder Gemeindewarnungen in ganz Deutschland. Das
-  passt zu den Meldungen: ein nasser Vormittag mit meist leichtem Regen, nichts Schweres gemeldet.
+  passt: eine Meldung starken Winds am Nachmittag, kein Regen rund um Hamburg gemeldet.
 
-  Bundesweit stärkste Ausprägung je Kategorie: REGEN_KRAEFTIG, WIND_STARK, NEBEL_EXTREM.
+  Bundesweit im Fenster: 360 Bewölkungs-, 55 Wind- und 3 Regenmeldungen; stärkste Ausprägung je
+  Kategorie: BEWOELKUNG_BEDECKT, REGEN_LEICHT und WIND_STUERMISCH.
   Crowd-Meldungen sind ungeprüfte Nutzereingaben; maßgeblich sind die amtlichen Warnungen.
 ```
 
 ## dwd-station-forecast
+
+Lief am 6. Oktober 2026 um 00:57 mit `dwd` 0.2.0.
 
 > Vorhersage für Hamburg und Stuttgart für die nächsten Tage im Vergleich – wird ein Regenschirm gebraucht?
 
@@ -55,73 +56,80 @@ Crowd-Meldungen rund um Hamburg, 15.09. 05:41–17:41: 44 Meldungen, 20 ohne Bew
 dwd --compact station-overview --id 10147 --id 10739
 ```
 
-Für beide Stationen kamen Tageswerte zurück. Die stündlichen Arrays `windSpeed`, `windGust`,
-`windDirection` und `precipitationProbablity` waren aber `null`, und `temperature` (241 Werte) und
-`precipitationTotal` (72) waren unterschiedlich lang. Der Skill hat den stündlichen Regen aus
-`forecast1` und den Wind aus `days` genommen.
+Für beide Stationen kamen Tageswerte zurück; die stündlichen Arrays `windSpeed`, `windGust`,
+`windDirection` und `precipitationProbablity` waren `null`. `temperature` hatte 241 Stundenwerte
+ab Mitternacht, die kürzeren Arrays (`precipitationTotal` 72, `sunshine` 74) endeten am Freitag um
+00:00, wo das dreistündliche `forecast2` übernimmt. Der Skill hat den Wind aus `days` genommen, den
+stündlichen Regen aus `forecast1` (am Ende ausgerichtet) und den Sonnenschein je Tag als Summe der
+Reihen: `days[].sunshine` meldete für Stuttgart am Donnerstag `0`, die Reihen haben 22 Minuten.
+Diesmal war kein Wert in den Reihen der beiden Stationen `null` (die Fehlwert-Markierung).
 
 ```
 Hamburg (10147) und Stuttgart (10739)
 
-             Hamburg                                  Stuttgart
-  Di 15.09.  13,5–25,4 °C  1,3 mm  18,5 km/h S       14,3–28,4 °C  0,0 mm   7,4 km/h SO
-  Mi 16.09.  12,2–18,2 °C  5,7 mm  16,7 km/h W       14,1–19,9 °C  0,7 mm  18,5 km/h NW
-  Do 17.09.  11,4–17,6 °C  2,0 mm  25,9 km/h SW      11,4–20,9 °C  0,0 mm   9,3 km/h W
-  Fr 18.09.  12,7–17,1 °C  2,5 mm  22,2 km/h SW      12,7–18,8 °C  0,0 mm   9,3 km/h W
-  Böen bis 50,0 km/h (Hamburg, Do) und 48,2 km/h (Stuttgart, Mi)
-  Sonne heute: Hamburg 06:53–19:36, Stuttgart 06:59–19:36 (MESZ)
+             Hamburg                                       Stuttgart
+  Di 06.10.  12,9–18,2 °C   0,0 mm  11,1 km/h SW  1,4 h Sonne   10,2–22,3 °C   0,0 mm   7,4 km/h O   9,5 h Sonne
+  Mi 07.10.  12,1–18,8 °C   0,0 mm  14,8 km/h SO  4,1 h         11,8–23,2 °C   0,0 mm   7,4 km/h SO  6,8 h
+  Do 08.10.   9,3–13,1 °C  11,5 mm  24,1 km/h NW  2,2 h          9,3–16,5 °C  13,8 mm  16,7 km/h NW  0,4 h
+  Fr 09.10.   8,4–12,6 °C   7,1 mm  25,9 km/h SW  1,4 h          7,8–14,3 °C   0,5 mm  13,0 km/h W   3,6 h
+  Böen bis 57,4 km/h (Hamburg, Do) und 46,3 km/h (Stuttgart, Do)
+  Sonne heute: Hamburg 07:30–18:44, Stuttgart 07:30–18:52 (MESZ)
 
-Hamburg, heute Nacht (stündlich, mm):
-  20:00 0,1 · 21:00 0,4 · 22:00 0,5 · 23:00 0,7 · 00:00 0,9 · 01:00 1,0
-  02:00 0,8 · 03:00 0,7 · 04:00 0,7 · 05:00 0,6 · 06:00 0,4 · danach abklingend bis 11:00
+Donnerstag, stündlicher Regen:
+  Hamburg    von Mitternacht bis Mitternacht, am stärksten 05:00–09:00 (1,0–1,3 mm/h), ab 14:00 leicht
+  Stuttgart  von 01:00 bis 21:00, am stärksten 07:00–13:00 (0,8–1,5 mm/h)
 
-Regenschirm: in Hamburg ja, von heute Abend bis Mittwochvormittag und wieder Do/Fr.
-Stuttgart bleibt trocken, bis auf 0,7 mm am Mittwoch um die Mittagszeit (11:00–14:00).
+Regenschirm: heute und morgen nicht, beide Städte bleiben trocken. Am Donnerstag in beiden ja,
+den ganzen Tag. Freitag: Hamburg wieder nass (7,1 mm), Stuttgart weitgehend trocken (0,5 mm).
 Stündlicher Wind und Regenwahrscheinlichkeit: vom DWD für diese Stationen nicht geliefert.
 ```
 
 ## dwd-warning-briefing
 
+Lief am 6. Oktober 2026 um 00:58 mit `dwd` 0.2.0.
+
 > Warnt der DWD gerade vor irgendetwas in Deutschland, auch an der Küste?
 
 ```bash
-dwd --compact warnings nowcast           # {"warnings":[]}
-dwd --compact warnings gemeinde          # {"warnings":[],"binnenSee":{}}
-dwd --compact warnings coast             # {"warnings":{},"vorabInformation":{}}
+dwd --compact warnings nowcast           # {"time":…,"warnings":[],"binnenSee":null}
+dwd --compact warnings gemeinde          # {"time":…,"warnings":[],"binnenSee":{}}
+dwd --compact warnings coast             # {"time":…,"warnings":{},"vorabInformation":{}}
 ```
 
-Alle drei Feeds waren um 17:42 und erneut um 17:49 MESZ leer. Leere Feeds mit Exit 0 sind eine
-echte Antwort. Der Skill hat deshalb ruhiges Wetter gemeldet, statt es erneut zu versuchen oder zu
-raten.
+Alle drei Feeds waren um 00:58 MESZ leer. Leere Feeds mit Exit 0 sind eine echte Antwort. Der
+Skill hat deshalb ruhiges Wetter gemeldet, statt es erneut zu versuchen oder zu raten.
 
 ```
-Deutschland: derzeit keine aktiven DWD-Warnungen (Stand 15.09.2026, 17:49 MESZ)
+Deutschland: derzeit keine aktiven DWD-Warnungen (Stand 06.10.2026, 00:58 MESZ)
 
-  Nowcast    0 Warnungen            Feed-Zeit 17:45
-  Gemeinde   0 Warnungen            Feed-Zeit 17:48, keine Binnensee-Warnungen (binnenSee)
-  Küste      0 Küstenzonen          Feed-Zeit 17:48, keine Vorabinformation
+  Nowcast    0 Warnungen            Feed-Zeit 00:55
+  Gemeinde   0 Warnungen            Feed-Zeit 00:50, keine Binnensee-Warnungen (binnenSee)
+  Küste      0 Küstenzonen          Feed-Zeit 00:50, keine Vorabinformation
 ```
 
 Als Nächstes angeboten: später erneut prüfen oder mit dem Crowd-Check nachsehen, was vor Ort gemeldet wird.
 
 ## dwd-warning-map
 
+Lief am 6. Oktober 2026 um 00:58 mit `dwd` 0.2.0.
+
 > Die aktuellen DWD-Warngebiete aus allen drei Feeds als GeoJSON exportieren, zum Laden in QGIS.
 
 ```bash
-dwd --compact warnings nowcast > nowcast-2.json
-dwd --compact warnings gemeinde > gemeinde-2.json
-dwd --compact warnings coast > coast-2.json
+dwd --compact warnings nowcast > nowcast.json
+dwd --compact warnings gemeinde > gemeinde.json
+dwd --compact warnings coast > coast.json
 ```
 
 Der Skill hat die FeatureCollection für die beiden Array-Feeds aus `regions[].polygonGeometry`
 gebaut und das nach Zonen geschlüsselte Objekt des Küsten-Feeds durchlaufen. Kein Feed enthielt
-eine Warnung, es gab also nichts umzuwandeln.
+eine Warnung, es gab also nichts umzuwandeln; `dwd-warnings.geojson` existierte noch nicht, es
+wurde also nichts überschrieben.
 
 ```
 Derzeit keine aktiven DWD-Warnungen für die Karte.
 
-  Nowcast 0 · Gemeinde 0 · Küste 0 Zonen   (Feed-Zeiten 17:45–17:48 MESZ)
+  Nowcast 0 · Gemeinde 0 · Küste 0 Zonen   (Feed-Zeiten 00:50–00:55 MESZ)
   dwd-warnings.geojson geschrieben: FeatureCollection mit 0 Features (42 Bytes), gültiges JSON.
   Das ist ein leeres Ergebnis, kein fehlgeschlagener Export.
 ```
