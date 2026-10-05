@@ -16,6 +16,8 @@ import { LangValues, type Lang } from "./enums.js";
 import { DwdParseError, DwdValidationError } from "./errors.js";
 import { assertValid, normalizeStationIds, serviceBaseUrlProblem, stationIdProblem } from "./validate.js";
 import type {
+  JsonObject,
+  JsonValue,
   StationOverview,
   WarningsFeed,
   CoastWarningsFeed,
@@ -129,6 +131,52 @@ async function getChecked<T>(
 /** The warning feeds' `time`: when DWD published the feed, epoch ms. */
 const FEED_TIME: NumberFields = { required: ["time"] };
 
+/**
+ * The station data's "no value" marker: the largest 16-bit integer, which the web service
+ * puts into a scaled-integer array where it has no value — today's past hours at some
+ * stations (`temperature`, `precipitationTotal`, `icon`), every `surfacePressure` value at
+ * mountain stations. Read with the ÷ 10 rule it would be 3276.7 °C, mm or hPa.
+ */
+export const STATION_MISSING_VALUE = 32767;
+
+/** The parts of a station's value that hold scaled numbers (not `warnings`). */
+const STATION_DATA_KEYS = ["forecast1", "forecast2", "days", "threeHourSummaries"] as const;
+
+/** `value` with every number equal to STATION_MISSING_VALUE replaced by `null`, recursively. */
+function nullMarkers(value: JsonValue): JsonValue {
+  if (value === STATION_MISSING_VALUE) return null;
+  if (Array.isArray(value)) return value.map(nullMarkers);
+  if (typeof value === "object" && value !== null) {
+    const out: JsonObject = {};
+    for (const [k, v] of Object.entries(value)) out[k] = nullMarkers(v);
+    return out;
+  }
+  return value;
+}
+
+/**
+ * A station overview with the missing-value marker ({@link STATION_MISSING_VALUE}) turned
+ * into `null` in each station's `forecast1`, `forecast2`, `days` and `threeHourSummaries`,
+ * so no consumer reads it as a measurement. `null` already means "no value" in this payload
+ * (whole arrays come as `null`). `stationOverview()` applies it; exported for payloads
+ * obtained another way. A station value that is not an object is left as it is.
+ */
+export function replaceMissingValues(overview: StationOverview): StationOverview {
+  const out: StationOverview = {};
+  for (const [id, station] of Object.entries(overview)) {
+    if (typeof station !== "object" || station === null || Array.isArray(station)) {
+      out[id] = station;
+      continue;
+    }
+    const copy: JsonObject = { ...station };
+    for (const key of STATION_DATA_KEYS) {
+      if (key in copy) copy[key] = nullMarkers(copy[key] as JsonValue);
+    }
+    out[id] = copy;
+  }
+  return out;
+}
+
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
   constructor(private readonly e: RequestEngine) {}
@@ -136,11 +184,19 @@ class WeatherResource {
   /**
    * Forecasts/observations for one or more DWD station ids. Each id is trimmed; an
    * empty list, a blank id or one with a comma rejects with a DwdValidationError
-   * before any request.
+   * before any request. The values are the API's scaled integers, except that its
+   * missing-value marker 32767 ({@link STATION_MISSING_VALUE}) comes back as `null`.
    */
   async stationOverview(stationIds: string[]): Promise<StationOverview> {
     const query = { stationIds: joinStationIds(stationIds) };
-    return getChecked(this.e, `${WS}/stationOverviewExtended`, query, undefined, "object");
+    const overview = await getChecked<StationOverview>(
+      this.e,
+      `${WS}/stationOverviewExtended`,
+      query,
+      undefined,
+      "object",
+    );
+    return replaceMissingValues(overview);
   }
 }
 

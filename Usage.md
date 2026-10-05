@@ -33,7 +33,11 @@ dwd station-overview --id 10865
 ```
 
 Output is a JSON object keyed by station id. Each value carries the raw DWD
-fields (`forecast1`, `forecast2`, `days`, `warnings`, `threeHourSummaries`).
+fields (`forecast1`, `forecast2`, `days`, `warnings`, `threeHourSummaries`) as scaled
+integers (most ÷ 10, see [GLOSSARY.md](GLOSSARY.md)). The one change: the API's
+missing-value marker `32767` is printed as `null` — expect `null` inside the arrays
+(today's past hours at some stations, every `surfacePressure` value at mountain
+stations), and skip it in sums and averages.
 
 ### 2. Compare several stations in one call
 

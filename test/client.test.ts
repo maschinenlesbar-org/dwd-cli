@@ -140,3 +140,31 @@ test("stationOverview rejects an id with inner whitespace, ';' or a control char
   }
   assert.equal(mt.calls.length, 0);
 });
+
+test("stationOverview turns the missing-value marker 32767 into null (finding 01#2)", async () => {
+  const { STATION_MISSING_VALUE, replaceMissingValues } = await import("../src/client/client.js");
+  assert.equal(STATION_MISSING_VALUE, 32767);
+  const raw = {
+    "10739": {
+      forecast1: { start: 1, timeStep: 3600000, temperature: [97, 32767], precipitationTotal: [32767, 4], icon: [32767, 3], surfacePressure: [32767] },
+      forecast2: { surfacePressure: [32767, 32767], sunshine: [10] },
+      days: [{ dayDate: "2026-10-05", temperatureMax: 32767, sunshine: 0 }],
+      threeHourSummaries: null,
+      warnings: [{ level: 32767 }],
+    },
+    "x": 5,
+  };
+  const out = await clientWith(constantJson(raw)).weather.stationOverview(["10739"]);
+  const st = out["10739"] as Record<string, any>;
+  assert.deepEqual(st["forecast1"].temperature, [97, null]);
+  assert.deepEqual(st["forecast1"].precipitationTotal, [null, 4]);
+  assert.deepEqual(st["forecast1"].icon, [null, 3]);
+  assert.deepEqual(st["forecast2"].surfacePressure, [null, null]);
+  assert.equal(st["days"][0].temperatureMax, null);
+  assert.equal(st["days"][0].sunshine, 0);
+  assert.equal(st["forecast1"].start, 1);
+  // warnings carry no scaled values: left alone.
+  assert.deepEqual(st["warnings"], [{ level: 32767 }]);
+  assert.equal(out["x"], 5);
+  assert.deepEqual(replaceMissingValues({ a: { days: [32767] } }), { a: { days: [null] } });
+});

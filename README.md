@@ -71,6 +71,9 @@ crowd                                        crowd-sourced reports overview
 | --- | --- |
 | `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt); one value may also be a comma- or space-separated list (`--id "10865 10147"`) |
 
+The values are DWD's scaled integers (most ÷ 10; see [GLOSSARY.md](GLOSSARY.md)), except
+that the API's missing-value marker `32767` is printed as `null`.
+
 ### `warnings` flags
 
 Applies to all three `warnings` subcommands (`nowcast`, `gemeinde`, `coast`):

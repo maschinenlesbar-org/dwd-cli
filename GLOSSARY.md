@@ -105,6 +105,16 @@ current day: `temperature` runs ten days from `start`, while the shorter arrays
 rather than anchored at `start`. `forecast2` continues from there in three-hour
 steps (`timeStep` 10800000); it is not an hourly copy of `forecast1`.
 
+**Missing-value marker (`32767`).** The station data's "no value": the largest
+16-bit integer, which the web service puts into a scaled-integer array where it has no
+value — today's past hours at some stations (`temperature`, `precipitationTotal`,
+`icon`), and every `surfacePressure` value, past and future, at mountain stations
+(Zugspitze, Feldberg, Fichtelberg, …). Read with the ÷ 10 rule it would be
+3276.7 °C, mm or hPa. The client turns it into `null` (`STATION_MISSING_VALUE`,
+`replaceMissingValues`) in `forecast1`, `forecast2`, `days` and `threeHourSummaries`,
+so `null` inside an array means "no value for this hour", like a whole array that is
+`null`.
+
 **`days`.** The multi-day forecast summary block of a station overview.
 
 **`threeHourSummaries`.** Three-hour aggregated forecast summaries within a
@@ -144,7 +154,8 @@ choice on every `warnings` subcommand.
 
 **`StationOverview`.** `{ [stationId: string]: JsonObject }` — the
 station-overview response keyed by station id. The DWD-specific per-station
-payload is exposed as a faithful raw `JsonObject` rather than a guessed type.
+payload is exposed as a faithful raw `JsonObject` rather than a guessed type — except
+that the missing-value marker `32767` comes back as `null`.
 
 **`WarningsFeed`.** The common envelope of the nowcast and gemeinde feeds:
 `{ time: number; warnings: JsonObject[]; binnenSee?: JsonValue }`.

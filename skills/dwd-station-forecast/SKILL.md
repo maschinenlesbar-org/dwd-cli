@@ -83,6 +83,13 @@ The DWD numbers are scaled integers; printing them raw gives nonsense like "temp
 > `cloudCoverTotal` was `[]` in live `forecast1` while `temperature` and
 > `precipitationTotal` were populated. Always check an array before indexing; report "not
 > provided" rather than crashing or printing `0`.
+> **Trap: single values can be `null` too.** The API marks a missing value inside an array
+> with `32767`, which the CLI prints as `null` — today's past hours at some stations
+> (`temperature`, `precipitationTotal`, `icon`) and **every `surfacePressure` value at
+> mountain stations** (Zugspitze `10961`, Feldberg `10908`, Fichtelberg `10578`, …). Say
+> "no value"/"not provided" for that hour, leave it out of sums, minima and maxima, and never
+> divide it (in jq, `null / 10` is an error). If you ever see a raw `32767` (an old `dwd`),
+> treat it the same way — it is not 3276.7 of anything.
 > **Spelling:** the precipitation-probability key is misspelled `precipitationProbablity`
 > in the API (and `precipitationProbablityIndex`) — use the exact key.
 
@@ -109,15 +116,16 @@ at the listed time):
 dwd --compact station-overview --id 10147 > so.json
 TZ=Europe/Berlin jq -r --arg id 10147 '
   .[$id].forecast1 as $f
-  | def at($name; $h):   # element of array $name stamped start + $h hours
+  | def real($x): if $x == null or $x == 32767 then null else $x / 10 end;  # null = no value
+  def at($name; $h):   # element of array $name stamped start + $h hours
       ($f[$name] // []) as $a
       | ($h - 73 + ($a | length)) as $j
-      | if $j >= 0 and $j < ($a | length) then $a[$j] / 10 else null end;
+      | if $j >= 0 and $j < ($a | length) then real($a[$j]) else null end;
   def show($v; $unit): if $v == null then "n/a" else "\($v) \($unit)" end;
     ((now * 1000 - $f.start) / $f.timeStep | floor) as $i
   | range($i; $i + 6) as $h
   | [ ($f.start + $h * $f.timeStep) / 1000 | strflocaltime("%H:%M"),
-      show($f.temperature[$h] / 10; "°C"),
+      show(real($f.temperature[$h]); "°C"),
       "rain " + show(at("precipitationTotal"; $h + 1); "mm"),
       "sun " + show(at("sunshine"; $h + 1); "min"),
       "humidity " + show(at("humidity"; $h); "%") ]
@@ -150,6 +158,7 @@ Next 6 h (hourly):
 Rules:
 - **Always show real units** (°C, mm, km/h, hPa, %) — never the raw scaled integer.
 - Convert epoch-ms timestamps to readable local times; state the timezone if it matters.
-- If a field's array is `null`/missing, say "not provided", don't invent or print `0`.
+- If a field's array is `null`/missing, or a single value in it is `null`, say "not
+  provided", don't invent or print `0`.
 - For multi-station requests, keep it a compact comparison, not three full dumps.
 - Offer the raw `station-overview` JSON only if the user explicitly wants it.

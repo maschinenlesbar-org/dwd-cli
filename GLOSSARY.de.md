@@ -107,6 +107,16 @@ aktuellen Tages: `temperature` reicht zehn Tage ab `start`, die kürzeren Arrays
 enden bei `start` + 72 h und beginnen nicht bei `start`. `forecast2` setzt dort in Dreistundenschritten fort
 (`timeStep` 10800000) und ist keine stündliche Kopie von `forecast1`.
 
+**Fehlwert-Markierung (`32767`).** Das „kein Wert“ der Stationsdaten: die größte
+16-Bit-Ganzzahl, die der Webdienst in ein Array skalierter Ganzzahlen setzt, wo er
+keinen Wert hat – in den vergangenen Stunden des heutigen Tages an manchen Stationen
+(`temperature`, `precipitationTotal`, `icon`) und in jedem `surfacePressure`-Wert,
+vergangen wie künftig, an Bergstationen (Zugspitze, Feldberg, Fichtelberg …). Nach der
+÷-10-Regel gelesen wären das 3276,7 °C, mm oder hPa. Der Client macht daraus `null`
+(`STATION_MISSING_VALUE`, `replaceMissingValues`) in `forecast1`, `forecast2`, `days` und
+`threeHourSummaries`; `null` in einem Array heißt also „kein Wert für diese Stunde“, wie
+ein ganzes Array, das `null` ist.
+
 **`days`.** Der Block mit der mehrtägigen Vorhersagezusammenfassung einer Stationsübersicht.
 
 **`threeHourSummaries`.** Auf drei Stunden aggregierte Vorhersagezusammenfassungen
@@ -146,7 +156,8 @@ Auswahl der CLI-Option `--lang` geprüft.
 
 **`StationOverview`.** `{ [stationId: string]: JsonObject }` – die nach Stations-ID
 geschlüsselte Antwort der Stationsübersicht. Die DWD-spezifischen Nutzdaten je Station
-werden als unverändertes Roh-`JsonObject` bereitgestellt statt als geratener Typ.
+werden als unverändertes Roh-`JsonObject` bereitgestellt statt als geratener Typ – nur
+die Fehlwert-Markierung `32767` kommt als `null`.
 
 **`WarningsFeed`.** Der gemeinsame Envelope des Nowcast- und des Gemeinde-Feeds:
 `{ time: number; warnings: JsonObject[]; binnenSee?: JsonValue }`.
