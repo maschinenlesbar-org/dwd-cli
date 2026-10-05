@@ -26,7 +26,7 @@ Wetterdienst — no account, no API key, just data.
 npm i -g @maschinenlesbar.org/dwd-cli
 ```
 
-This installs the **`dwd`** command. Requires **Node.js 20+**.
+This installs the **`dwd`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -176,7 +176,8 @@ own code.
 ## Troubleshooting
 
 - **`command not found: dwd`** — the global npm bin directory isn't on your
-  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `PATH`. Run `npm prefix -g` to find the prefix and add its `bin` directory
+  (`"$(npm prefix -g)/bin"`), or run via
   `npx @maschinenlesbar.org/dwd-cli …`.
 - **Exit `4` / "not found"** — a requested feed or resource returned `404`. Note
   that an unknown **station id** is *not* a 404: `station-overview` returns `{}`
