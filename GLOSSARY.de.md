@@ -174,8 +174,9 @@ löst einen `DwdParseError` aus (Exit `7`), statt als Feed ausgegeben zu werden.
 
 **Rate-Limiting / vorübergehende Fehler.** Das Backend kann mit **429** (Too Many
 Requests) oder **503** (Service Unavailable) antworten. Der Client wiederholt diese
-automatisch und wartet dabei das `Retry-After` der Antwort ab (bis 30 s; ein längeres
-wird nicht wiederholt), sonst mit linearem Backoff – die Zahl der Retries lässt sich mit
+automatisch mit linearem Backoff, oder länger, wenn das `Retry-After` der Antwort es
+verlangt (bis 30 s; ein längeres wird nicht wiederholt, und der Fehler nennt die verlangte
+Wartezeit), aber nie kürzer: auch `Retry-After: 0` wartet den Backoff ab – die Zahl der Retries lässt sich mit
 `--max-retries` einstellen (`0`–`10`, Standard `2`); die Grundwartezeit zwischen den
 Versuchen wächst linear und ist ein interner Standardwert, keine CLI-Option. Eine
 abgebrochene Verbindung (Reset) wird ebenso wiederholt, ein Timeout nicht.

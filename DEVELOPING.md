@@ -226,10 +226,13 @@ ends in it throws a `DwdValidationError` with a hint (`serviceBaseUrlProblem`):
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
-the response's `Retry-After` — delay-seconds or an IMF-fixdate HTTP-date, parsed by
-`parseRetryAfter` — or, without a usable one, `retryDelayMs * attempt`. A
-`Retry-After` longer than `MAX_RETRY_AFTER_MS` (30 s) is not retried: the
-`DwdApiError` surfaces at once. `DwdApiError` exposes `isRetryable` (true for
+`retryDelayMs * attempt` (200 ms, 400 ms, …), or longer if the response's `Retry-After`
+— delay-seconds or an IMF-fixdate HTTP-date, parsed by `parseRetryAfter` — asks for it,
+never shorter: `Retry-After: 0` or a date in the past still waits the backoff, so
+retries never burst. A `Retry-After` longer than `MAX_RETRY_AFTER_MS` (30 s) is not
+retried: the `DwdApiError` surfaces at once, and its message names the requested wait
+("the server asked to wait 120 s (Retry-After), longer than the 30 s the client waits;
+retrying sooner won't help"). `DwdApiError` exposes `isRetryable` (true for
 `429`/`503`). A reset connection (`ECONNRESET`/`EPIPE`/`ECONNABORTED`, or undici's
 `UND_ERR_SOCKET`, anywhere in the error's `cause` chain — `isTransientNetworkError`)
 is retried with the linear backoff too, whichever transport reported it. Only `GET`

@@ -170,8 +170,9 @@ Anything else (`null`, `[]`, an error document from S3 or a proxy) raises a
 
 **Rate limiting / transient errors.** The backend may answer with **429** (too
 many requests) or **503** (service unavailable). The client retries these
-automatically, waiting the response's `Retry-After` (up to 30 s; a longer one is
-not retried) or else backing off linearly — the number of retries is tunable with
+automatically, backing off linearly, or longer if the response's `Retry-After` asks
+(up to 30 s; a longer one is not retried, and the error names the requested wait), but
+never shorter: `Retry-After: 0` still waits the backoff — the number of retries is tunable with
 `--max-retries` (`0`–`10`, default `2`); the base inter-attempt delay grows linearly
 and is an internal default, not a CLI flag. A reset connection is retried the same way;
 a timeout is not.
