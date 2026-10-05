@@ -55,7 +55,7 @@ Each station value has:
 | Key | What it is |
 |---|---|
 | `forecast1` | The main **hourly** series. `start` (epoch ms, midnight local time of the current day) + `timeStep` (ms, `3600000` = 1 h) + value arrays (`temperature`, `precipitationTotal`, `humidity`, `surfacePressure`, `dewPoint2m`, `sunshine`, …). The arrays have **different lengths and are not all anchored at `start`** — see "Align the arrays" below. |
-| `forecast2` | **Not** an hourly copy: a **3-hourly** continuation (`timeStep` `10800000`) that starts where the hourly arrays end (`forecast1.start` + 72 h). Element `j` covers the 3 h ending at `forecast2.start + (j+1)*timeStep` — totals (rain, sunshine) over those 3 h, other values at their end. Its `temperature` came back empty `[]`; use `days` for temperatures beyond day 3. |
+| `forecast2` | **Not** an hourly copy: a **3-hourly** continuation (`timeStep` `10800000`) that starts where the hourly arrays end (`forecast1.start` + 72 h). Element `j` covers the 3 h ending at `forecast2.start + (j+1)*timeStep` — totals (rain, sunshine) over those 3 h, other values at their end. Its `temperature` came back empty `[]`: hourly temperatures for all ten days are in `forecast1.temperature` (241 values from `start`), daily min/max in `days`. |
 | `days` | Array of multi-day summaries (`temperatureMin/Max`, `precipitation`, `windSpeed`, `windGust`, `windDirection`, `sunrise`/`sunset`/`moonrise`/`moonset`, `icon`, `dayDate`). |
 | `threeHourSummaries` | 3-hourly aggregates — **often `null`**; tolerate it. |
 | `warnings` | Warnings for this station's location — usually `[]`. |
