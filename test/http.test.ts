@@ -265,7 +265,7 @@ test("userinfo in a --base-url reaches the server as Basic auth, and error messa
           err.status === 404 &&
           !err.message.includes("s3cret") &&
           !err.url.includes("s3cret") &&
-          err.message.includes("http://***@127.0.0.1:"),
+          err.message.includes("http://127.0.0.1:"),
       );
     },
   );

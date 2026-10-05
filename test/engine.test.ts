@@ -331,8 +331,11 @@ test("only 301/302/303/307/308 are followed; another 3xx names its target and is
       (err: unknown) =>
         err instanceof DwdApiError &&
         err.status === status &&
-        err.location === "https://***@example.test/ok" &&
-        err.message === `HTTP ${status} for GET https://***@example.test/x: redirect to https://***@example.test/ok not followed`,
+        // The base URL's userinfo travels as the Authorization header, never in a URL.
+        err.location === "https://example.test/ok" &&
+        err.message === `HTTP ${status} for GET https://example.test/x: redirect to https://example.test/ok not followed` &&
+        mt.last().headers?.["Authorization"] === `Basic ${Buffer.from("user:pw").toString("base64")}` &&
+        !mt.last().url.includes("user"),
     );
     assert.equal(mt.calls.length, 1, String(status));
   }

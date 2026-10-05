@@ -87,10 +87,18 @@ These endpoints require **no API key** — they are open, read-only, and
 unauthenticated. `DwdClient` sends no credential headers. The CLI has no `--api-key`
 option.
 
-Redirects that cross an origin boundary (different scheme, host, or port) still
-have sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) stripped before
-following, as a general safety measure — even though none are sent in normal
-operation.
+The one credential the client can send is the userinfo of a base URL you set
+(`https://user:pw@mirror/`, for a proxy or mirror behind a login). The engine never
+puts it into the URL a transport sees: it sends it as an `Authorization: Basic` header
+per hop. A redirect to the same origin (scheme, host and port), with a relative or an
+absolute `Location`, keeps it; one that crosses an origin boundary has the sensitive
+headers (`Authorization`/`X-API-Key`/`Cookie`) stripped before following, and a
+`401`/`403` from the target then says so ("the server redirected http→https, which
+dropped the base URL's credentials; use an https base URL"). Userinfo in a `Location`
+is never used. Transports are told `redirect: "manual"` (`HttpRequest.redirect`): the
+engine follows redirects itself, and a response whose `HttpResponse.url` lies on
+another origin (a fetch transport that followed one) is rejected as a
+`DwdNetworkError`.
 
 ## Architecture
 
@@ -122,9 +130,10 @@ src/
   output is bounded by `maxResponseBytes` so a small compressed body cannot expand into an
   out-of-memory "decompression bomb". Tests inject a mock.
 - The client runs two `RequestEngine` instances (live + static host) sharing the same options/transport,
-  so the two-host topology is invisible to callers. Redirects are followed up to `maxRedirects`; if a
-  redirect crosses to a different origin, sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) are
-  stripped so credentials issued for one host are never forwarded to another.
+  so the two-host topology is invisible to callers. Redirects are followed up to `maxRedirects`; the
+  base URL's credentials go along to the same origin only: if a redirect crosses to a different
+  origin, sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) are stripped so credentials issued
+  for one host are never forwarded to another.
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
 

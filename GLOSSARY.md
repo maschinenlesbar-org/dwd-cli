@@ -179,7 +179,10 @@ and is an internal default, not a CLI flag.
 redirects (301/302/303/307/308). Any other 3xx (such as `304`) is not followed: it
 surfaces as an API error that names the target (exit `5`). On a cross-origin
 redirect, sensitive headers (`Authorization`/`X-API-Key`/`Cookie`) are stripped so
-credentials issued for one host are never forwarded to another.
+credentials issued for one host are never forwarded to another; a same-origin redirect
+(relative or absolute `Location`) keeps them. A base URL's `user:pw@` is sent as that
+`Authorization` header, never inside the URL, and a `Location`'s own userinfo is
+ignored.
 
 **Decompression bomb cap.** `maxResponseBytes` (default 100 MiB; `0` = unlimited)
 bounds both the wire bytes and the *decompressed* output, so a small compressed

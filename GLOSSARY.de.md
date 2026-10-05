@@ -184,7 +184,10 @@ HTTP-Weiterleitungen (301/302/303/307/308). Jeder andere 3xx-Status (etwa `304`)
 nicht verfolgt, sondern als API-Fehler gemeldet, der das Ziel nennt (Exit `5`). Bei einer
 Weiterleitung auf einen anderen Origin werden sensible Header
 (`Authorization`/`X-API-Key`/`Cookie`) entfernt, sodass Zugangsdaten für einen Host nie
-an einen anderen weitergegeben werden.
+an einen anderen weitergegeben werden; eine Weiterleitung auf denselben Origin (relative
+oder absolute `Location`) behält sie. Ein `user:pw@` in der Basis-URL wird als dieser
+`Authorization`-Header gesendet, nie in der URL selbst, und Zugangsdaten in einer
+`Location` werden ignoriert.
 
 **Schutz vor Dekompressionsbomben.** `maxResponseBytes` (Standard 100 MiB; `0` =
 unbegrenzt) begrenzt sowohl die übertragenen Bytes als auch die *entpackte* Ausgabe,
