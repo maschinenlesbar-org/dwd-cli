@@ -59,7 +59,8 @@ export const headerValueProblem: Problem<unknown> = (value) => {
  * `new URL()` trims surrounding whitespace and drops tab/CR/LF silently, so the raw
  * string is checked rather than the parsed one; request paths are appended to the
  * base's path, so a `?` or `#` would swallow them. Userinfo (`user:pw@`) is allowed:
- * the transport sends it as Basic auth, for a proxy or mirror behind a login.
+ * the engine sends it as Basic auth, for a proxy or mirror behind a login; a `%` in it
+ * must start a valid escape (`%25` for a literal one).
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -76,6 +77,15 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // The userinfo is percent-decoded for the Authorization header; a "%" that isn't an
+  // escape fails there ("URI malformed") at request time, as a network error. Reject it here.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 };
 

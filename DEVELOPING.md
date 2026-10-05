@@ -208,8 +208,9 @@ the transport. Only an omitted `userAgent` selects the default `dwd-cli`.
 `baseUrl` and `staticBaseUrl` are checked in the constructor as well, with the same
 rule as the CLI's `--base-url` / `--static-base-url` (`baseUrlProblem`, also exported
 as `validateBaseUrl(raw, name)`): a blank value, surrounding or inner whitespace or
-control characters, an unparseable URL, a scheme other than `http:`/`https:`, or a
-query or fragment throws a `DwdValidationError` ("Invalid baseUrl: …" /
+control characters, an unparseable URL, a scheme other than `http:`/`https:`, a
+query or fragment, or a `%` in the user name or password that doesn't start an escape
+(write a literal `%` as `%25`) throws a `DwdValidationError` ("Invalid baseUrl: …" /
 "Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
 `DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
 auth. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
