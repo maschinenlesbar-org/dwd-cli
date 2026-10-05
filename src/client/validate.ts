@@ -90,24 +90,43 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
 };
 
 /**
- * Station ids in canonical form: each id trimmed (`" 10865 "` -> `"10865"`), so a
- * padded id is not sent as `stationIds=%2010865%20`, which the API may drop like an
- * unknown station. Idempotent; a non-string entry is left for the validator.
+ * Station ids in canonical form: each id trimmed (`" 10865 "` -> `"10865"`) and in
+ * Unicode NFC, so a padded id is not sent as `stationIds=%2010865%20`, which the API
+ * may drop like an unknown station. Idempotent; a non-string entry is left for the
+ * validator.
  */
 export function normalizeStationIds(stationIds: readonly unknown[]): unknown[] {
-  return stationIds.map((id) => (typeof id === "string" ? id.trim() : id));
+  return stationIds.map((id) => (typeof id === "string" ? id.trim().normalize("NFC") : id));
 }
 
 /**
  * A station id (after {@link normalizeStationIds}) must be a non-blank string
- * without commas: a blank id or a comma would send an empty slot in `stationIds`
- * (`stationIds=` or `1,,2`), which the API answers with `{}` — indistinguishable
- * from "no such station".
+ * without commas, whitespace, semicolons or control characters. A blank id or a
+ * comma would send an empty slot in `stationIds` (`stationIds=` or `1,,2`); a list
+ * joined with spaces, newlines or `;` (`"10865 10147"`, what `--id "$IDS"` gives for
+ * a shell list) is sent as one id. The API answers all of them with `{}` —
+ * indistinguishable from "no such station". Several ids are separate list entries.
  */
-export const stationIdProblem: Problem<unknown> = (id) =>
-  typeof id !== "string" || id.trim() === "" || id.includes(",")
-    ? `expected a non-blank id without commas, got ${JSON.stringify(id)}.`
-    : undefined;
+export const stationIdProblem: Problem<unknown> = (id) => {
+  if (typeof id !== "string" || id.trim() === "" || id.includes(",")) {
+    return `expected a non-blank id without commas, got ${quoteId(id)}.`;
+  }
+  if (/[\s;\u0000-\u001f\u007f-\u009f]/.test(id)) {
+    return `expected one id, got ${quoteId(id)}: a station id has no spaces, line breaks, ";" or control characters (give several ids as separate entries).`;
+  }
+  return undefined;
+};
+
+/** An id as an error message shows it: JSON-quoted (control characters escaped), at most 50 characters. */
+function quoteId(id: unknown): string {
+  if (id === null || id === undefined || typeof id === "number" || typeof id === "boolean") return String(id);
+  if (typeof id !== "string") return `a ${typeof id}`;
+  // JSON.stringify escapes C0 controls but not DEL or C1 (U+0080–U+009F, which terminals may act on).
+  return JSON.stringify(id.length > 50 ? `${id.slice(0, 50)}…` : id).replace(
+    /[\u007f-\u009f]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
 
 /**
  * A rule for a base URL whose client adds a fixed version segment itself (`/v30`

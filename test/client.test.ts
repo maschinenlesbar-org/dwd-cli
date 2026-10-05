@@ -127,3 +127,16 @@ test("a 2xx body without the promised top-level shape is a DwdParseError", async
   await clientWith(constantJson({ meldungen: [] })).crowd();
   await clientWith(constantJson({ start: 1, end: 2, meldungen: [] })).crowd();
 });
+
+test("stationOverview rejects an id with inner whitespace, ';' or a control character (finding 01#3)", async () => {
+  const { DwdValidationError } = await import("../src/client/errors.js");
+  const mt = constantJson({});
+  for (const id of ["10865 10147", "10865\n10147", "10865;10147", "108\u009b65"]) {
+    await assert.rejects(
+      () => clientWith(mt).weather.stationOverview([id]),
+      (err: unknown) => err instanceof DwdValidationError && /^Invalid station id: expected one id/.test(err.message) && !/[\u0080-\u009f]/.test(err.message),
+      JSON.stringify(id),
+    );
+  }
+  assert.equal(mt.calls.length, 0);
+});

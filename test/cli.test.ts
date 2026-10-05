@@ -315,3 +315,21 @@ test("help with an unknown command name reports it as an unknown command", async
   assert.match(leaf.out.join("\n"), /Usage: dwd warnings nowcast/);
   assert.equal(leaf.err.length, 0);
 });
+
+test("station-overview splits a whitespace-separated --id list; a ';' list is a usage error (finding 01#3)", async () => {
+  for (const [value, sent] of [
+    ["10865 10147", "10865,10147"],
+    ["10865\n10147", "10865,10147"],
+    ["  10865\t10147 , 10400 ", "10865,10147,10400"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    const code = await run(["station-overview", "--id", value], cli.deps);
+    assert.equal(code, 0, cli.err.join("\n"));
+    assert.equal(new URL(cli.mt.last().url).searchParams.get("stationIds"), sent);
+  }
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["station-overview", "--id", "10865;10147"], cli.deps);
+  assert.equal(code, 2);
+  assert.match(cli.err.join("\n"), /expected one id, got "10865;10147"/);
+  assert.equal(cli.mt.calls.length, 0);
+});

@@ -69,7 +69,7 @@ crowd                                        crowd-sourced reports overview
 
 | Flag | Meaning |
 | --- | --- |
-| `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt) |
+| `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt); one value may also be a comma- or space-separated list (`--id "10865 10147"`) |
 
 ### `warnings` flags
 

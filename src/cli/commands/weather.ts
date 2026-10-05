@@ -17,25 +17,27 @@ function langOption(): Option {
 
 /**
  * commander accumulator for a repeatable station-id option. A single value may
- * itself be a comma-separated list (the exact form the API expects), so split on
- * commas — the one argv-specific step — and reject an empty segment up front, so a
- * stray `--id ""` *or* `--id ","` is a usage error instead of the empty
- * `stationIds=` slots the library rejects. Trimming each id (`--id " 10865 "`) and
- * the rest of the id rules belong to the library (`client.weather.stationOverview`).
+ * itself be a list — comma-separated (the exact form the API expects) or
+ * whitespace-separated (what `--id "$IDS"` gives for a shell list or a file of ids) —
+ * so split on commas and whitespace — the one argv-specific step — and reject an empty
+ * comma segment up front, so a stray `--id ""` *or* `--id ","` is a usage error
+ * instead of the empty `stationIds=` slots the library rejects. The id rules
+ * themselves (trimmed, no `;` or control characters) belong to the library
+ * (`client.weather.stationOverview`).
  */
 function collectStationId(value: string, previous: string[] = []): string[] {
   const ids = value.split(",");
   if (ids.some((id) => id.trim() === "")) {
     throw new InvalidArgumentError("A station id must not be empty.");
   }
-  return previous.concat(ids);
+  return previous.concat(ids.flatMap((id) => id.trim().split(/\s+/)));
 }
 
 export function registerWeatherCommands(program: Command, deps: CliDeps): void {
   program
     .command("station-overview")
     .description("Forecasts/observations for one or more DWD station ids")
-    .requiredOption("--id <stationId>", "DWD station id (repeatable) (required)", collectStationId)
+    .requiredOption("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)", collectStationId)
     .action(
       action(deps, async ({ client, global, opts }) => {
         renderJson(deps, global, await client.weather.stationOverview(opts["id"] as string[]));

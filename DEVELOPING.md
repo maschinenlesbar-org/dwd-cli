@@ -77,9 +77,10 @@ new DwdClient({
 and `client.crowd()`. The arguments are checked before any request, as the CLI
 does: `lang` must be `"de"` or `"en"` (else a `DwdValidationError`). `ids` are trimmed
 (`normalizeStationIds`, so `" 10865 "` is sent as `10865`) and must then be a
-non-empty list of non-blank ids without commas (`stationIdProblem`); anything else
-rejects with a `DwdValidationError` (an empty slot in `stationIds` would come back as
-`{}`, like an unknown station). The CLI only splits an `--id` value on commas.
+non-empty list of non-blank ids without commas, whitespace, `;` or control characters
+(`stationIdProblem`); anything else rejects with a `DwdValidationError` (an empty slot
+in `stationIds`, or `10865 10147` sent as one id, would come back as `{}`, like an
+unknown station). The CLI only splits an `--id` value on commas and whitespace.
 
 ## Authentication internals
 
