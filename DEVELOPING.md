@@ -296,6 +296,13 @@ npm test          # builds, then runs `node --test` over dist/test
   `maxRedirects` exhaustion, and cross-origin credential stripping — mocked transport.
 - **`client.test.ts`** — host routing (live vs static), URL/query mapping, language suffixes — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
+- **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
+  `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
+  code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
+  P2 in library objects and errors, P3 credentials across redirects, P4/P19 base-URL validation,
+  P5 the transport contract (timeout, size cap, body types, header shapes, resets), P6 the retry
+  floor, P7 pipes and exit codes (spawns the built bin), P8/P9/P13 charset, 2xx body shapes and
+  error classes.
 
 ## Continuous integration
 
