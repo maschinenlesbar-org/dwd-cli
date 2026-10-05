@@ -162,6 +162,13 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 carries `status`/`detail`/`isRetryable`), `DwdNetworkError` (transport
 failure/timeout), `DwdParseError` (bad/non-JSON body), `DwdValidationError` (an
 input the library rejects before any request), all extending `DwdError`.
+Whatever an injected transport throws becomes a `DwdNetworkError`
+(`GET <url> failed: <reason>`, the original as `cause`). No error and no client shows
+the base URL's password: the engine keeps the base URL in a real `#private` field
+(so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it), every
+URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
+percent-decoded) is scrubbed from error bodies and details, transport error text and
+the `cause` chain.
 The CLI maps a `DwdValidationError` to the usage exit code `2`, `404` to exit
 code `4`, other API statuses to `5`, network failures to `6`, parse failures to
 `7`, and any other error to `1`.
