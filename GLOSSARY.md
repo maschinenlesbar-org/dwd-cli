@@ -139,6 +139,12 @@ i.e. warnings relevant to that station's location.
 **`time`.** The Unix-epoch timestamp (a `number`) stamped on every warning feed
 envelope, marking when that feed was generated.
 
+**`staleFeed`.** Added by the CLI (not DWD) to every warning feed it prints: `true` when the
+feed's `time` is more than 60 minutes old (`STALE_FEED_MS`; checked with
+`staleFeedProblem(time)`), else `false`. DWD republishes the feeds every few minutes (on
+2026-10-06 the nowcast feed was 4 minutes old, Gemeinde and coast 10), so a stale feed misses
+the warnings issued since. A stale feed also gets a `note:` line on stderr.
+
 **`binnenSee`.** *Inland lake.* An optional block on the nowcast/gemeinde warning
 envelopes carrying inland-lake (large-lake) warnings. With none active it has come
 back as `null` (nowcast) and `{}` (gemeinde).

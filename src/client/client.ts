@@ -132,6 +132,34 @@ async function getChecked<T>(
 const FEED_TIME: NumberFields = { required: ["time"] };
 
 /**
+ * Age above which a warning feed counts as stale: 60 minutes. DWD republishes the feeds
+ * every few minutes (on 2026-10-06 the nowcast feed was 4 minutes old, the Gemeinde and
+ * coast feeds 10), so a feed an hour old means publishing has stopped or a mirror serves
+ * an old copy, and warnings issued since are missing from it.
+ */
+export const STALE_FEED_MS = 60 * 60 * 1000;
+
+/**
+ * Whether a warning feed is stale, as one sentence for a note (without a `note: `
+ * prefix), or `undefined` when it is not: its `time` (epoch ms, when DWD published it)
+ * is more than `maxAgeMs` ({@link STALE_FEED_MS} by default) before `now`. A `time`
+ * that is not a finite number, or one in the future, is never stale. The CLI prints the
+ * sentence on stderr and adds `staleFeed` to the printed feed.
+ */
+export function staleFeedProblem(
+  time: number,
+  now: number = Date.now(),
+  maxAgeMs: number = STALE_FEED_MS,
+): string | undefined {
+  if (!Number.isFinite(time) || !Number.isFinite(now) || now - time <= maxAgeMs) return undefined;
+  const minutes = Math.floor((now - time) / 60_000);
+  return (
+    `the feed was published ${minutes} minutes ago (time ${new Date(time).toISOString()}), more than ` +
+    `${Math.round(maxAgeMs / 60_000)} minutes; DWD republishes it every few minutes, so warnings issued since are missing`
+  );
+}
+
+/**
  * The station data's "no value" marker: the largest 16-bit integer, which the web service
  * puts into a scaled-integer array where it has no value — today's past hours at some
  * stations (`temperature`, `precipitationTotal`, `icon`), every `surfacePressure` value at

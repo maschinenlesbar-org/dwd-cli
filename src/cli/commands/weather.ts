@@ -3,7 +3,8 @@ import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues, type Lang } from "../../client/enums.js";
-import { missingStationIds } from "../../client/client.js";
+import { missingStationIds, staleFeedProblem } from "../../client/client.js";
+import type { ActionContext } from "../shared.js";
 
 /**
  * The `--lang` option, validated by commander's own `.choices()` so a bad value
@@ -32,6 +33,17 @@ function collectStationId(value: string, previous: string[] = []): string[] {
     throw new InvalidArgumentError("A station id must not be empty.");
   }
   return previous.concat(ids.flatMap((id) => id.trim().split(/\s+/)));
+}
+
+/**
+ * Print a warning feed with a `staleFeed` field added after the feed's own keys: `true`
+ * when its `time` is older than the library's STALE_FEED_MS (60 minutes), else `false`.
+ * A stale feed also gets a `note:` line on stderr. The exit code is unchanged.
+ */
+function renderFeed(deps: CliDeps, global: ActionContext["global"], name: string, feed: { time: number }): void {
+  const stale = staleFeedProblem(feed.time);
+  renderJson(deps, global, { ...feed, staleFeed: stale !== undefined });
+  if (stale !== undefined) deps.io.err(`note: ${name} warnings: ${stale}`);
 }
 
 export function registerWeatherCommands(program: Command, deps: CliDeps): void {
@@ -80,7 +92,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .action(
       action(deps, "static", async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.nowcast(opts["lang"] as Lang));
+        renderFeed(deps, global, "nowcast", await client.warnings.nowcast(opts["lang"] as Lang));
       }),
     );
 
@@ -90,7 +102,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .action(
       action(deps, "static", async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.gemeinde(opts["lang"] as Lang));
+        renderFeed(deps, global, "gemeinde", await client.warnings.gemeinde(opts["lang"] as Lang));
       }),
     );
 
@@ -100,7 +112,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .action(
       action(deps, "static", async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.warnings.coast(opts["lang"] as Lang));
+        renderFeed(deps, global, "coast", await client.warnings.coast(opts["lang"] as Lang));
       }),
     );
 

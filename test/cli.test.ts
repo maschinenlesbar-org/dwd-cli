@@ -87,7 +87,7 @@ test("DEL and C1 control characters in server data are escaped in the JSON outpu
     const raw = [...text].filter((c) => c.charCodeAt(0) < 0x20 ? c !== "\n" : c.charCodeAt(0) >= 0x7f && c.charCodeAt(0) <= 0x9f);
     assert.deepEqual(raw, [], format.join(" "));
     assert.match(text, /Sturm\\u007f\\u0085\\u009b2J/);
-    assert.deepEqual(JSON.parse(text), served);
+    assert.deepEqual(JSON.parse(text), { ...served, staleFeed: true }); // time 1 is 1970
   }
 });
 
@@ -361,4 +361,24 @@ test("station-overview notes unknown ids on stderr; stdout and exit code are unc
   const known = makeCli(() => jsonResponse({ "10865": { days: [] } }));
   assert.equal(await run(["station-overview", "--id", "10865"], known.deps), 0);
   assert.deepEqual(known.err, []);
+});
+
+test("warning feeds carry staleFeed; a feed older than 60 minutes gets a stderr note", async () => {
+  const fresh = Date.now() - 5 * 60_000;
+  const fcli = makeCli(() => jsonResponse({ time: fresh, warnings: [], binnenSee: null }));
+  assert.equal(await run(["--compact", "warnings", "nowcast"], fcli.deps), 0);
+  assert.deepEqual(JSON.parse(fcli.out.join("")), { time: fresh, warnings: [], binnenSee: null, staleFeed: false });
+  assert.deepEqual(fcli.err, []);
+
+  const old = Date.now() - 2 * 60 * 60_000;
+  const scli = makeCli(() => jsonResponse({ time: old, warnings: {}, vorabInformation: {} }));
+  assert.equal(await run(["--compact", "warnings", "coast"], scli.deps), 0);
+  assert.equal(JSON.parse(scli.out.join("")).staleFeed, true);
+  assert.equal(scli.err.length, 1);
+  assert.match(scli.err[0]!, /^note: coast warnings: the feed was published 1[12]\d minutes ago \(time \d{4}-\d\d-\d\dT.*Z\), more than 60 minutes; /);
+
+  // crowd is not a warning feed: no staleFeed field.
+  const ccli = makeCli(() => jsonResponse({ start: 1, end: 2, meldungen: [] }));
+  assert.equal(await run(["--compact", "crowd"], ccli.deps), 0);
+  assert.equal("staleFeed" in JSON.parse(ccli.out.join("")), false);
 });

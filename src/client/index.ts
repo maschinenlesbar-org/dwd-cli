@@ -4,10 +4,12 @@ export {
   DwdClient,
   DEFAULT_STATIC_BASE_URL,
   STATIC_VERSION,
+  STALE_FEED_MS,
   STATION_MISSING_VALUE,
   WS_VERSION,
   missingStationIds,
   replaceMissingValues,
+  staleFeedProblem,
 } from "./client.js";
 export type { DwdClientOptions } from "./client.js";
 export {

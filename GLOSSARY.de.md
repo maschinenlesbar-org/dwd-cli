@@ -143,6 +143,13 @@ also Warnungen, die für den Standort dieser Station relevant sind.
 **`time`.** Der Unix-Epoch-Zeitstempel (eine `number`) im Envelope jedes Warn-Feeds;
 er gibt an, wann der Feed erzeugt wurde.
 
+**`staleFeed`.** Von der CLI (nicht vom DWD) jedem ausgegebenen Warn-Feed hinzugefügt:
+`true`, wenn `time` des Feeds mehr als 60 Minuten zurückliegt (`STALE_FEED_MS`; geprüft mit
+`staleFeedProblem(time)`), sonst `false`. Der DWD veröffentlicht die Feeds alle paar Minuten
+neu (am 2026-10-06 war der Nowcast-Feed 4 Minuten alt, Gemeinde und Küste 10), einem
+veralteten Feed fehlen also die seither ausgegebenen Warnungen. Ein veralteter Feed bekommt
+zusätzlich eine `note:`-Zeile auf stderr.
+
 **`binnenSee`.** *Binnensee.* Ein optionaler Block in den Envelopes der Nowcast- und
 Gemeinde-Warnfeeds mit Warnungen für Binnenseen (große Seen). Ohne aktive Warnungen
 kam er als `null` (Nowcast) bzw. `{}` (Gemeinde) zurück.

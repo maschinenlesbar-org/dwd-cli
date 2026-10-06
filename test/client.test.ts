@@ -177,3 +177,18 @@ test("missingStationIds names the requested ids the answer has no data for", asy
   // An inherited key is not data.
   assert.deepEqual(missingStationIds(["toString"], {}), ["toString"]);
 });
+
+test("staleFeedProblem: older than STALE_FEED_MS is stale, newer, future or non-finite is not", async () => {
+  const { staleFeedProblem, STALE_FEED_MS } = await import("../src/index.js");
+  const now = Date.UTC(2026, 9, 6, 12, 0, 0);
+  assert.equal(STALE_FEED_MS, 3_600_000);
+  assert.equal(staleFeedProblem(now - STALE_FEED_MS, now), undefined);
+  assert.equal(staleFeedProblem(now + 60_000, now), undefined);
+  assert.equal(staleFeedProblem(Number.NaN, now), undefined);
+  assert.equal(
+    staleFeedProblem(now - 90 * 60_000, now),
+    "the feed was published 90 minutes ago (time 2026-10-06T10:30:00.000Z), more than 60 minutes; " +
+      "DWD republishes it every few minutes, so warnings issued since are missing",
+  );
+  assert.match(staleFeedProblem(now - 20 * 60_000, now, 10 * 60_000) ?? "", /20 minutes ago .* more than 10 minutes/);
+});

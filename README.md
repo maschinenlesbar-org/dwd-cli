@@ -156,7 +156,17 @@ dwd warnings nowcast --lang en \
 
 # When was the Gemeinde feed last published? Read the time field.
 dwd --compact warnings gemeinde | jq '.time'
+
+# Is a feed stale? staleFeed is true when time is more than 60 minutes old
+dwd --compact warnings coast | jq '.staleFeed'
 ```
+
+The three `warnings` commands add one field to the feed they print: **`staleFeed`**, `true`
+when the feed's `time` is more than 60 minutes old (`STALE_FEED_MS` in the library), else
+`false`. DWD republishes the feeds every few minutes, so an hour-old feed means publishing has
+stopped or a mirror serves an old copy, and warnings issued since are missing. A stale feed
+also gets one line on stderr — `note: coast warnings: the feed was published 125 minutes ago
+(time …), more than 60 minutes; …` — and the exit code stays `0`.
 
 Use `--compact` for single-line JSON in pipelines and logs:
 

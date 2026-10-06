@@ -71,8 +71,10 @@ The nowcast feed is the short-fuse warning layer (e.g. imminent thunderstorms).
 dwd warnings nowcast
 ```
 
-The feed envelope has a `time` (publish timestamp) and a `warnings` array.
-Count the active entries:
+The feed envelope has a `time` (publish timestamp) and a `warnings` array. The CLI adds
+`staleFeed` to every warning feed it prints: `true` when `time` is more than 60 minutes old
+(DWD republishes every few minutes, so warnings issued since are missing), with a `note:`
+line on stderr; `false` otherwise. Count the active entries:
 
 ```bash
 dwd --compact warnings nowcast | jq '.warnings | length'

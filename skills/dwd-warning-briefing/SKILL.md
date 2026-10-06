@@ -53,6 +53,12 @@ in gemeinde — both mean "nothing", so check for either.
 `coast` is different: `{ time, warnings: { <zoneId>: [ ... ] }, vorabInformation }` — its
 `warnings` is an **object keyed by coastal-zone id**, not an array.
 
+The CLI adds **`staleFeed`** to each of the three: `true` when the feed's `time` (when DWD
+published it, epoch ms) is more than 60 minutes old — DWD republishes every few minutes, so
+publishing has stopped and newer warnings are missing — and then also prints a `note: …`
+line on stderr. With `staleFeed: true`, say so up front ("the coast feed is 2 h old") and
+don't present an empty feed as "no warnings".
+
 ## Step 2 — The fields that matter
 
 The warning items carry (checked live on 2026-09-15 — note what **coast** items lack):
@@ -97,7 +103,8 @@ Germany — ⚠ 6 active DWD warnings (4 thunderstorm, 1 snow, 1 coastal gale)
 
 Rules:
 - **Lead with the count and the worst level.** If everything is empty, say plainly "No
-  active DWD warnings right now" — that's a complete, useful answer.
+  active DWD warnings right now" — that's a complete, useful answer, unless a feed has
+  `staleFeed: true`: then name that feed and its age instead of calling it calm.
 - Per warning show: `event`, `level`, the human end time when there is one (convert
   `end`/1000; coast has none — don't invent one), and a short body from `descriptionText`.
   Add `instruction` for level ≥ 2 when it isn't empty.

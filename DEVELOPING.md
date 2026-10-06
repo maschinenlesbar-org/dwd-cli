@@ -83,6 +83,12 @@ non-empty list of non-blank ids without commas, whitespace, `;` or control chara
 in `stationIds`, or `10865 10147` sent as one id, would come back as `{}`, like an
 unknown station). The CLI only splits an `--id` value on commas and whitespace.
 
+The warning feeds come back as DWD published them. `staleFeedProblem(time, now?, maxAgeMs?)`
+says whether one is stale — its `time` more than `STALE_FEED_MS` (60 minutes) old — as a
+sentence, or `undefined`. The CLI's `warnings` commands print the feed with a `staleFeed`
+boolean added after DWD's keys and, for a stale one, a `note: <feed> warnings: <sentence>`
+line on stderr; the library adds no field.
+
 ## Authentication internals
 
 These endpoints require **no API key** — they are open, read-only, and
