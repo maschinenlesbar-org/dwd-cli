@@ -192,3 +192,42 @@ test("staleFeedProblem: older than STALE_FEED_MS is stale, newer, future or non-
   );
   assert.match(staleFeedProblem(now - 20 * 60_000, now, 10 * 60_000) ?? "", /20 minutes ago .* more than 10 minutes/);
 });
+
+test("decodeStationOverview turns the scaled integers into real units and leaves the rest", async () => {
+  const { decodeStationOverview, STATION_SCALE, STATION_SCALED_FIELDS } = await import("../src/index.js");
+  assert.equal(STATION_SCALE, 10);
+  assert.equal(STATION_SCALED_FIELDS["surfacePressure"], "hPa");
+  const raw = {
+    "10865": {
+      forecast1: {
+        stationId: "10865", start: 1791151200000, timeStep: 3600000,
+        temperature: [97, -12, null, 32767], humidity: [904], surfacePressure: [10216],
+        sunshine: [350], precipitationTotal: [14], windSpeed: null, icon: [4, 7], isDay: [false],
+        temperatureStd: [3], cloudCoverTotal: [],
+      },
+      forecast2: { start: 1791410400000, timeStep: 10800000, dewPoint2m: [103], temperature: [] },
+      days: [{ dayDate: "2026-10-05", temperatureMin: 124, temperatureMax: 220, precipitation: 12, windSpeed: 55,
+        windGust: 167, windDirection: 3120, sunshine: 4120, sunrise: 1791177521000, icon: 3, icon1: null }],
+      threeHourSummaries: null,
+      warnings: [{ level: 2, temperature: 5 }],
+    },
+    "99999": "not an object",
+  };
+  const decoded = decodeStationOverview(raw as never);
+  assert.deepEqual(decoded["10865"], {
+    forecast1: {
+      stationId: "10865", start: 1791151200000, timeStep: 3600000,
+      temperature: [9.7, -1.2, null, null], humidity: [90.4], surfacePressure: [1021.6],
+      sunshine: [35], precipitationTotal: [1.4], windSpeed: null, icon: [4, 7], isDay: [false],
+      temperatureStd: [3], cloudCoverTotal: [],
+    },
+    forecast2: { start: 1791410400000, timeStep: 10800000, dewPoint2m: [10.3], temperature: [] },
+    days: [{ dayDate: "2026-10-05", temperatureMin: 12.4, temperatureMax: 22, precipitation: 1.2, windSpeed: 5.5,
+      windGust: 16.7, windDirection: 312, sunshine: 412, sunrise: 1791177521000, icon: 3, icon1: null }],
+    threeHourSummaries: null,
+    warnings: [{ level: 2, temperature: 5 }], // not station data: untouched
+  });
+  assert.equal(decoded["99999"], "not an object");
+  // The input is not modified.
+  assert.deepEqual((raw["10865"].forecast1.temperature), [97, -12, null, 32767]);
+});

@@ -228,6 +228,83 @@ export function missingStationIds(stationIds: readonly string[], overview: Stati
   return missing;
 }
 
+/**
+ * The station-data fields that hold scaled integers, with the unit of the decoded value.
+ * Each is the real value × {@link STATION_SCALE} (tenths): `temperature` 97 is 9.7 °C,
+ * `surfacePressure` 10216 is 1021.6 hPa, `windDirection` 2700 is 270°, `sunshine` 350 is
+ * 35 minutes of sun in the period. Checked against DWD's MOSMIX forecast for the same
+ * stations (2026-09-15 and 2026-10-05). Every other field is left as delivered: the epoch-ms
+ * timestamps (`start`, `sunrise`, …), `timeStep`, the `icon` codes, `isDay`, and fields
+ * whose scale is not confirmed (`temperatureStd`, `precipitationProbablity`,
+ * `cloudCoverTotal`).
+ */
+export const STATION_SCALED_FIELDS: Readonly<Record<string, string>> = Object.freeze({
+  temperature: "°C",
+  temperatureMin: "°C",
+  temperatureMax: "°C",
+  dewPoint2m: "°C",
+  humidity: "%",
+  surfacePressure: "hPa",
+  windSpeed: "km/h",
+  windGust: "km/h",
+  windDirection: "°",
+  precipitation: "mm",
+  precipitationTotal: "mm",
+  sunshine: "min",
+});
+
+/** The factor of the station data's scaled integers: the delivered value is the real one × 10. */
+export const STATION_SCALE = 10;
+
+/** A scaled value in real units: ÷ STATION_SCALE; `null` and the missing-value marker give `null`. */
+function unscale(value: JsonValue): JsonValue {
+  if (value === STATION_MISSING_VALUE) return null;
+  return typeof value === "number" ? value / STATION_SCALE : value;
+}
+
+/** `value` with every field of STATION_SCALED_FIELDS (a number, or an array of them) decoded, recursively. */
+function decodeScaled(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) return value.map(decodeScaled);
+  if (typeof value !== "object" || value === null) return value;
+  const out: JsonObject = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (Object.prototype.hasOwnProperty.call(STATION_SCALED_FIELDS, k)) {
+      out[k] = Array.isArray(v) ? v.map(unscale) : unscale(v);
+    } else {
+      out[k] = decodeScaled(v);
+    }
+  }
+  return out;
+}
+
+/**
+ * A station overview with its scaled integers in real units: every field named in
+ * {@link STATION_SCALED_FIELDS} — inside `forecast1`, `forecast2`, `days` and
+ * `threeHourSummaries` — divided by {@link STATION_SCALE}, so `temperature: [97, 148]`
+ * becomes `[9.7, 14.8]` (°C) and `days[].windDirection: 3120` becomes `312` (°). `null`
+ * stays `null`, and the missing-value marker ({@link STATION_MISSING_VALUE}) becomes `null`
+ * too, so a payload obtained another way can be passed as is. The structure, the array
+ * lengths and alignment (see GLOSSARY: the short arrays are end-aligned), the timestamps
+ * and every other field are unchanged; `warnings` is not touched. Apply it once, to an
+ * undecoded overview: a second pass divides again. The CLI prints this with
+ * `station-overview --decode`.
+ */
+export function decodeStationOverview(overview: StationOverview): StationOverview {
+  const out: StationOverview = {};
+  for (const [id, station] of Object.entries(overview)) {
+    if (typeof station !== "object" || station === null || Array.isArray(station)) {
+      out[id] = station;
+      continue;
+    }
+    const copy: JsonObject = { ...station };
+    for (const key of STATION_DATA_KEYS) {
+      if (key in copy) copy[key] = decodeScaled(copy[key] as JsonValue);
+    }
+    out[id] = copy;
+  }
+  return out;
+}
+
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
   constructor(private readonly e: RequestEngine) {}

@@ -70,9 +70,13 @@ crowd                                        crowd-sourced reports overview
 | Flag | Meaning |
 | --- | --- |
 | `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt); one value may also be a comma- or space-separated list (`--id "10865 10147"`) |
+| `--decode` | Print the scaled integers in real units (°C, %, hPa, km/h, °, mm, minutes of sun) instead of tenths |
 
-The values are DWD's scaled integers (most ÷ 10; see [GLOSSARY.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/GLOSSARY.md)), except
-that the API's missing-value marker `32767` is printed as `null`.
+The values are DWD's scaled integers, tenths of their unit (`97` is 9.7 °C; see
+[GLOSSARY.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/GLOSSARY.md)), except
+that the API's missing-value marker `32767` is printed as `null`. With `--decode` they come in
+real units (`9.7`); timestamps, icon codes and the array layout stay the same. The library
+does the same with `decodeStationOverview(overview)`.
 
 ### `warnings` flags
 

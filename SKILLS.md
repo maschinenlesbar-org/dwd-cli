@@ -17,7 +17,7 @@ Claude doesn't have to rediscover them each time.
 | Skill | What it does | Ask it… |
 |---|---|---|
 | **dwd-warning-briefing** | Merges the nowcast + Gemeinde + coast warning feeds into one severity-ranked briefing, drops stale and duplicate entries, and reports plain-language headlines. | "any weather warnings in Germany?", "is there a storm warning right now?" |
-| **dwd-station-forecast** | Decodes a raw `station-overview` (tenths-of-units integer arrays, epoch-ms timestamps) into a readable temperature/wind/precip forecast for one or more stations. | "forecast for Munich (10865)?", "will it rain tomorrow?", "compare two cities" |
+| **dwd-station-forecast** | Turns a `station-overview` (unlabelled value arrays, decoded to real units with `--decode`; epoch-ms timestamps) into a readable temperature/wind/precip forecast for one or more stations. | "forecast for Munich (10865)?", "will it rain tomorrow?", "compare two cities" |
 | **dwd-warning-map** | Exports the warning-area polygons from the nowcast and Gemeinde feeds (coast warnings have no geometry) as a valid GeoJSON `FeatureCollection` for Leaflet / geojson.io / QGIS. | "map the thunderstorm warnings", "export DWD warnings as GeoJSON" |
 | **dwd-crowd-check** | Filters the crowd-sourced report feed by place + category and cross-checks it against the official warnings as ground truth. | "are people reporting hail near Mainz?", "is the storm warning actually happening?" |
 
@@ -90,7 +90,8 @@ non-obvious parts of this API, for example:
 - station-overview values are **scaled integers**, not real units — temperature/dew
   point/pressure/humidity/wind/precip are all **tenths** (`97` = 9.7 °C, `10216` = 1021.6
   hPa, `2700` = 270°), sunshine is in **tenths of a minute**, and times are **epoch
-  milliseconds**; printing the raw arrays gives nonsense (see **dwd-station-forecast**);
+  milliseconds**; printing the raw arrays gives nonsense, so the forecast skill asks for
+  `station-overview --decode`, which prints them in real units (see **dwd-station-forecast**);
 - the hourly arrays are **not all anchored at `forecast1.start`**: only `temperature` is;
   the shorter ones (`sunshine`, `humidity`, `precipitationTotal`, …) are end-aligned, and
   `forecast2` is a 3-hourly continuation, not an hourly copy;

@@ -35,11 +35,13 @@ dwd --help
 ## Library usage
 
 ```ts
-import { DwdClient, DwdApiError, missingStationIds } from "@maschinenlesbar.org/dwd-cli";
+import { DwdClient, DwdApiError, decodeStationOverview, missingStationIds } from "@maschinenlesbar.org/dwd-cli";
 
 const client = new DwdClient(); // live + static defaults; no auth required
 
 const overview = await client.weather.stationOverview(["10865"]);
+// Tenths of a unit as delivered (temperature 97); decoded: 9.7 (°C). Once, never twice.
+const real = decodeStationOverview(overview);
 const nowcast = await client.warnings.nowcast("de");
 const gemeinde = await client.warnings.gemeinde("en");
 const crowd = await client.crowd();

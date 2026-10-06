@@ -5,20 +5,22 @@ description: >
   dwd-cli. Trigger when the user asks "what's the forecast for Munich/Hamburg?",
   "weather at DWD station 10865", "will it rain tomorrow in a city?", "compare
   the forecast for two cities", or wants temperature/wind/precip for a German
-  weather station. Decodes the API's scaled integer arrays (tenths-of-units) and
-  epoch-millisecond timestamps that make the raw payload unreadable.
+  weather station. Reads the API's unlabelled value arrays (in real units with
+  --decode) and epoch-millisecond timestamps that make the raw payload unreadable.
 compatibility: >
-  Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli) on PATH,
-  installed by the user; the skill never installs it. Uses jq for JSON
+  Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli, 0.3.0 or
+  later for --decode) on PATH, installed by the user; the skill never installs it. Uses jq for JSON
   filtering. Network access to app-prod-ws.warnwetter.de and
   s3.eu-central-1.amazonaws.com (DWD static data).
 ---
 
 # DWD Station Forecast
 
-Turn the raw `station-overview` payload — which is arrays of unlabelled scaled integers —
-into a readable hourly + multi-day forecast. **Decoding the units is the entire job of this
-skill**; the CLI returns the DWD numbers verbatim.
+Turn the `station-overview` payload — arrays of unlabelled numbers — into a readable hourly +
+multi-day forecast. DWD delivers the numbers as scaled integers (tenths of the unit);
+**`--decode` makes the CLI print them in real units** (°C, %, hPa, km/h, °, mm, minutes of
+sun). Placing each value at its hour and picking the slice the user asked for is this
+skill's job.
 
 ## Tooling
 
@@ -37,9 +39,12 @@ ask for the id or the nearest known station rather than guessing — a wrong id 
 returns `{}` (see traps).
 
 ```bash
-dwd --compact station-overview --id 10865            # one station
-dwd --compact station-overview --id 10865 --id 10147 # several (city-vs-city)
+dwd --compact station-overview --decode --id 10865            # one station
+dwd --compact station-overview --decode --id 10865 --id 10147 # several (city-vs-city)
 ```
+
+If `dwd` rejects `--decode` (`unknown option`, a `dwd` older than 0.3.0), run the same command
+without it and divide the scaled fields by 10 yourself (the "Raw" column in Step 3).
 
 The response is an object **keyed by station id**: `{ "10865": { … } }`. Address one with
 `jq '."10865"'`.
@@ -62,23 +67,24 @@ Each station value has:
 | `warnings` | Warnings for this station's location — usually `[]`. |
 | `forecastStart` | May be `null`; use `forecast1.start` as the series anchor. |
 
-## Step 3 — Decode the units — do NOT print raw
+## Step 3 — The units
 
-The DWD numbers are scaled integers; printing them raw gives nonsense like "temperature 97".
-**Divide before display:**
+With `--decode` the CLI has already divided the scaled fields; show them with their unit.
+Without it (an old `dwd`) they are tenths — "temperature 97" is 9.7 °C — so divide first,
+never print them raw.
 
-| Field | Raw → real | Example |
+| Field | Unit with `--decode` | Raw (without `--decode`) |
 |---|---|---|
-| `temperature`, `temperatureMin`, `temperatureMax`, `dewPoint2m` | ÷ 10 → **°C** | `97` → 9.7 °C, `148` → 14.8 °C |
-| `humidity` | ÷ 10 → **%** | `904` → 90.4 % |
-| `surfacePressure` | ÷ 10 → **hPa** | `10216` → 1021.6 hPa |
-| `windSpeed`, `windGust` | ÷ 10 → **km/h** | `167` → 16.7, `445` → 44.5 km/h |
-| `windDirection` | ÷ 10 → **degrees** | `2700` → 270° (W) |
-| `precipitation`, `precipitationTotal` | ÷ 10 → **mm** | `14` → 1.4 mm |
-| `sunshine` (`forecast1` hourly, `forecast2` 3-hourly) | ÷ 10 → **minutes** of sunshine in the period (tenths of a minute) | `350` → 35 min in that hour |
-| `days[].sunshine` | **don't use it** — see the trap below; sum the hourly values instead | `0` on a day with 4 h of sun |
-| `sunrise`/`sunset`/`moonrise`/`moonset`, `start` | **epoch milliseconds** — ÷ 1000 for a normal timestamp; format in local/CET time | |
-| `icon` / `icon1` / `icon2` | small int weather-symbol code — describe loosely or omit, don't fabricate an exact meaning | |
+| `temperature`, `temperatureMin`, `temperatureMax`, `dewPoint2m` | **°C** — `9.7` | ÷ 10: `97` |
+| `humidity` | **%** — `90.4` | ÷ 10: `904` |
+| `surfacePressure` | **hPa** — `1021.6` | ÷ 10: `10216` |
+| `windSpeed`, `windGust` | **km/h** — `16.7` | ÷ 10: `167` |
+| `windDirection` | **degrees** — `270` (W) | ÷ 10: `2700` |
+| `precipitation`, `precipitationTotal` | **mm** — `1.4` | ÷ 10: `14` |
+| `sunshine` (`forecast1` hourly, `forecast2` 3-hourly) | **minutes** of sunshine in the period — `35` in that hour | ÷ 10: `350` |
+| `days[].sunshine` | **don't use it** — see the trap below; sum the hourly values instead | |
+| `sunrise`/`sunset`/`moonrise`/`moonset`, `start` | **epoch milliseconds** (never decoded) — ÷ 1000 for a normal timestamp; format in local/CET time | |
+| `icon` / `icon1` / `icon2` | small int weather-symbol code (never decoded) — describe loosely or omit, don't fabricate an exact meaning | |
 
 > **Trap: value arrays can be `null` or empty `[]`** even when the series exists — e.g.
 > `windSpeed`, `windGust`, `windDirection` and `precipitationProbablity` were `null` and
@@ -89,8 +95,8 @@ The DWD numbers are scaled integers; printing them raw gives nonsense like "temp
 > with `32767`, which the CLI prints as `null` — today's past hours at some stations
 > (`temperature`, `precipitationTotal`, `icon`) and **every `surfacePressure` value at
 > mountain stations** (Zugspitze `10961`, Feldberg `10908`, Fichtelberg `10578`, …). Say
-> "no value"/"not provided" for that hour, leave it out of sums, minima and maxima, and never
-> divide it (in jq, `null / 10` is an error). If you ever see a raw `32767` (an old `dwd`),
+> "no value"/"not provided" for that hour, and leave it out of sums, minima and maxima (in jq,
+> `null` breaks arithmetic: test for it first). If you ever see a raw `32767` (an old `dwd`),
 > treat it the same way — it is not 3276.7 of anything.
 > **Trap: `days[].sunshine` is often `0` on sunny days.** Checked against the hourly data
 > on 2026-10-05 and 06 (49 stations, 531 future days): it is either exactly the day's sum of
@@ -121,19 +127,18 @@ A helper that does the alignment (next 6 hours; rain and sunshine for the hour t
 at the listed time):
 
 ```bash
-dwd --compact station-overview --id 10147 > so.json
+dwd --compact station-overview --decode --id 10147 > so.json
 TZ=Europe/Berlin jq -r --arg id 10147 '
   .[$id].forecast1 as $f
-  | def real($x): if $x == null or $x == 32767 then null else $x / 10 end;  # null = no value
-  def at($name; $h):   # element of array $name stamped start + $h hours
+  | def at($name; $h):   # element of array $name stamped start + $h hours
       ($f[$name] // []) as $a
       | ($h - 73 + ($a | length)) as $j
-      | if $j >= 0 and $j < ($a | length) then real($a[$j]) else null end;
+      | if $j >= 0 and $j < ($a | length) then $a[$j] else null end;   # null = no value
   def show($v; $unit): if $v == null then "n/a" else "\($v) \($unit)" end;
     ((now * 1000 - $f.start) / $f.timeStep | floor) as $i
   | range($i; $i + 6) as $h
   | [ ($f.start + $h * $f.timeStep) / 1000 | strflocaltime("%H:%M"),
-      show(real($f.temperature[$h]); "°C"),
+      show($f.temperature[$h]; "°C"),
       "rain " + show(at("precipitationTotal"; $h + 1); "mm"),
       "sun " + show(at("sunshine"; $h + 1); "min"),
       "humidity " + show(at("humidity"; $h); "%") ]
@@ -156,7 +161,7 @@ TZ=Europe/Berlin jq -r --arg id 10147 '
         | .day = ((.end - 1) / 1000 | strflocaltime("%Y-%m-%d")))
   | map(select(.day >= (now | strflocaltime("%Y-%m-%d"))))
   | group_by(.day)
-  | map({day: .[0].day, sun_min: ((map(.v) | add) / 10)})
+  | map({day: .[0].day, sun_min: ((map(.v) | add) * 10 | round / 10)})   # old dwd: add / 10
   | .[] | "\(.day)  sun \(.sun_min) min"' so.json
 ```
 

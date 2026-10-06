@@ -392,3 +392,13 @@ test("the /v30 hint for --base-url keeps a login as ***@ and never prints it", a
   assert.match(err, /\(try https:\/\/\*\*\*@proxy\.example\/api\)/);
   assert.ok(!err.includes("s3cret") && !err.includes("alice"), err);
 });
+
+test("station-overview --decode prints real units; without it the scaled integers", async () => {
+  const body = { "10865": { forecast1: { start: 1, timeStep: 3600000, temperature: [97, 32767] }, days: [{ windDirection: 2700 }] } };
+  const plain = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["--compact", "station-overview", "--id", "10865"], plain.deps), 0);
+  assert.deepEqual(JSON.parse(plain.out.join("")), { "10865": { forecast1: { start: 1, timeStep: 3600000, temperature: [97, null] }, days: [{ windDirection: 2700 }] } });
+  const decoded = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["--compact", "station-overview", "--id", "10865", "--decode"], decoded.deps), 0);
+  assert.deepEqual(JSON.parse(decoded.out.join("")), { "10865": { forecast1: { start: 1, timeStep: 3600000, temperature: [9.7, null] }, days: [{ windDirection: 270 }] } });
+});

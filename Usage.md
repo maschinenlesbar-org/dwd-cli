@@ -34,10 +34,17 @@ dwd station-overview --id 10865
 
 Output is a JSON object keyed by station id. Each value carries the raw DWD
 fields (`forecast1`, `forecast2`, `days`, `warnings`, `threeHourSummaries`) as scaled
-integers (most ÷ 10, see [GLOSSARY.md](GLOSSARY.md)). The one change: the API's
+integers (tenths of the unit, see [GLOSSARY.md](GLOSSARY.md)). The one change: the API's
 missing-value marker `32767` is printed as `null` — expect `null` inside the arrays
 (today's past hours at some stations, every `surfacePressure` value at mountain
 stations), and skip it in sums and averages.
+
+Add `--decode` for real units — °C, %, hPa, km/h, degrees, mm, minutes of sun — instead of
+tenths; nothing else changes (timestamps, icon codes, array lengths and alignment):
+
+```bash
+dwd --compact station-overview --id 10865 --decode | jq '."10865".days[0] | {temperatureMin, temperatureMax, precipitation}'
+```
 
 ### 2. Compare several stations in one call
 
@@ -190,6 +197,7 @@ request; stdout and the exit code are unchanged. Only the base URL the command u
 | Command | Flag | Notes |
 | --- | --- | --- |
 | `station-overview` | `--id <stationId>` | **Required**, repeatable; 5-digit DWD station id |
+| `station-overview` | `--decode` | Real units (°C, %, hPa, km/h, °, mm, minutes of sun) instead of tenths |
 | `warnings nowcast` | `--lang <lang>` | `de` (default) or `en` |
 | `warnings gemeinde` | `--lang <lang>` | `de` (default) or `en` |
 | `warnings coast` | `--lang <lang>` | `de` (default) or `en` |

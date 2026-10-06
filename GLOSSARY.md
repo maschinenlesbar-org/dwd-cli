@@ -107,6 +107,18 @@ current day: `temperature` runs ten days from `start`, while the shorter arrays
 rather than anchored at `start`. `forecast2` continues from there in three-hour
 steps (`timeStep` 10800000); it is not an hourly copy of `forecast1`.
 
+**Scaled integers.** The station data's measurements come as whole numbers in tenths of
+their unit: `temperature`, `temperatureMin`/`Max` and `dewPoint2m` in °C, `humidity` in %,
+`surfacePressure` in hPa, `windSpeed`/`windGust` in km/h, `windDirection` in degrees,
+`precipitation`/`precipitationTotal` in mm and `sunshine` in minutes of sun in the period
+(`97` is 9.7 °C, `10216` is 1021.6 hPa, `2700` is 270°). The CLI prints them as delivered;
+`station-overview --decode` prints them in real units, through the library's
+`decodeStationOverview(overview)` (field list `STATION_SCALED_FIELDS`, factor
+`STATION_SCALE`). Decoding changes only those numbers: timestamps (epoch ms), `timeStep`,
+`icon` codes, `isDay`, the array lengths and their end-alignment stay as they are, and so
+do fields whose scale is not confirmed (`temperatureStd`, `precipitationProbablity`,
+`cloudCoverTotal`).
+
 **Missing-value marker (`32767`).** The station data's "no value": the largest
 16-bit integer, which the web service puts into a scaled-integer array where it has no
 value — today's past hours at some stations (`temperature`, `precipitationTotal`,

@@ -110,6 +110,18 @@ aktuellen Tages: `temperature` reicht zehn Tage ab `start`, die kürzeren Arrays
 enden bei `start` + 72 h und beginnen nicht bei `start`. `forecast2` setzt dort in Dreistundenschritten fort
 (`timeStep` 10800000) und ist keine stündliche Kopie von `forecast1`.
 
+**Skalierte Ganzzahlen.** Die Messwerte der Stationsdaten kommen als ganze Zahlen in
+Zehnteln ihrer Einheit: `temperature`, `temperatureMin`/`Max` und `dewPoint2m` in °C,
+`humidity` in %, `surfacePressure` in hPa, `windSpeed`/`windGust` in km/h,
+`windDirection` in Grad, `precipitation`/`precipitationTotal` in mm und `sunshine` in
+Sonnenminuten im Zeitraum (`97` sind 9,7 °C, `10216` sind 1021,6 hPa, `2700` sind 270°).
+Die CLI gibt sie unverändert aus; `station-overview --decode` gibt sie in echten Einheiten
+aus, über `decodeStationOverview(overview)` aus der Bibliothek (Feldliste
+`STATION_SCALED_FIELDS`, Faktor `STATION_SCALE`). Dekodiert werden nur diese Zahlen:
+Zeitstempel (Epoch-ms), `timeStep`, `icon`-Codes, `isDay`, die Länge der Arrays und ihre
+Ausrichtung am Ende bleiben, wie sie sind, ebenso Felder mit unbestätigter Skalierung
+(`temperatureStd`, `precipitationProbablity`, `cloudCoverTotal`).
+
 **Fehlwert-Markierung (`32767`).** Das „kein Wert“ der Stationsdaten: die größte
 16-Bit-Ganzzahl, die der Webdienst in ein Array skalierter Ganzzahlen setzt, wo er
 keinen Wert hat – in den vergangenen Stunden des heutigen Tages an manchen Stationen

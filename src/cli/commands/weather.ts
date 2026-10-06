@@ -3,7 +3,7 @@ import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues, type Lang } from "../../client/enums.js";
-import { missingStationIds, staleFeedProblem } from "../../client/client.js";
+import { decodeStationOverview, missingStationIds, staleFeedProblem } from "../../client/client.js";
 import type { ActionContext } from "../shared.js";
 
 /**
@@ -51,11 +51,15 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .command("station-overview")
     .description("Forecasts/observations for one or more DWD station ids")
     .requiredOption("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)", collectStationId)
+    .option(
+      "--decode",
+      "print the scaled integers in real units (°C, %, hPa, km/h, °, mm, minutes of sun) instead of tenths",
+    )
     .action(
       action(deps, "ws", async ({ client, global, opts }) => {
         const ids = opts["id"] as string[];
         const overview = await client.weather.stationOverview(ids);
-        renderJson(deps, global, overview);
+        renderJson(deps, global, opts["decode"] === true ? decodeStationOverview(overview) : overview);
         // The API leaves an unknown id out of its answer (200, `{}` for one id): say so.
         const missing = missingStationIds(ids, overview);
         if (missing.length > 0) {

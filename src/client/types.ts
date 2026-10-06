@@ -16,7 +16,8 @@ export type JsonObject = { [key: string]: JsonValue };
 /**
  * Response of `stationOverviewExtended` — an object keyed by station id, each
  * value carrying `forecast1`/`forecast2`/`days`/`warnings`/`threeHourSummaries`.
- * The numbers are scaled integers (see GLOSSARY: most ÷ 10). `null` inside an array
+ * The numbers are scaled integers, tenths of their unit (`decodeStationOverview` converts
+ * them; see GLOSSARY). `null` inside an array
  * means "no value": the client turns the API's missing-value marker 32767
  * (`STATION_MISSING_VALUE`) into `null`. `days[].sunshine` is not reliable: it is
  * either the day's sum of the hourly sunshine values or `0`, on sunny days too.
