@@ -35,7 +35,7 @@ dwd --help
 ## Library usage
 
 ```ts
-import { DwdClient, DwdApiError } from "@maschinenlesbar.org/dwd-cli";
+import { DwdClient, DwdApiError, missingStationIds } from "@maschinenlesbar.org/dwd-cli";
 
 const client = new DwdClient(); // live + static defaults; no auth required
 
@@ -45,9 +45,10 @@ const gemeinde = await client.warnings.gemeinde("en");
 const crowd = await client.crowd();
 
 // An unknown station id is not an error: the API answers {} (and drops unknown
-// ids from a multi-id request), so check the keys.
+// ids from a multi-id request). missingStationIds names them (the CLI prints a
+// stderr note from it).
 const unknown = await client.weather.stationOverview(["nope"]); // {}
-if (!("nope" in unknown)) console.error("no such station");
+for (const id of missingStationIds(["nope"], unknown)) console.error(`no such station: ${id}`);
 
 // A non-2xx status (the service down, a feed missing) throws DwdApiError.
 try {

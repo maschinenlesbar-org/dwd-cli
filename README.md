@@ -192,9 +192,10 @@ own code.
   `npx @maschinenlesbar.org/dwd-cli …`.
 - **Exit `4` / "not found"** — a requested feed or resource returned `404`. Note
   that an unknown **station id** is *not* a 404: `station-overview` returns `{}`
-  with exit `0` for an id the catalogue doesn't know (and silently drops unknown
-  ids from a multi-id response), so empty `{}` there means a bad id, not a server
-  error. Double-check the id against the DWD Warnwetter app; DWD station ids are
+  with exit `0` for an id the catalogue doesn't know (and drops unknown ids from a
+  multi-id response), so empty `{}` there means a bad id, not a server error. The CLI
+  says so on stderr — `note: no data for station id 99999 — the API answers an unknown
+  id with nothing, not an error` — and stdout and the exit code stay as they are. Double-check the id against the DWD Warnwetter app; DWD station ids are
   typically 5-digit numeric codes.
 - **Exit `5` / API error** — the upstream service returned an unexpected status.
   The service is public but may be temporarily unavailable; retry later. With a

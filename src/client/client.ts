@@ -177,6 +177,29 @@ export function replaceMissingValues(overview: StationOverview): StationOverview
   return out;
 }
 
+/**
+ * The requested station ids that `overview` carries no data for, in request order and
+ * without duplicates: an id with no key in the answer, or whose value is an empty object.
+ * The web service answers an unknown id (a typo, `010865`, an id it doesn't serve) by
+ * leaving it out — `{}` for a single id — with status 200, so this is the only way to
+ * tell "no such station" apart. Ids are compared after {@link normalizeStationIds}, as
+ * `stationOverview()` sends them. The CLI prints a note on stderr for each run that has
+ * some; the exit code stays 0.
+ */
+export function missingStationIds(stationIds: readonly string[], overview: StationOverview): string[] {
+  const missing: string[] = [];
+  for (const id of normalizeStationIds(stationIds)) {
+    if (typeof id !== "string" || missing.includes(id)) continue;
+    const station: unknown = Object.prototype.hasOwnProperty.call(overview, id) ? overview[id] : undefined;
+    const empty =
+      station === undefined ||
+      station === null ||
+      (typeof station === "object" && !Array.isArray(station) && Object.keys(station).length === 0);
+    if (empty) missing.push(id);
+  }
+  return missing;
+}
+
 /** Live web service: station overviews and forecasts. */
 class WeatherResource {
   constructor(private readonly e: RequestEngine) {}

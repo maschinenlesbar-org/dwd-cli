@@ -6,6 +6,7 @@ export {
   STATIC_VERSION,
   STATION_MISSING_VALUE,
   WS_VERSION,
+  missingStationIds,
   replaceMissingValues,
 } from "./client.js";
 export type { DwdClientOptions } from "./client.js";

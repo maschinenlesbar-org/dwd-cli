@@ -168,3 +168,12 @@ test("stationOverview turns the missing-value marker 32767 into null (finding 01
   assert.equal(out["x"], 5);
   assert.deepEqual(replaceMissingValues({ a: { days: [32767] } }), { a: { days: [null] } });
 });
+
+test("missingStationIds names the requested ids the answer has no data for", async () => {
+  const { missingStationIds } = await import("../src/index.js");
+  assert.deepEqual(missingStationIds(["10865"], {}), ["10865"]);
+  assert.deepEqual(missingStationIds([" 10865 ", "99999", "99999", "10147"], { "10865": { days: [] }, "10147": {} }), ["99999", "10147"]);
+  assert.deepEqual(missingStationIds(["10865"], { "10865": { forecast1: {} } }), []);
+  // An inherited key is not data.
+  assert.deepEqual(missingStationIds(["toString"], {}), ["toString"]);
+});

@@ -347,3 +347,18 @@ test("P20: the cleartext warning checks the base URL of the host the command tal
   assert.equal(await run(["--static-base-url", "http://bucket.example", "station-overview", "--id", "10865"], ws.deps), 0);
   assert.deepEqual(ws.err.filter((l) => l.startsWith("warning:")), []);
 });
+
+test("station-overview notes unknown ids on stderr; stdout and exit code are unchanged", async () => {
+  const one = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--compact", "station-overview", "--id", "99999"], one.deps), 0);
+  assert.deepEqual(one.out, ["{}"]);
+  assert.deepEqual(one.err, ["note: no data for station id 99999 — the API answers an unknown id with nothing, not an error"]);
+
+  const mixed = makeCli(() => jsonResponse({ "10865": { days: [] } }));
+  assert.equal(await run(["station-overview", "--id", "10865,99999", "--id", "88888"], mixed.deps), 0);
+  assert.deepEqual(mixed.err, ["note: no data for station ids 99999, 88888 — the API answers an unknown id with nothing, not an error"]);
+
+  const known = makeCli(() => jsonResponse({ "10865": { days: [] } }));
+  assert.equal(await run(["station-overview", "--id", "10865"], known.deps), 0);
+  assert.deepEqual(known.err, []);
+});

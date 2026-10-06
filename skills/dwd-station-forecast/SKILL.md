@@ -45,8 +45,9 @@ The response is an object **keyed by station id**: `{ "10865": { … } }`. Addre
 `jq '."10865"'`.
 
 > **Trap: an unknown station id is NOT an error.** It returns an empty object `{}` (or omits
-> that id from a multi-id response) with **exit 0** — not exit 4. If a station's key is
-> missing/empty, tell the user the id wasn't found; don't report it as "no weather".
+> that id from a multi-id response) with **exit 0** — not exit 4. The CLI names such ids on
+> stderr (`note: no data for station id 99999 — …`). If a station's key is missing/empty or
+> that note appears, tell the user the id wasn't found; don't report it as "no weather".
 
 ## Step 2 — The payload
 

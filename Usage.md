@@ -49,7 +49,9 @@ dwd station-overview --id 10865 --id 10147
 ```
 
 The result is keyed per station, so you can address each independently:
-`jq '."10865"'`.
+`jq '."10865"'`. An id the API doesn't know is left out of the answer (exit `0`); the CLI
+names it on stderr: `note: no data for station id 99999 — the API answers an unknown id with
+nothing, not an error`.
 
 ### 3. List which monitored stations currently have active warnings
 

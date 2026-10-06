@@ -3,6 +3,7 @@ import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues, type Lang } from "../../client/enums.js";
+import { missingStationIds } from "../../client/client.js";
 
 /**
  * The `--lang` option, validated by commander's own `.choices()` so a bad value
@@ -40,7 +41,15 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .requiredOption("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)", collectStationId)
     .action(
       action(deps, "ws", async ({ client, global, opts }) => {
-        renderJson(deps, global, await client.weather.stationOverview(opts["id"] as string[]));
+        const ids = opts["id"] as string[];
+        const overview = await client.weather.stationOverview(ids);
+        renderJson(deps, global, overview);
+        // The API leaves an unknown id out of its answer (200, `{}` for one id): say so.
+        const missing = missingStationIds(ids, overview);
+        if (missing.length > 0) {
+          const which = missing.length === 1 ? `station id ${missing[0]}` : `station ids ${missing.join(", ")}`;
+          deps.io.err(`note: no data for ${which} — the API answers an unknown id with nothing, not an error`);
+        }
       }),
     );
 

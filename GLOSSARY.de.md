@@ -98,7 +98,10 @@ Die Formen sind gleichwertig – alle werden kommagetrennt als `stationIds=10865
 an den Webdienst gesendet. Der Client entfernt Leerraum um jede ID (`" 10865 "` wird
 als `10865` gesendet) und weist eine leere ID oder eine mit Komma, Leerraum, `;` oder
 Steuerzeichen (die API beantwortete sie mit `{}` wie eine unbekannte Station) vor jeder
-Anfrage zurück – für die CLI wie für Aufrufe der Bibliothek.
+Anfrage zurück – für die CLI wie für Aufrufe der Bibliothek. Eine unbekannte ID beantwortet
+die API mit Status 200 und ohne Eintrag für sie (`{}` bei einer einzelnen ID);
+`missingStationIds(ids, overview)` nennt solche IDs, und die CLI gibt sie als `note:`-Zeile
+auf stderr aus (Exit-Code `0` unverändert).
 
 **`forecast1` / `forecast2`.** Zwei Vorhersagereihen je Station in einer
 Stationsübersicht. `forecast1` ist stündlich (`timeStep` 3600000) ab Mitternacht des
