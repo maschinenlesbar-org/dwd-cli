@@ -382,3 +382,13 @@ test("warning feeds carry staleFeed; a feed older than 60 minutes gets a stderr 
   assert.equal(await run(["--compact", "crowd"], ccli.deps), 0);
   assert.equal("staleFeed" in JSON.parse(ccli.out.join("")), false);
 });
+
+test("the /v30 hint for --base-url keeps a login as ***@ and never prints it", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["--base-url", "https://alice:s3cret@proxy.example/api/v30", "station-overview", "--id", "10865"], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(cli.mt.calls.length, 0);
+  const err = cli.err.join("\n");
+  assert.match(err, /\(try https:\/\/\*\*\*@proxy\.example\/api\)/);
+  assert.ok(!err.includes("s3cret") && !err.includes("alice"), err);
+});

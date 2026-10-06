@@ -170,7 +170,9 @@ test("serviceBaseUrlProblem: a path ending in the segment has a hint naming the 
   assert.equal(v30("https://h.example/v16"), undefined);
   assert.equal(v30("not a url"), undefined); // left to baseUrlProblem
   assert.equal(v30("https://h.example/v30"), "Leave out /v30: the client adds /v30 itself (try https://h.example).");
-  assert.equal(v30("https://u:p@h.example/a/v30//"), "Leave out /v30: the client adds /v30 itself (try https://h.example/a).");
+  // A login stays in the suggestion, redacted the way every message shows it.
+  assert.equal(v30("https://u:p@h.example/a/v30//"), "Leave out /v30: the client adds /v30 itself (try https://***@h.example/a).");
+  assert.equal(v30("http://alice@h.example:8080/v30"), "Leave out /v30: the client adds /v30 itself (try http://***@h.example:8080).");
   assert.equal(lib.serviceBaseUrlProblem, serviceBaseUrlProblem);
   assert.equal(lib.WS_VERSION, "/v30");
   assert.equal(lib.STATIC_VERSION, "/v16");

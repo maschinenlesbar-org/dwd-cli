@@ -234,6 +234,8 @@ parse as a URL. Only an omitted value selects the default host. The client adds 
 segment itself (`WS_VERSION` `/v30`, `STATIC_VERSION` `/v16`), so a value whose path
 ends in it throws a `DwdValidationError` with a hint (`serviceBaseUrlProblem`):
 `Invalid baseUrl: Leave out /v30: the client adds /v30 itself (try https://app-prod-ws.warnwetter.de).`
+A URL with a login keeps it in the suggestion, shown the way every message shows it
+(`redactUrl`): `https://alice:pw@proxy/api/v30` gets `(try https://***@proxy/api)`.
 
 **Plain `http:`.** `cleartextProblem(baseUrl, secrets = [])` (engine, exported) says whether
 requests to a base URL travel unencrypted: `undefined` for `https:`, an unparseable URL and a

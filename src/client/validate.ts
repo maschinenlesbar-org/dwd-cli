@@ -10,7 +10,7 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { DwdValidationError } from "./errors.js";
+import { DwdValidationError, redactUrl } from "./errors.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -133,8 +133,10 @@ function quoteId(id: unknown): string {
  * for the live web service, `/v16` for the static bucket). The hosts are documented
  * with that segment, so passing the documented address would request `/v30/v30/...`
  * (a 404) or `/v16/v16/...` (S3 answers a missing key with 403, which reads like an
- * outage). The reason names the value to use instead. A value that does not parse
- * is left to {@link baseUrlProblem}.
+ * outage). The reason names the value to use instead, with the user name and password
+ * of a URL that has them shown as `***` ({@link redactUrl}: `https://***@proxy/api`),
+ * so the hint keeps the login in place without printing it. A value that does not
+ * parse is left to {@link baseUrlProblem}.
  */
 export function serviceBaseUrlProblem(segment: string): Problem<unknown> {
   return (value) => {
@@ -147,8 +149,13 @@ export function serviceBaseUrlProblem(segment: string): Problem<unknown> {
     }
     const path = url.pathname.replace(/\/+$/, "");
     if (!path.endsWith(segment)) return undefined;
-    // (url.origin carries no userinfo, so nothing secret is echoed.)
-    const suggestion = `${url.origin}${path.slice(0, -segment.length)}`;
+    const prefix = path.slice(0, -segment.length);
+    url.pathname = prefix === "" ? "/" : prefix;
+    url.search = "";
+    url.hash = "";
+    // The shared redaction turns any userinfo into `***@`; no trailing slash for a bare host.
+    const shown = redactUrl(url.href);
+    const suggestion = prefix === "" ? shown.replace(/\/$/, "") : shown;
     return `Leave out ${segment}: the client adds ${segment} itself (try ${suggestion}).`;
   };
 }
