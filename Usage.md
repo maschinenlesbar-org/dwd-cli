@@ -173,6 +173,10 @@ Global options may be given **before or after** the command — both
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `-h, --help` | Display help for a command |
 
+A base URL on plain `http:` to a remote host (not `localhost`, `127.0.0.0/8` or `::1`) gets one
+`warning: … sent unencrypted to <host> (http:, not https:)` line on stderr before the command's
+request; stdout and the exit code are unchanged. Only the base URL the command uses is checked.
+
 ### Command flags
 
 | Command | Flag | Notes |

@@ -228,6 +228,15 @@ segment itself (`WS_VERSION` `/v30`, `STATIC_VERSION` `/v16`), so a value whose 
 ends in it throws a `DwdValidationError` with a hint (`serviceBaseUrlProblem`):
 `Invalid baseUrl: Leave out /v30: the client adds /v30 itself (try https://app-prod-ws.warnwetter.de).`
 
+**Plain `http:`.** `cleartextProblem(baseUrl, secrets = [])` (engine, exported) says whether
+requests to a base URL travel unencrypted: `undefined` for `https:`, an unparseable URL and a
+loopback host (`localhost`, `127.0.0.0/8`, `::1`), otherwise one sentence naming `url.host` and,
+when the URL carries userinfo, "the base URL's credentials" (never the password). The DWD API
+takes no key, so the CLI passes no `secrets`. The CLI's `action()` wrapper (`shared.ts`) checks
+the base URL of the host the command talks to (`--base-url` for `station-overview`,
+`--static-base-url` for the feeds) and prints `warning: <sentence>` on stderr once, before the
+client is built; help, version and usage errors never reach it.
+
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (`0`–`10` in the CLI). Each retry waits
 `retryDelayMs * attempt` (200 ms, 400 ms, …), or longer if the response's `Retry-After`
@@ -302,7 +311,8 @@ npm test          # builds, then runs `node --test` over dist/test
   P2 in library objects and errors, P3 credentials across redirects, P4/P19 base-URL validation,
   P5 the transport contract (timeout, size cap, body types, header shapes, resets), P6 the retry
   floor, P7 pipes and exit codes (spawns the built bin), P8/P9/P13 charset, 2xx body shapes and
-  error classes.
+  error classes, and from the follow-up round (`.reviews/2026-10-06-followup/round.md`) P20 the
+  stderr warning for a plain-`http:` base URL.
 
 ## Continuous integration
 

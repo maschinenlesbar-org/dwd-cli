@@ -105,6 +105,14 @@ Credentials in the URL (`https://user:pw@proxy.example/`) are sent as HTTP Basic
 and shown as `***` in everything the CLI prints — error messages, and the usage error
 for a rejected `--base-url` / `--static-base-url` or a URL typed where a command goes.
 
+A base URL on plain `http:` to a remote host makes the command print one line on stderr
+before its request — `warning: requests to proxy.example are sent unencrypted (http:, not
+https:)`, or `warning: the base URL's credentials are sent unencrypted to proxy.example
+(http:, not https:)` when the URL carries a login (never the login itself). Only the base URL
+of the host the command talks to is checked (`--base-url` for `station-overview`,
+`--static-base-url` for `warnings` and `crowd`); loopback hosts (`localhost`, `127.0.0.0/8`,
+`::1`) don't warn. stdout and the exit code are unchanged.
+
 ## Common tasks
 
 A few recipes to get going — see **[Usage.md](Usage.md)** for the full,

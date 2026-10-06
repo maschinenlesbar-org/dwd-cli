@@ -39,7 +39,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .description("Forecasts/observations for one or more DWD station ids")
     .requiredOption("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)", collectStationId)
     .action(
-      action(deps, async ({ client, global, opts }) => {
+      action(deps, "ws", async ({ client, global, opts }) => {
         renderJson(deps, global, await client.weather.stationOverview(opts["id"] as string[]));
       }),
     );
@@ -48,7 +48,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .command("crowd")
     .description("Crowd-sourced weather reports overview")
     .action(
-      action(deps, async ({ client, global }) => {
+      action(deps, "static", async ({ client, global }) => {
         renderJson(deps, global, await client.crowd());
       }),
     );
@@ -70,7 +70,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .description("Short-term (nowcast) warnings")
     .addOption(langOption())
     .action(
-      action(deps, async ({ client, global, opts }) => {
+      action(deps, "static", async ({ client, global, opts }) => {
         renderJson(deps, global, await client.warnings.nowcast(opts["lang"] as Lang));
       }),
     );
@@ -80,7 +80,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .description("Municipality-level warnings")
     .addOption(langOption())
     .action(
-      action(deps, async ({ client, global, opts }) => {
+      action(deps, "static", async ({ client, global, opts }) => {
         renderJson(deps, global, await client.warnings.gemeinde(opts["lang"] as Lang));
       }),
     );
@@ -90,7 +90,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
     .description("Coastal warnings (keyed by coastal zone)")
     .addOption(langOption())
     .action(
-      action(deps, async ({ client, global, opts }) => {
+      action(deps, "static", async ({ client, global, opts }) => {
         renderJson(deps, global, await client.warnings.coast(opts["lang"] as Lang));
       }),
     );

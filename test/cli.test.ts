@@ -333,3 +333,17 @@ test("station-overview splits a whitespace-separated --id list; a ';' list is a 
   assert.match(cli.err.join("\n"), /expected one id, got "10865;10147"/);
   assert.equal(cli.mt.calls.length, 0);
 });
+
+test("P20: the cleartext warning checks the base URL of the host the command talks to", async () => {
+  // A feed command talks to --static-base-url: an http one warns, an http --base-url doesn't.
+  const feed = makeCli(() => jsonResponse({ meldungen: [] }));
+  assert.equal(await run(["--base-url", "http://ws.example", "--static-base-url", "http://bucket.example", "crowd"], feed.deps), 0);
+  assert.deepEqual(
+    feed.err.filter((l) => l.startsWith("warning:")),
+    ["warning: requests to bucket.example are sent unencrypted (http:, not https:)"],
+  );
+  // station-overview talks to --base-url: an http --static-base-url alone doesn't warn.
+  const ws = makeCli(() => jsonResponse({ "10865": {} }));
+  assert.equal(await run(["--static-base-url", "http://bucket.example", "station-overview", "--id", "10865"], ws.deps), 0);
+  assert.deepEqual(ws.err.filter((l) => l.startsWith("warning:")), []);
+});

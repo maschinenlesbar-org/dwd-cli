@@ -17,6 +17,7 @@ export {
   MAX_SERVER_TEXT_LENGTH,
   isTransientNetworkError,
   assertHeaderValue,
+  cleartextProblem,
   parseRetryAfter,
   validateBaseUrl,
 } from "./engine.js";

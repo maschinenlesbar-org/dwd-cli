@@ -310,6 +310,38 @@ export function validateBaseUrl(raw: string, name = "baseUrl"): string {
   return assertValid(name, raw, baseUrlProblem).replace(/\/+$/, "");
 }
 
+/** True for a loopback host: `localhost`, 127.0.0.0/8 or `::1` (as URL#hostname spells it). */
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
+/**
+ * Whether requests to `baseUrl` (or `staticBaseUrl`) would travel unencrypted, as one
+ * sentence for a warning (without a `warning: ` prefix), or `undefined` when they would
+ * not: for `https:`, for a URL that does not parse, and for a loopback host
+ * (`localhost`, 127.0.0.0/8, `::1`), where nothing leaves the machine.
+ *
+ * The sentence names the host (`url.host`: host and port, never the userinfo) and what
+ * secret travels with the requests: the base URL's credentials when it carries
+ * userinfo, and every phrase in `secrets` (noun phrases such as "the API key"; the DWD
+ * API takes none, so the CLI passes none). It never contains a password. The CLI
+ * prints it once per run as `warning: <sentence>` on stderr.
+ */
+export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "http:" || isLoopbackHost(url.hostname)) return undefined;
+  const userinfo = url.username !== "" || url.password !== "";
+  const phrases = [...secrets, ...(userinfo ? ["the base URL's credentials"] : [])];
+  if (phrases.length === 0) return `requests to ${url.host} are sent unencrypted (http:, not https:)`;
+  const verb = phrases.length === 1 && !userinfo ? "is" : "are";
+  return `${phrases.join(" and ")} ${verb} sent unencrypted to ${url.host} (http:, not https:)`;
+}
+
 export class RequestEngine {
   // A real private field (not TypeScript's `private`): util.inspect, console.log and
   // JSON.stringify of a client never show it, so a password in the base URL can't be
