@@ -312,7 +312,10 @@ npm test          # builds, then runs `node --test` over dist/test
   P5 the transport contract (timeout, size cap, body types, header shapes, resets), P6 the retry
   floor, P7 pipes and exit codes (spawns the built bin), P8/P9/P13 charset, 2xx body shapes and
   error classes, and from the follow-up round (`.reviews/2026-10-06-followup/round.md`) P20 the
-  stderr warning for a plain-`http:` base URL.
+  stderr warning for a plain-`http:` base URL and P21 README links: README.md ships in the npm
+  tarball and shows on npmjs.com, so a relative link in it may only point to a file the
+  `files` allowlist ships; other documents are linked by their GitHub URL
+  (`https://github.com/maschinenlesbar-org/dwd-cli/blob/main/<path>`).
 
 ## Continuous integration
 

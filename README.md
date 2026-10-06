@@ -18,7 +18,7 @@ Wetterdienst — no account, no API key, just data.
 - **Read-only, open data** — these endpoints are public and unauthenticated; `dwd` only reads.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -71,7 +71,7 @@ crowd                                        crowd-sourced reports overview
 | --- | --- |
 | `--id <stationId>` | **Required, repeatable.** 5-digit DWD station id (e.g. `10865` for München-Stadt); one value may also be a comma- or space-separated list (`--id "10865 10147"`) |
 
-The values are DWD's scaled integers (most ÷ 10; see [GLOSSARY.md](GLOSSARY.md)), except
+The values are DWD's scaled integers (most ÷ 10; see [GLOSSARY.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/GLOSSARY.md)), except
 that the API's missing-value marker `32767` is printed as `null`.
 
 ### `warnings` flags
@@ -86,7 +86,7 @@ Applies to all three `warnings` subcommands (`nowcast`, `gemeinde`, `coast`):
 
 No flags beyond the global options.
 
-The **[Glossary](GLOSSARY.md)** explains domain terms — station ids, feed envelopes,
+The **[Glossary](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/GLOSSARY.md)** explains domain terms — station ids, feed envelopes,
 coastal zones, and the German/English equivalents.
 
 ## Two hosts
@@ -115,7 +115,7 @@ of the host the command talks to is checked (`--base-url` for `station-overview`
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -232,10 +232,10 @@ These apply to every command and may be given **before or after** it:
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for real-world weather questions.
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — domain terms, station ids, feed envelopes, and exit codes.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI for real-world weather questions.
+- **[Usage.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/GLOSSARY.md)** — domain terms, station ids, feed envelopes, and exit codes.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 
