@@ -12,6 +12,7 @@ import {
   DwdParseError,
   DwdValidationError,
   credentialsIn,
+  cutText,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -142,8 +143,9 @@ export function parseRetryAfter(
  * `DwdApiError.body` still
  * carries the raw, unsanitised body for library consumers.
  *
- * The result is cut at MAX_SERVER_TEXT_LENGTH characters (ending in "…"), so a
- * hostile or broken body can't flood stderr or a CI log with one huge line.
+ * The result is cut at MAX_SERVER_TEXT_LENGTH characters (ending in "…"), never inside a
+ * surrogate pair (`cutText`), so a hostile or broken body can't flood stderr or a CI log
+ * with one huge line, and the message stays well-formed.
  */
 function sanitizeServerText(text: string): string {
   let out = "";
@@ -153,7 +155,7 @@ function sanitizeServerText(text: string): string {
     if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
     out += ch;
   }
-  return out.length > MAX_SERVER_TEXT_LENGTH ? `${out.slice(0, MAX_SERVER_TEXT_LENGTH)}…` : out;
+  return out.length > MAX_SERVER_TEXT_LENGTH ? `${cutText(out, MAX_SERVER_TEXT_LENGTH)}…` : out;
 }
 
 /**

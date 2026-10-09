@@ -10,7 +10,7 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { DwdValidationError, redactUrl } from "./errors.js";
+import { DwdValidationError, cutText, redactUrl } from "./errors.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -122,7 +122,7 @@ function quoteId(id: unknown): string {
   if (id === null || id === undefined || typeof id === "number" || typeof id === "boolean") return String(id);
   if (typeof id !== "string") return `a ${typeof id}`;
   // JSON.stringify escapes C0 controls but not DEL or C1 (U+0080–U+009F, which terminals may act on).
-  return JSON.stringify(id.length > 50 ? `${id.slice(0, 50)}…` : id).replace(
+  return JSON.stringify(id.length > 50 ? `${cutText(id, 50)}…` : id).replace(
     /[\u007f-\u009f]/g,
     (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );

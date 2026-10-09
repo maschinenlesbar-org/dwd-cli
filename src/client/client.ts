@@ -13,7 +13,7 @@
 
 import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
 import { LangValues, type Lang } from "./enums.js";
-import { DwdParseError, DwdValidationError } from "./errors.js";
+import { DwdParseError, DwdValidationError, cutText } from "./errors.js";
 import { assertValid, normalizeStationIds, serviceBaseUrlProblem, stationIdProblem } from "./validate.js";
 import type {
   JsonObject,
@@ -54,7 +54,7 @@ export interface DwdClientOptions extends EngineOptions {
  */
 function langSuffix(lang: Lang): string {
   if (!(LangValues as readonly unknown[]).includes(lang)) {
-    const shown = typeof lang === "string" ? JSON.stringify(lang.length > 50 ? `${lang.slice(0, 50)}…` : lang) : `a ${typeof lang}`;
+    const shown = typeof lang === "string" ? JSON.stringify(lang.length > 50 ? `${cutText(lang, 50)}…` : lang) : `a ${typeof lang}`;
     throw new DwdValidationError(`Invalid lang: expected one of ${LangValues.join(", ")}, got ${shown}.`);
   }
   return lang === "en" ? "_en" : "";

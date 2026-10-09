@@ -211,7 +211,8 @@ negative, fractional, `NaN`, oversized or non-number value — makes the constru
 throw a `DwdValidationError` naming the option; so does a `transport` or `sleep` that
 isn't a function. Server text in a message (an error `detail`, a redirect target, an
 echoed Content-Type, a transport's reason) is cut at 500 characters
-(`MAX_SERVER_TEXT_LENGTH`); `DwdApiError.body` keeps all of it.
+(`MAX_SERVER_TEXT_LENGTH`), never inside a surrogate pair (`cutText`), so the message stays
+well-formed; `DwdApiError.body` keeps all of it.
 
 `userAgent` is checked there too, with the same rule as the CLI's `--user-agent`
 (`headerValueProblem`, also exported as `assertHeaderValue(name, value)`): a blank
@@ -380,7 +381,8 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The library's error messages keep a server's line
+forge another one or steer the terminal. Before that a lone surrogate (half a character,
+which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`). The library's error messages keep a server's line
 breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
 areas are `cli` (usage errors, commander's messages, parse errors of a
 response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station

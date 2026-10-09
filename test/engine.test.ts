@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, parseRetryAfter } from "../src/client/engine.js";
-import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError } from "../src/client/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, cutText, toWellFormed } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/client/http.js";
 
@@ -457,4 +457,26 @@ test("server text in a message is cut at 500 characters; the error body keeps it
     () => e.getJson("/x"),
     (err) => err instanceof DwdApiError && err.detail?.length === 501 && err.detail.endsWith("…") && err.body.length > 200_000,
   );
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a� b� \u{1f600}");
+});
+
+test("a server detail cut at 500 characters keeps the message well-formed", async () => {
+  for (const detail of ["\u{1f600}".repeat(600), "a" + "\u{1f600}".repeat(600)]) {
+    const engine = new RequestEngine({
+      baseUrl: "https://example.test",
+      transport: async () => ({ status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail })) }),
+      maxRetries: 0,
+    });
+    await assert.rejects(engine.getJson("/v30/x"), (err: Error) => {
+      assert.equal(toWellFormed(err.message), err.message);
+      assert.match(err.message, /…$/);
+      return true;
+    });
+  }
 });
