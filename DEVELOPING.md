@@ -232,8 +232,11 @@ query or fragment, or a `%` in the user name or password that doesn't start an e
 "Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
 `DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
 auth. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
-(`withRedactedOutput`) takes the exact userinfo of every argument (`credentialsIn`,
-exported) and replaces it with `***` in everything it prints — commander's usage errors,
+(`redactionFor`, `withRedactedOutput`) takes the exact userinfo of every argument
+(`credentialsIn`, exported) and replaces it with `***` in everything it prints. The log
+replaces it in each record's *message*, before the record is cut and escaped, and writes
+to the raw stderr: the frame (time, level, topic) is never touched, and a password with
+DEL, C1 or bidi characters is matched in its raw form — commander's usage errors,
 which echo rejected values, and its own messages (unknown command) — so a password with
 spaces, quotes, `#`, `?` or `/` is caught as well as an ordinary one. `redactUrl` falls
 back to the same text-based cut (`redactCredentials`, exported) for a value that doesn't
@@ -395,8 +398,9 @@ response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown
 note, the stale-feed note) and `http` (the connection: network errors, the cleartext
 warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it, so commander's
-own usage errors are records too, and on top of the redacted `io.err`, so a secret is
-kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
+own usage errors are records too, and with the run's redaction (`withRedactedOutput`),
+which replaces a secret in the message only, before it is escaped: the frame is never
+touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
 carries data only. The one line that is not a record is `handleOutputErrors`'
 `Output error: …` (stdout itself failed; it writes to `process.stderr` directly, outside
 any run). Conformance test P23 checks all of this, and its body is shared across the
