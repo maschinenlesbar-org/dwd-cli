@@ -325,7 +325,8 @@ function isLoopbackHost(hostname: string): boolean {
  * secret travels with the requests: the base URL's credentials when it carries
  * userinfo, and every phrase in `secrets` (noun phrases such as "the API key"; the DWD
  * API takes none, so the CLI passes none). It never contains a password. The CLI
- * prints it once per run as `warning: <sentence>` on stderr.
+ * logs it as a `WARN` record of `dwd.http` on stderr (once per run, before the first
+ * request).
  */
 export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
   let url: URL;
