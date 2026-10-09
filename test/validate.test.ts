@@ -185,3 +185,11 @@ test("DwdClient rejects a base URL ending in its version segment in the construc
     DwdValidationError,
   );
 });
+
+test("a quoted scheme or suggested base URL is cut at 200 characters (L3)", () => {
+  const scheme = baseUrlProblem(`${"x".repeat(1000)}://h.example`) as string;
+  assert.match(scheme, /^Unsupported scheme "x{200}…"\./);
+  const hint = serviceBaseUrlProblem("/v30")(`https://h.example/${"p".repeat(1000)}/v30`) as string;
+  assert.match(hint, /\(try https:\/\/h\.example\/p+…\)\.$/);
+  assert.ok(hint.length < 300, `${hint.length}`);
+});

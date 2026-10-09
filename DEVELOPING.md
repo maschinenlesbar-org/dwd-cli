@@ -212,7 +212,10 @@ throw a `DwdValidationError` naming the option; so does a `transport` or `sleep`
 isn't a function. Server text in a message (an error `detail`, a redirect target, an
 echoed Content-Type, a transport's reason) is cut at 500 characters
 (`MAX_SERVER_TEXT_LENGTH`), never inside a surrogate pair (`cutText`), so the message stays
-well-formed; `DwdApiError.body` keeps all of it.
+well-formed; `DwdApiError.body` keeps all of it. A value an own message quotes from the
+user's input is cut too: a rejected `lang` or station id at 50 characters, a base URL's
+scheme and the base URL the `/v30`/`/v16` hint suggests at `MAX_QUOTED_LENGTH` (200,
+`cutForMessage`, in `errors.ts`), so `err.message` stays bounded for a library caller.
 
 `userAgent` is checked there too, with the same rule as the CLI's `--user-agent`
 (`headerValueProblem`, also exported as `assertHeaderValue(name, value)`): a blank
@@ -382,7 +385,10 @@ the message (text) or the whole JSON object (jsonl), which writes CR and LF as `
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a character,
-which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`). The library's error messages keep a server's line
+which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`), and a message
+longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a code point and ends
+in `… (N more characters)` (a long id list in the unknown-station note, a request URL with
+thousands of ids). The library's error messages keep a server's line
 breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
 areas are `cli` (usage errors, commander's messages, parse errors of a
 response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station

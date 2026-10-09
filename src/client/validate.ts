@@ -10,7 +10,7 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { DwdValidationError, cutText, redactUrl } from "./errors.js";
+import { DwdValidationError, cutForMessage, cutText, redactUrl } from "./errors.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -74,7 +74,7 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return "Expected an absolute http(s) URL.";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
+    return `Unsupported scheme "${cutForMessage(url.protocol)}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
   // The userinfo is percent-decoded for the Authorization header; a "%" that isn't an
@@ -156,6 +156,6 @@ export function serviceBaseUrlProblem(segment: string): Problem<unknown> {
     // The shared redaction turns any userinfo into `***@`; no trailing slash for a bare host.
     const shown = redactUrl(url.href);
     const suggestion = prefix === "" ? shown.replace(/\/$/, "") : shown;
-    return `Leave out ${segment}: the client adds ${segment} itself (try ${suggestion}).`;
+    return `Leave out ${segment}: the client adds ${segment} itself (try ${cutForMessage(suggestion)}).`;
   };
 }
