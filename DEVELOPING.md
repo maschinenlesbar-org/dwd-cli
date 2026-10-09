@@ -407,7 +407,7 @@ answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown
 warning) and `output` (a failed write to stdout). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`
-counts, and the value of an option that takes one is skipped, as commander reads it; a
+counts, and the value of one of the program's own value options is skipped, as commander reads it; a
 `preAction` hook then sets the format commander parsed, so `--user-agent --log-format=jsonl`
 logs text), so commander's own usage errors are records too (`writeCommanderErr`): its `error: …` an ERROR of `cli`
 (a `(Did you mean …?)` line joined to it), followed by an INFO record pointing at the

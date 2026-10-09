@@ -157,10 +157,12 @@ export function logFormatProblem(value: string): string | undefined {
  * `--log-format` counts, as in commander (dwd's options may be repeated). This scan is
  * only for the records of a parse error: once commander has parsed argv, its value is
  * the format (`run()`), so `--user-agent --log-format=jsonl` (a User-Agent) logs text.
- * `valueOptions` names the options that take a value (`--user-agent`): the token after
- * one is its value, never an option, as commander reads it, so
+ * `valueOptions` names the program's options that take a value (`--user-agent`): the
+ * token after one is its value, never an option, as commander reads it, so
  * `--user-agent --log-format jsonl` and `--user-agent -- --log-format jsonl` agree with
- * commander in a parse error too.
+ * commander in a parse error too. A subcommand's value option (`--lang`) does not count:
+ * commander takes the program's own options out of argv first, so
+ * `warnings nowcast --lang --log-format jsonl` is jsonl and a `--lang` without its value.
  */
 export function logFormatFromArgv(argv: readonly string[], valueOptions: ReadonlySet<string> = new Set()): LogFormat {
   let format: string | undefined;
