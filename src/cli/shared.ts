@@ -98,10 +98,16 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
  * reaches this handler (as `command.args[0]`) instead of tripping the arity
  * check first, and on `addHelpCommand` so `help` / `help <cmd>` still dispatch to
  * a help subcommand before this action ever runs.
+ *
+ * The error is commander's own (`unknownCommand`, which reads `command.args[0]`), so a
+ * near miss keeps its `(Did you mean …?)` hint (`dwd crowdd` → `crowd`). That method is
+ * not in commander's typings; without it the error is raised here, without the hint.
  */
 export function helpOrUnknownCommand(command: Command): void {
   const [unknown] = command.args;
   if (unknown !== undefined) {
+    const commander = command as Command & { unknownCommand?: () => never };
+    if (typeof commander.unknownCommand === "function") commander.unknownCommand();
     command.error(`error: unknown command '${unknown}'`, { code: "commander.unknownCommand" });
   }
   command.outputHelp();

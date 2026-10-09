@@ -114,6 +114,15 @@ test("an unknown warnings subcommand says 'unknown command'", async () => {
   assert.match(cli.err.join("\n"), /unknown command 'nowcst'/);
 });
 
+test("an unknown command close to a real one gets commander's suggestion", async () => {
+  for (const [argv, hint] of [[["crowdd"], "crowd"], [["warnings", "nowcst"], "nowcast"], [["station-overviewx"], "station-overview"]] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    assert.match(cli.err.join("\n"), new RegExp(`unknown command '${argv[argv.length - 1]}'\\n?.*\\(Did you mean ${hint}\\?\\)`), cli.err.join("\n"));
+    assert.equal(cli.mt.calls.length, 0);
+  }
+});
+
 test("bare program prints help to stdout and exits 0", async () => {
   const cli = makeCli(() => jsonResponse({}));
   const code = await run([], cli.deps);
