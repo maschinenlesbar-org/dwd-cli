@@ -421,5 +421,8 @@ in the bin shim, outside `run()`) is an ERROR record of `dwd.output` (`Could not
 stdout: …`), in the format argv asks for (`processLogger`). Node's own process warnings
 (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of `dwd.cli` too: the bin shim installs
 `installWarningLog`, which removes Node's default `warning` listener and logs
-`(node) <name>: <message>` through the same logger. Conformance test P23 checks all of this, and its body is shared across the
+`(node) <name>: <message>` through the same logger. In `defaultDeps` a record waits for
+stdout (`stderrAfterStdout`): it is held while stdout has a backlog and written, in order,
+once it is gone, so with `2>&1 |` and a slow reader it never lands inside the data.
+Conformance test P23 checks all of this, and its body is shared across the
 *-cli repos.
