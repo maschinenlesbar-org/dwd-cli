@@ -451,3 +451,24 @@ test("a usage error is followed by a one-line pointer to the command's help, not
     assert.deepEqual(cli.out, []);
   }
 });
+
+test("a repeated --log-format: the last one counts, as commander reads it (L6)", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--log-format", "text", "--log-format", "jsonl", "crowd", "--bogus"], cli.deps), 2);
+  assert.equal((JSON.parse(cli.err[0] ?? "") as Record<string, unknown>)["level"], "ERROR");
+});
+
+test("an option's value that looks like --log-format sets no format, in a parse error too (finding #5, L6)", async () => {
+  // commander takes "--log-format" as the User-Agent and then fails on the command "jsonl".
+  const ua = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--user-agent", "--log-format", "jsonl", "crowd"], ua.deps), 2);
+  assert.match(ua.err[0] ?? "", /^\S+Z ERROR \[dwd\.cli\] unknown command 'jsonl'/);
+  // commander takes "--log-format=text" as the User-Agent and keeps jsonl.
+  const kept = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--log-format", "jsonl", "--user-agent", "--log-format=text", "warnings", "nowcast", "--lang", "fr"], kept.deps), 2);
+  assert.equal((JSON.parse(kept.err[0] ?? "") as Record<string, unknown>)["level"], "ERROR");
+  // commander takes "--" as the User-Agent and then parses --log-format jsonl.
+  const dashes = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--user-agent", "--", "--log-format", "jsonl", "crowd", "--bogus"], dashes.deps), 2);
+  assert.equal((JSON.parse(dashes.err[0] ?? "") as Record<string, unknown>)["level"], "ERROR");
+});

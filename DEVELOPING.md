@@ -403,8 +403,11 @@ areas are `cli` (usage errors, commander's messages, parse errors of a
 response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station
 note, the stale-feed note) and `http` (the connection: network errors, the cleartext
 warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
-directly. `run()` builds the logger from argv before commander parses it, so commander's
-own usage errors are records too (`writeCommanderErr`): its `error: …` an ERROR of `cli`
+directly. `run()` builds the logger from argv before commander parses it
+(`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`
+counts, and the value of an option that takes one is skipped, as commander reads it; a
+`preAction` hook then sets the format commander parsed, so `--user-agent --log-format=jsonl`
+logs text), so commander's own usage errors are records too (`writeCommanderErr`): its `error: …` an ERROR of `cli`
 (a `(Did you mean …?)` line joined to it), followed by an INFO record pointing at the
 command's help, `(run "dwd crowd --help" for usage)` (`showHelpAfterError` with a one-line
 text, set per command in `configureTree`, rather than the whole help); anything else
