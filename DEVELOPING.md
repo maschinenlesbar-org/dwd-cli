@@ -404,10 +404,13 @@ response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown
 note, the stale-feed note) and `http` (the connection: network errors, the cleartext
 warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it, so commander's
-own usage errors are records too (each followed by an INFO record pointing at the
-command's help, `(run "dwd crowd --help" for usage)`: `showHelpAfterError` with a
-one-line text, set per command in `configureTree`, rather than the whole help), and with
-the run's redaction (`withRedactedOutput`),
+own usage errors are records too (`writeCommanderErr`): its `error: …` an ERROR of `cli`
+(a `(Did you mean …?)` line joined to it), followed by an INFO record pointing at the
+command's help, `(run "dwd crowd --help" for usage)` (`showHelpAfterError` with a one-line
+text, set per command in `configureTree`, rather than the whole help); anything else
+commander writes to stderr is one INFO record per line, after an ERROR "missing command"
+should there be no `error:` line, so every failed run has an ERROR record. The log is
+built with the run's redaction (`withRedactedOutput`),
 which replaces a secret in the message only, before it is escaped: the frame is never
 touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
 carries data only. The one line that is not a record is `handleOutputErrors`'
