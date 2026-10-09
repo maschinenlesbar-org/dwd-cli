@@ -148,8 +148,9 @@ station overview.
 **`warnings` (station).** The warnings block embedded in a station overview,
 i.e. warnings relevant to that station's location.
 
-**`time`.** The Unix-epoch timestamp (a `number`) stamped on every warning feed
-envelope, marking when that feed was generated.
+**`time`.** The Unix-epoch timestamp (a `number`, milliseconds) stamped on every warning
+feed envelope, marking when that feed was generated. A feed without one, or with one no
+date can hold (beyond ±8.64e15 ms), is a malformed answer (exit `7`).
 
 **`staleFeed`.** Added by the CLI (not DWD) to every warning feed it prints: `true` when the
 feed's `time` is more than 60 minutes old (`STALE_FEED_MS`; checked with

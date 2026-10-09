@@ -231,3 +231,33 @@ test("decodeStationOverview turns the scaled integers into real units and leaves
   // The input is not modified.
   assert.deepEqual((raw["10865"].forecast1.temperature), [97, -12, null, 32767]);
 });
+
+test("a feed time no Date can hold is a DwdParseError, not a RangeError (02 Bug 1)", async () => {
+  const { DwdParseError } = await import("../src/client/errors.js");
+  // ±8.64e15 ms is the range of a JavaScript Date; a time beyond it is no epoch time.
+  for (const time of [-1e20, 1e20, -8.64e15 - 1, 8.64e15 + 1]) {
+    const feeds: Array<[(c: DwdClient) => Promise<unknown>, unknown]> = [
+      [(c) => c.warnings.nowcast(), []],
+      [(c) => c.warnings.gemeinde("en"), []],
+      [(c) => c.warnings.coast(), {}],
+    ];
+    for (const [call, warnings] of feeds) {
+      const body = { time, warnings };
+      await assert.rejects(
+        () => call(clientWith(constantJson(body))),
+        (err: unknown) => err instanceof DwdParseError && /expected a numeric time \(epoch milliseconds\)\.$/.test(err.message),
+        String(time),
+      );
+    }
+    await assert.rejects(() => clientWith(constantJson({ start: time, meldungen: [] })).crowd(), DwdParseError, `start ${time}`);
+  }
+  // The ends of the range are times.
+  await clientWith(constantJson({ time: -8.64e15, warnings: [] })).warnings.nowcast();
+  await clientWith(constantJson({ time: 8.64e15, warnings: [] })).warnings.nowcast();
+});
+
+test("staleFeedProblem never throws: a time no Date can hold is never stale, like NaN (02 Bug 1)", async () => {
+  const { staleFeedProblem } = await import("../src/index.js");
+  for (const time of [-1e20, -8.64e15 - 1, 1e20]) assert.equal(staleFeedProblem(time), undefined, String(time));
+  assert.match(staleFeedProblem(-8.64e15) ?? "", /\(time -271821-04-20T00:00:00\.000Z\)/);
+});

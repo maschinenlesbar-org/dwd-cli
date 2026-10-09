@@ -472,3 +472,12 @@ test("an option's value that looks like --log-format sets no format, in a parse 
   assert.equal(await run(["--user-agent", "--", "--log-format", "jsonl", "crowd", "--bogus"], dashes.deps), 2);
   assert.equal((JSON.parse(dashes.err[0] ?? "") as Record<string, unknown>)["level"], "ERROR");
 });
+
+test("a feed time no Date can hold exits 7 with an api record, not \"Unexpected error: Invalid time value\" (02 Bug 1)", async () => {
+  for (const argv of [["warnings", "nowcast"], ["warnings", "gemeinde", "--lang", "en"]]) {
+    const cli = makeCli(() => jsonResponse({ time: -1e20, warnings: [] }));
+    assert.equal(await run(argv, cli.deps), 7, argv.join(" "));
+    assert.deepEqual(cli.out, []);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dwd\.api\] Unexpected response shape from \/v16\/\S+: expected a numeric time \(epoch milliseconds\)\.$/);
+  }
+});

@@ -87,7 +87,8 @@ unknown station). The CLI only splits an `--id` value on commas and whitespace.
 
 The warning feeds come back as DWD published them. `staleFeedProblem(time, now?, maxAgeMs?)`
 says whether one is stale — its `time` more than `STALE_FEED_MS` (60 minutes) old — as a
-sentence, or `undefined`. The CLI's `warnings` commands print the feed with a `staleFeed`
+sentence, or `undefined` (also for a `time` that is no time: not finite, or beyond the
+±8.64e15 ms a Date can hold; it never throws). The CLI's `warnings` commands print the feed with a `staleFeed`
 boolean added after DWD's keys and, for a stale one, a note on stderr (an `INFO`
 record of `dwd.api`, `<feed> warnings: <sentence>`); the library adds no field.
 
@@ -305,7 +306,8 @@ the CLI flag: `Response exceeded the size limit of <n> bytes (maxResponseBytes;
 level the types promise — a JSON object for the station overview, a `warnings`
 array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crowd),
 a numeric `time` on the three warning feeds and, when present, a numeric `start`/`end`
-on the crowd feed — never the records inside. Anything else throws `DwdParseError` with the text
+on the crowd feed, each epoch milliseconds a Date can hold (within ±8.64e15) — never the
+records inside. Anything else throws `DwdParseError` with the text
 `Unexpected response shape from <path>: expected <what>.`
 
 **Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when

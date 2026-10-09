@@ -152,8 +152,9 @@ innerhalb einer Stationsübersicht.
 **`warnings` (Station).** Der in eine Stationsübersicht eingebettete Warnungsblock,
 also Warnungen, die für den Standort dieser Station relevant sind.
 
-**`time`.** Der Unix-Epoch-Zeitstempel (eine `number`) im Envelope jedes Warn-Feeds;
-er gibt an, wann der Feed erzeugt wurde.
+**`time`.** Der Unix-Epoch-Zeitstempel (eine `number`, Millisekunden) im Envelope jedes
+Warn-Feeds; er gibt an, wann der Feed erzeugt wurde. Ein Feed ohne ihn oder mit einem Wert,
+den kein Datum fassen kann (jenseits von ±8,64e15 ms), ist eine fehlerhafte Antwort (Exit `7`).
 
 **`staleFeed`.** Von der CLI (nicht vom DWD) jedem ausgegebenen Warn-Feed hinzugefügt:
 `true`, wenn `time` des Feeds mehr als 60 Minuten zurückliegt (`STALE_FEED_MS`; geprüft mit

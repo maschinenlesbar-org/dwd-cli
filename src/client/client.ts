@@ -75,6 +75,14 @@ function joinStationIds(stationIds: readonly string[]): string {
   return ids.join(",");
 }
 
+/** The largest time value (ms from the epoch, either way) a JavaScript Date can hold. */
+const MAX_DATE_MS = 8.64e15;
+
+/** True for a number that is epoch milliseconds a Date can hold (not NaN, ±Infinity or beyond ±8.64e15). */
+function isDateTime(ms: number): boolean {
+  return Number.isFinite(ms) && Math.abs(ms) <= MAX_DATE_MS;
+}
+
 /** A non-null, non-array JSON object. */
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -85,9 +93,10 @@ function shapeError(path: string, expected: string): DwdParseError {
 }
 
 /**
- * Envelope fields that must be a finite number: `required` ones always, `optional` ones
+ * Envelope fields that must be epoch milliseconds: `required` ones always, `optional` ones
  * when present. The warning feeds' `time` is what a briefing states as "feed time"; a
- * feed without it (or with a string) would make `new Date(feed.time)` an Invalid Date.
+ * feed without it (or with a string, or with a number beyond ±8.64e15, the range of a
+ * Date) would make `new Date(feed.time)` an Invalid Date.
  */
 interface NumberFields {
   required?: readonly string[];
@@ -116,7 +125,7 @@ async function getChecked<T>(
   const ok = kind === "array" ? Array.isArray(value) : isObject(value);
   if (!ok) throw shapeError(path, `a JSON object with a ${key} ${kind}`);
   const envelope = body as Record<string, unknown>;
-  const isNumber = (v: unknown): boolean => typeof v === "number" && Number.isFinite(v);
+  const isNumber = (v: unknown): boolean => typeof v === "number" && isDateTime(v);
   for (const field of numbers.required ?? []) {
     if (!isNumber(envelope[field])) throw shapeError(path, `a numeric ${field} (epoch milliseconds)`);
   }
@@ -143,15 +152,17 @@ export const STALE_FEED_MS = 60 * 60 * 1000;
  * Whether a warning feed is stale, as one sentence for a note (without a `note: `
  * prefix), or `undefined` when it is not: its `time` (epoch ms, when DWD published it)
  * is more than `maxAgeMs` ({@link STALE_FEED_MS} by default) before `now`. A `time`
- * that is not a finite number, or one in the future, is never stale. The CLI prints the
- * sentence on stderr and adds `staleFeed` to the printed feed.
+ * that is not a finite number, one beyond ±8.64e15 (no Date can hold it, so it is no
+ * time; the client's shape check rejects such a feed), or one in the future, is never
+ * stale; it never throws. The CLI prints the sentence on stderr and adds `staleFeed` to
+ * the printed feed.
  */
 export function staleFeedProblem(
   time: number,
   now: number = Date.now(),
   maxAgeMs: number = STALE_FEED_MS,
 ): string | undefined {
-  if (!Number.isFinite(time) || !Number.isFinite(now) || now - time <= maxAgeMs) return undefined;
+  if (!isDateTime(time) || !Number.isFinite(now) || now - time <= maxAgeMs) return undefined;
   const minutes = Math.floor((now - time) / 60_000);
   return (
     `the feed was published ${minutes} minutes ago (time ${new Date(time).toISOString()}), more than ` +
