@@ -317,6 +317,8 @@ npm test          # builds, then runs `node --test` over dist/test
   `maxRedirects` exhaustion, and cross-origin credential stripping — mocked transport.
 - **`client.test.ts`** — host routing (live vs static), URL/query mapping, language suffixes — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, validation and exit codes — mocked client.
+- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own (`escapeForRecord`,
+  `formatLogRecord`); the CLI-level checks are P23's.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (fix plan
   `.reviews/2026-10-05-exploratory/fix-plan.md` in the workspace), one file per pattern, the same
   code in every repo apart from an adapter block at the top: P1 credential redaction in CLI output,
@@ -374,7 +376,13 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 (`ERROR`, `WARN`, `INFO`) and a topic, `dwd.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
-and `msg`. The areas are `cli` (usage errors, commander's messages, parse errors of a
+and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord` over
+the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
+every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
+controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
+forge another one or steer the terminal. The library's error messages keep a server's line
+breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
+areas are `cli` (usage errors, commander's messages, parse errors of a
 response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station
 note, the stale-feed note) and `http` (the connection: network errors, the cleartext
 warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
