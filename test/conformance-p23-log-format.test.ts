@@ -5,6 +5,15 @@
 // usage errors are records too; stdout carries data only; a secret is kept out of the log
 // in either format. Shared across the *-cli repos; only the adapter block below differs
 // per repo.
+//
+// The fix plan of the 2026-10-09 sweep (.reviews/2026-10-09-exploratory/fix-plan.md) added:
+// a hostile message is one line with nothing raw, well-formed and bounded (L1-L3); a secret
+// is replaced in the message only, before escaping (L4); commander's help is one record per
+// line and every failure has an ERROR (L5); the format is commander's (L6); a malformed
+// answer is `api` (L9); echoed credentials are replaced (L13); an `a:b@c` value that is no
+// URL is left alone (L14). Adapter switches added with them: VALUE_OPTION, OUTPUT_OPTION,
+// errorAnswer, MALFORMED_ANSWERS, secretArgv, HELP_AFTER_ERROR, BASE_URL_USERINFO, and the
+// import of MAX_RECORD_MESSAGE.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +26,10 @@ import { DwdClient as Client } from "../src/client/client.js";
 import { MAX_RECORD_MESSAGE } from "../src/cli/log.js";
 /** The program's name, the first part of every topic. */
 const PROGRAM = "dwd";
-/** A command that needs no arguments and makes one request (to the --base-url host). */
+/**
+ * A command that makes one request, to the --base-url host (the WARN check needs that
+ * host): dwd's only one is station-overview, which needs --id.
+ */
 const SIMPLE_COMMAND = ["station-overview", "--id", "10865"];
 /** A successful answer to SIMPLE_COMMAND. */
 const okBody = { "10865": { forecast1: { stationId: "10865" } } };
@@ -28,6 +40,8 @@ const USAGE_EXIT = 2;
  * one-line pointer instead (`(run "dwd station-overview --help" for usage)`, an INFO record).
  */
 const HELP_AFTER_ERROR = false;
+/** Whether --base-url accepts userinfo (destatis-genesis/regionalstatistik refuse it: nothing a server could echo). */
+const BASE_URL_USERINFO = true;
 /** The option that writes the output to a file and logs where, or undefined if the CLI has none. */
 const OUTPUT_OPTION: string | undefined = undefined; // dwd has no -o
 /** An option that takes a value and validates it: a rejected value is echoed in the record. */
@@ -216,7 +230,8 @@ test("P23: a secret with DEL, C1 or bidi characters is replaced before the recor
   }
 });
 
-test("P23: credentials a server echoes back are replaced in the record (Basic, user:password, password)", async () => {
+test("P23: credentials a server echoes back are replaced in the record (Basic, user:password, password)", async (t) => {
+  if (!BASE_URL_USERINFO) return t.skip("--base-url refuses userinfo: nothing is sent that a server could echo");
   const basic = `Basic ${Buffer.from("alice:s3cret-pw", "latin1").toString("base64")}`;
   const echo = `denied: Authorization: ${basic}; user alice:s3cret-pw; password s3cret-pw`;
   for (const format of ["text", "jsonl"]) {
