@@ -88,8 +88,8 @@ unknown station). The CLI only splits an `--id` value on commas and whitespace.
 The warning feeds come back as DWD published them. `staleFeedProblem(time, now?, maxAgeMs?)`
 says whether one is stale — its `time` more than `STALE_FEED_MS` (60 minutes) old — as a
 sentence, or `undefined`. The CLI's `warnings` commands print the feed with a `staleFeed`
-boolean added after DWD's keys and, for a stale one, a `note: <feed> warnings: <sentence>`
-line on stderr; the library adds no field.
+boolean added after DWD's keys and, for a stale one, a note on stderr (an `INFO`
+record of `dwd.api`, `<feed> warnings: <sentence>`); the library adds no field.
 
 ## Authentication internals
 
@@ -124,7 +124,8 @@ src/
     validate.ts  # input rules (Problem functions) + assertValid, shared with the CLI
     client.ts    # DwdClient — two engines (live ws + static bucket) over one transport
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
+    io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON renderer
     commands/    # station-overview / warnings / crowd
     program.ts   # assembles the commander program from injectable deps
@@ -245,7 +246,7 @@ loopback host (`localhost`, `127.0.0.0/8`, `::1`), otherwise one sentence naming
 when the URL carries userinfo, "the base URL's credentials" (never the password). The DWD API
 takes no key, so the CLI passes no `secrets`. The CLI's `action()` wrapper (`shared.ts`) checks
 the base URL of the host the command talks to (`--base-url` for `station-overview`,
-`--static-base-url` for the feeds) and prints `warning: <sentence>` on stderr once, before the
+`--static-base-url` for the feeds) and logs the sentence as a `WARN` record of `dwd.http` on stderr once, before the
 client is built; help, version and usage errors never reach it.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
@@ -366,3 +367,21 @@ npm run serve                        # http://127.0.0.1:4000/dwd-cli/
 Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license — see
 **[LICENSING.md](LICENSING.md)**. This project does **not** accept external code
 contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `dwd.<area>`. `--log-format text` (the default)
+writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, parse errors of a
+response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station
+note, the stale-feed note) and `http` (the connection: network errors, the cleartext
+warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
+directly. `run()` builds the logger from argv before commander parses it, so commander's
+own usage errors are records too, and on top of the redacted `io.err`, so a secret is
+kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
+carries data only. The one line that is not a record is `handleOutputErrors`'
+`Output error: …` (stdout itself failed; it writes to `process.stderr` directly, outside
+any run). Conformance test P23 checks all of this, and its body is shared across the
+*-cli repos.

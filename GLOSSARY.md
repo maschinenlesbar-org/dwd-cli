@@ -98,7 +98,7 @@ and rejects a blank id, or one containing a comma, whitespace, `;` or a control
 character (the API would answer such an id with `{}`, like an unknown station), before
 any request, for the CLI and library callers alike. An unknown id is answered with status
 200 and no entry for it (`{}` for one id); `missingStationIds(ids, overview)` names such
-ids, and the CLI prints them as a `note:` line on stderr (exit `0` unchanged).
+ids, and the CLI logs them as a note on stderr, an `INFO` record of `dwd.api` (exit `0` unchanged).
 
 **`forecast1` / `forecast2`.** Two forecast series carried per station in a
 station overview. `forecast1` is hourly (`timeStep` 3600000) from midnight of the
@@ -155,7 +155,7 @@ envelope, marking when that feed was generated.
 feed's `time` is more than 60 minutes old (`STALE_FEED_MS`; checked with
 `staleFeedProblem(time)`), else `false`. DWD republishes the feeds every few minutes (on
 2026-10-06 the nowcast feed was 4 minutes old, Gemeinde and coast 10), so a stale feed misses
-the warnings issued since. A stale feed also gets a `note:` line on stderr.
+the warnings issued since. A stale feed also gets a note on stderr (an `INFO` record of `dwd.api`).
 
 **`binnenSee`.** *Inland lake.* An optional block on the nowcast/gemeinde warning
 envelopes carrying inland-lake (large-lake) warnings. With none active it has come

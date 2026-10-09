@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL, STATIC_VERSION, WS_VERSION } from "../client/client.js";
@@ -12,6 +12,7 @@ import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
 import { addHelpCommand, parseServiceBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
+import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -36,6 +37,13 @@ export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new DwdClient(options),
 };
+
+/** commander value-parser for `--log-format`. */
+function parseLogFormat(value: string): string {
+  const problem = logFormatProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return value;
+}
 
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
   const program = new Command();
@@ -76,6 +84,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "cap response body size in bytes (0 = unlimited; 100 MiB)",
       parseIntArg,
       100 * 1024 * 1024,
+    )
+    .option(
+      "--log-format <format>",
+      `how errors, warnings and notes are written to stderr: text (log4j style: time, level, [topic], message) or jsonl (one JSON object per line: ts, level, topic, msg); default ${DEFAULT_LOG_FORMAT}`,
+      parseLogFormat,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     // No .showHelpAfterError(): a single bad flag should print a focused error,

@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_STATIC_BASE_URL, type DwdClientOptions } from "../client/client.js";
 import { DEFAULT_BASE_URL, cleartextProblem } from "../client/engine.js";
 import { DwdError } from "../client/errors.js";
@@ -226,7 +226,7 @@ export function serviceBaseUrl(global: GlobalOptions, service: Service): string 
  *
  * Before the client is built (so before any request), the base URL of the host the
  * command talks to (`service`) is checked: plain `http:` to a remote host gets one
- * `warning: <cleartextProblem sentence>` line on stderr. The other base URL is not
+ * warning on stderr (a WARN record of `dwd.http`, the `cleartextProblem` sentence). The other base URL is not
  * contacted and not checked. An action runs once per run, so the warning does too;
  * help, version and usage errors never reach an action and never warn.
  *
@@ -243,7 +243,7 @@ export function action(
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
     const cleartext = cleartextProblem(serviceBaseUrl(global, service));
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     const client = deps.createClient(toClientOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

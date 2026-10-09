@@ -57,7 +57,7 @@ dwd station-overview --id 10865 --id 10147
 
 The result is keyed per station, so you can address each independently:
 `jq '."10865"'`. An id the API doesn't know is left out of the answer (exit `0`); the CLI
-names it on stderr: `note: no data for station id 99999 — the API answers an unknown id with
+names it on stderr, an `INFO` record of `dwd.api`: `… INFO  [dwd.api] no data for station id 99999 — the API answers an unknown id with
 nothing, not an error`.
 
 ### 3. List which monitored stations currently have active warnings
@@ -80,8 +80,8 @@ dwd warnings nowcast
 
 The feed envelope has a `time` (publish timestamp) and a `warnings` array. The CLI adds
 `staleFeed` to every warning feed it prints: `true` when `time` is more than 60 minutes old
-(DWD republishes every few minutes, so warnings issued since are missing), with a `note:`
-line on stderr; `false` otherwise. Count the active entries:
+(DWD republishes every few minutes, so warnings issued since are missing), with a note
+on stderr (an `INFO` record of `dwd.api`); `false` otherwise. Count the active entries:
 
 ```bash
 dwd --compact warnings nowcast | jq '.warnings | length'
@@ -186,10 +186,11 @@ Global options may be given **before or after** the command — both
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each backs off linearly from 200 ms, or longer if the server's `Retry-After` asks, up to 30 s) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default `104857600` / 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dwd.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-h, --help` | Display help for a command |
 
 A base URL on plain `http:` to a remote host (not `localhost`, `127.0.0.0/8` or `::1`) gets one
-`warning: … sent unencrypted to <host> (http:, not https:)` line on stderr before the command's
+warning on stderr, a `WARN` record of `dwd.http` (`… sent unencrypted to <host> (http:, not https:)`), before the command's
 request; stdout and the exit code are unchanged. Only the base URL the command uses is checked.
 
 ### Command flags

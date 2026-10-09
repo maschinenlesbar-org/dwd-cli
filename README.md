@@ -110,9 +110,9 @@ Credentials in the URL (`https://user:pw@proxy.example/`) are sent as HTTP Basic
 and shown as `***` in everything the CLI prints — error messages, and the usage error
 for a rejected `--base-url` / `--static-base-url` or a URL typed where a command goes.
 
-A base URL on plain `http:` to a remote host makes the command print one line on stderr
-before its request — `warning: requests to proxy.example are sent unencrypted (http:, not
-https:)`, or `warning: the base URL's credentials are sent unencrypted to proxy.example
+A base URL on plain `http:` to a remote host makes the command log one warning on stderr
+before its request, a `WARN` record of `dwd.http` — `… WARN  [dwd.http] requests to proxy.example are sent unencrypted (http:, not
+https:)`, or `… WARN  [dwd.http] the base URL's credentials are sent unencrypted to proxy.example
 (http:, not https:)` when the URL carries a login (never the login itself). Only the base URL
 of the host the command talks to is checked (`--base-url` for `station-overview`,
 `--static-base-url` for `warnings` and `crowd`); loopback hosts (`localhost`, `127.0.0.0/8`,
@@ -153,6 +153,21 @@ dwd --compact warnings nowcast > "nowcast-$(date +%Y%m%dT%H%M).json"
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
 
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`dwd.cli` for usage
+errors, `dwd.api` for the API's answers and the notes about them, `dwd.http` for the
+connection). By default it is written log4j style; `--log-format jsonl` writes one JSON
+object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [dwd.http] requests to proxy.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [dwd.api] HTTP 404 for GET https://app-prod-ws.warnwetter.de/v30/stationOverviewExtended?stationIds=10865: Not Found
+```
+
+```bash
+dwd --log-format jsonl warnings coast 2>log.jsonl   # {"ts":"…","level":"INFO","topic":"dwd.api","msg":"coast warnings: the feed was published …"}
+```
+
 ```bash
 # Flatten nowcast warnings into an event/level/description TSV
 # (the feed has no `headline`/`regionName`; in --lang en only event/description translate)
@@ -170,7 +185,7 @@ The three `warnings` commands add one field to the feed they print: **`staleFeed
 when the feed's `time` is more than 60 minutes old (`STALE_FEED_MS` in the library), else
 `false`. DWD republishes the feeds every few minutes, so an hour-old feed means publishing has
 stopped or a mirror serves an old copy, and warnings issued since are missing. A stale feed
-also gets one line on stderr — `note: coast warnings: the feed was published 125 minutes ago
+also gets one note on stderr, an `INFO` record of `dwd.api` — `… INFO  [dwd.api] coast warnings: the feed was published 125 minutes ago
 (time …), more than 60 minutes; …` — and the exit code stays `0`.
 
 Use `--compact` for single-line JSON in pipelines and logs:
@@ -209,7 +224,7 @@ own code.
   that an unknown **station id** is *not* a 404: `station-overview` returns `{}`
   with exit `0` for an id the catalogue doesn't know (and drops unknown ids from a
   multi-id response), so empty `{}` there means a bad id, not a server error. The CLI
-  says so on stderr — `note: no data for station id 99999 — the API answers an unknown
+  says so on stderr — `… INFO  [dwd.api] no data for station id 99999 — the API answers an unknown
   id with nothing, not an error` — and stdout and the exit code stay as they are. Double-check the id against the DWD Warnwetter app; DWD station ids are
   typically 5-digit numeric codes.
 - **Exit `5` / API error** — the upstream service returned an unexpected status.
@@ -234,6 +249,7 @@ These apply to every command and may be given **before or after** it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dwd.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `--base-url <url>` | Live web-service base URL, without `/v30` (default `https://app-prod-ws.warnwetter.de`) |
 | `--static-base-url <url>` | Static S3 bucket base URL, without `/v16` (default `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`) |
 | `--timeout <ms>` | Time limit per request attempt, reading the whole response included (default `30000`; `0` = no timeout; at most `2147483647`). Each retry gets the full limit again, so a run with retries can take longer than `--timeout` |

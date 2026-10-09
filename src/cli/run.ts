@@ -4,7 +4,8 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
+import { createLogger, logFormatFromArgv } from "./log.js";
 import {
   DwdApiError,
   DwdError,
@@ -49,7 +50,15 @@ function configureTree(command: Command, deps: CliDeps): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    writeErr: (str) => deps.io.err(str.replace(/\n$/, "")),
+    // commander's own messages are log records too: its "error: …" an ERROR, the help it
+    // shows after one an INFO.
+    writeErr: (str) => {
+      const text = str.replace(/\n$/, "");
+      // The blank line commander writes between an error and the help it shows after.
+      if (text === "") return;
+      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
+      else logOf(deps).info("cli", text);
+    },
   });
   for (const child of command.commands) configureTree(child, deps);
 }
@@ -92,6 +101,13 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
+  // Every record goes through the redacted `io.err`, so a secret is kept out of the
+  // log in either format.
+  const redacted = deps;
+  deps = {
+    ...deps,
+    log: createLogger({ format: logFormatFromArgv(argv), write: (line) => redacted.io.err(line), ...(deps.now === undefined ? {} : { now: deps.now }) }),
+  };
   const program = buildProgram(deps);
   configureTree(program, deps);
 
@@ -105,31 +121,32 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // runtime failure (which commander would otherwise also report as 1).
       return err.exitCode === 0 ? EXIT.ok : EXIT.usage;
     }
+    const log = logOf(deps);
     if (err instanceof DwdValidationError) {
       // The library rejected an input before any request: a usage error, like a
       // value commander's parsers reject.
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return EXIT.usage;
     }
     if (err instanceof DwdApiError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       // Map notable statuses to distinct exit codes for scripting.
       if (err.status === 404) return EXIT.notFound;
       return EXIT.api;
     }
     if (err instanceof DwdNetworkError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("http", err.message);
       return EXIT.network;
     }
     if (err instanceof DwdParseError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return EXIT.parse;
     }
     if (err instanceof DwdError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return EXIT.generic;
     }
-    deps.io.err(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     return EXIT.generic;
   }
 }

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
 import { LangValues, type Lang } from "../../client/enums.js";
 import { decodeStationOverview, missingStationIds, staleFeedProblem } from "../../client/client.js";
@@ -38,12 +38,12 @@ function collectStationId(value: string, previous: string[] = []): string[] {
 /**
  * Print a warning feed with a `staleFeed` field added after the feed's own keys: `true`
  * when its `time` is older than the library's STALE_FEED_MS (60 minutes), else `false`.
- * A stale feed also gets a `note:` line on stderr. The exit code is unchanged.
+ * A stale feed also gets a note on stderr (an INFO record of `dwd.api`). The exit code is unchanged.
  */
 function renderFeed(deps: CliDeps, global: ActionContext["global"], name: string, feed: { time: number }): void {
   const stale = staleFeedProblem(feed.time);
   renderJson(deps, global, { ...feed, staleFeed: stale !== undefined });
-  if (stale !== undefined) deps.io.err(`note: ${name} warnings: ${stale}`);
+  if (stale !== undefined) logOf(deps).info("api", `${name} warnings: ${stale}`);
 }
 
 export function registerWeatherCommands(program: Command, deps: CliDeps): void {
@@ -64,7 +64,7 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
         const missing = missingStationIds(ids, overview);
         if (missing.length > 0) {
           const which = missing.length === 1 ? `station id ${missing[0]}` : `station ids ${missing.join(", ")}`;
-          deps.io.err(`note: no data for ${which} — the API answers an unknown id with nothing, not an error`);
+          logOf(deps).info("api", `no data for ${which} — the API answers an unknown id with nothing, not an error`);
         }
       }),
     );

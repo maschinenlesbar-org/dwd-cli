@@ -55,8 +55,8 @@ in gemeinde — both mean "nothing", so check for either.
 
 The CLI adds **`staleFeed`** to each of the three: `true` when the feed's `time` (when DWD
 published it, epoch ms) is more than 60 minutes old — DWD republishes every few minutes, so
-publishing has stopped and newer warnings are missing — and then also prints a `note: …`
-line on stderr. With `staleFeed: true`, say so up front ("the coast feed is 2 h old") and
+publishing has stopped and newer warnings are missing — and then also logs a note on
+stderr (an `INFO` record, `… INFO  [dwd.api] coast warnings: the feed was published …`). With `staleFeed: true`, say so up front ("the coast feed is 2 h old") and
 don't present an empty feed as "no warnings".
 
 ## Step 2 — The fields that matter

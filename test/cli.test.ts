@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { DwdClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 
 function makeCli(responder: (req: HttpRequest) => HttpResponse) {
   const out: string[] = [];
@@ -283,14 +283,14 @@ test("a deeply nested response fails pretty-printing cleanly and still prints wi
   const pretty = makeCli(deep);
   assert.equal(await run(["crowd"], pretty.deps), 1);
   assert.deepEqual(pretty.out, []);
-  assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
+  assert.equal(untimed(pretty.err.join("\n")), "ERROR [dwd.cli] The response is nested too deeply to pretty-print; try --compact.");
 
   // Compact serialisation goes much deeper (it prints this one on current Node);
   // should a runtime's stack still be too small, it must fail just as cleanly.
   const compact = makeCli(deep);
   const code = await run(["--compact", "crowd"], compact.deps);
   if (code === 0) assert.equal(compact.out.join(""), body);
-  else assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+  else assert.equal(untimed(compact.err.join("\n")), "ERROR [dwd.cli] The response is nested too deeply to print.");
 });
 
 test("a 200 body of null is a parse error (exit 7), not printed with exit 0", async () => {
@@ -298,8 +298,8 @@ test("a 200 body of null is a parse error (exit 7), not printed with exit 0", as
   assert.equal(await run(["--compact", "crowd"], cli.deps), 7);
   assert.deepEqual(cli.out, []);
   assert.equal(
-    cli.err.join("\n"),
-    "Error: Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
+    untimed(cli.err.join("\n")),
+    "ERROR [dwd.cli] Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
   );
 });
 
@@ -308,7 +308,7 @@ test("help with an unknown command name reports it as an unknown command", async
     const cli = makeCli(() => jsonResponse({}));
     assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
     assert.deepEqual(cli.out, []);
-    assert.equal(cli.err.join("\n"), `error: unknown command '${argv[argv.length - 1]}'`);
+    assert.equal(untimed(cli.err.join("\n")), `ERROR [dwd.cli] unknown command '${argv[argv.length - 1]}'`);
   }
   const leaf = makeCli(() => jsonResponse({}));
   assert.equal(await run(["warnings", "help", "nowcast"], leaf.deps), 0);
@@ -339,24 +339,24 @@ test("P20: the cleartext warning checks the base URL of the host the command tal
   const feed = makeCli(() => jsonResponse({ meldungen: [] }));
   assert.equal(await run(["--base-url", "http://ws.example", "--static-base-url", "http://bucket.example", "crowd"], feed.deps), 0);
   assert.deepEqual(
-    feed.err.filter((l) => l.startsWith("warning:")),
-    ["warning: requests to bucket.example are sent unencrypted (http:, not https:)"],
+    feed.err.map(untimed).filter((l) => l.startsWith("WARN ")),
+    ["WARN  [dwd.http] requests to bucket.example are sent unencrypted (http:, not https:)"],
   );
   // station-overview talks to --base-url: an http --static-base-url alone doesn't warn.
   const ws = makeCli(() => jsonResponse({ "10865": {} }));
   assert.equal(await run(["--static-base-url", "http://bucket.example", "station-overview", "--id", "10865"], ws.deps), 0);
-  assert.deepEqual(ws.err.filter((l) => l.startsWith("warning:")), []);
+  assert.deepEqual(ws.err.map(untimed).filter((l) => l.startsWith("WARN ")), []);
 });
 
 test("station-overview notes unknown ids on stderr; stdout and exit code are unchanged", async () => {
   const one = makeCli(() => jsonResponse({}));
   assert.equal(await run(["--compact", "station-overview", "--id", "99999"], one.deps), 0);
   assert.deepEqual(one.out, ["{}"]);
-  assert.deepEqual(one.err, ["note: no data for station id 99999 — the API answers an unknown id with nothing, not an error"]);
+  assert.deepEqual(one.err.map(untimed), ["INFO  [dwd.api] no data for station id 99999 — the API answers an unknown id with nothing, not an error"]);
 
   const mixed = makeCli(() => jsonResponse({ "10865": { days: [] } }));
   assert.equal(await run(["station-overview", "--id", "10865,99999", "--id", "88888"], mixed.deps), 0);
-  assert.deepEqual(mixed.err, ["note: no data for station ids 99999, 88888 — the API answers an unknown id with nothing, not an error"]);
+  assert.deepEqual(mixed.err.map(untimed), ["INFO  [dwd.api] no data for station ids 99999, 88888 — the API answers an unknown id with nothing, not an error"]);
 
   const known = makeCli(() => jsonResponse({ "10865": { days: [] } }));
   assert.equal(await run(["station-overview", "--id", "10865"], known.deps), 0);
@@ -375,7 +375,7 @@ test("warning feeds carry staleFeed; a feed older than 60 minutes gets a stderr 
   assert.equal(await run(["--compact", "warnings", "coast"], scli.deps), 0);
   assert.equal(JSON.parse(scli.out.join("")).staleFeed, true);
   assert.equal(scli.err.length, 1);
-  assert.match(scli.err[0]!, /^note: coast warnings: the feed was published 1[12]\d minutes ago \(time \d{4}-\d\d-\d\dT.*Z\), more than 60 minutes; /);
+  assert.match(untimed(scli.err[0]!), /^INFO  \[dwd\.api\] coast warnings: the feed was published 1[12]\d minutes ago \(time \d{4}-\d\d-\d\dT.*Z\), more than 60 minutes; /);
 
   // crowd is not a warning feed: no staleFeed field.
   const ccli = makeCli(() => jsonResponse({ start: 1, end: 2, meldungen: [] }));

@@ -15,7 +15,7 @@ import { DwdError, DwdNetworkError, DwdValidationError } from "../src/client/err
 import { DwdClient } from "../src/client/client.js";
 import { run } from "../src/cli/run.js";
 import type { CliDeps } from "../src/cli/io.js";
-import { parity, jsonResponse, makeMockTransport } from "./helpers.js";
+import { parity, jsonResponse, makeMockTransport, untimed } from "./helpers.js";
 
 const nonBlank: Problem<string> = (v) => (v.trim() === "" ? "Expected a non-empty value." : undefined);
 
@@ -39,7 +39,7 @@ test("the validation layer is exported from the package root", () => {
   assert.equal(lib.DwdValidationError, DwdValidationError);
 });
 
-test("run() maps a DwdValidationError raised in an action to exit 2, 'Error: <message>'", async () => {
+test("run() maps a DwdValidationError raised in an action to exit 2 and an ERROR record", async () => {
   const out: string[] = [];
   const err: string[] = [];
   const deps: CliDeps = {
@@ -49,7 +49,7 @@ test("run() maps a DwdValidationError raised in an action to exit 2, 'Error: <me
     },
   };
   assert.equal(await run(["crowd"], deps), 2);
-  assert.deepEqual(err, ["Error: Invalid thing: Expected a non-empty value."]);
+  assert.deepEqual(err.map(untimed), ["ERROR [dwd.cli] Invalid thing: Expected a non-empty value."]);
   assert.deepEqual(out, []);
 });
 
@@ -62,7 +62,7 @@ test("run() still maps a plain DwdError to exit 1", async () => {
     },
   };
   assert.equal(await run(["crowd"], deps), 1);
-  assert.deepEqual(err, ["Error: boom"]);
+  assert.deepEqual(err.map(untimed), ["ERROR [dwd.cli] boom"]);
 });
 
 test("parity() runs one input through the CLI and the library on one recording transport", async () => {

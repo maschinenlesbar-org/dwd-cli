@@ -100,8 +100,8 @@ als `10865` gesendet) und weist eine leere ID oder eine mit Komma, Leerraum, `;`
 Steuerzeichen (die API beantwortete sie mit `{}` wie eine unbekannte Station) vor jeder
 Anfrage zurück – für die CLI wie für Aufrufe der Bibliothek. Eine unbekannte ID beantwortet
 die API mit Status 200 und ohne Eintrag für sie (`{}` bei einer einzelnen ID);
-`missingStationIds(ids, overview)` nennt solche IDs, und die CLI gibt sie als `note:`-Zeile
-auf stderr aus (Exit-Code `0` unverändert).
+`missingStationIds(ids, overview)` nennt solche IDs, und die CLI meldet sie auf stderr als
+Hinweis, einen `INFO`-Eintrag von `dwd.api` (Exit-Code `0` unverändert).
 
 **`forecast1` / `forecast2`.** Zwei Vorhersagereihen je Station in einer
 Stationsübersicht. `forecast1` ist stündlich (`timeStep` 3600000) ab Mitternacht des
@@ -160,7 +160,7 @@ er gibt an, wann der Feed erzeugt wurde.
 `staleFeedProblem(time)`), sonst `false`. Der DWD veröffentlicht die Feeds alle paar Minuten
 neu (am 2026-10-06 war der Nowcast-Feed 4 Minuten alt, Gemeinde und Küste 10), einem
 veralteten Feed fehlen also die seither ausgegebenen Warnungen. Ein veralteter Feed bekommt
-zusätzlich eine `note:`-Zeile auf stderr.
+zusätzlich einen Hinweis auf stderr (einen `INFO`-Eintrag von `dwd.api`).
 
 **`binnenSee`.** *Binnensee.* Ein optionaler Block in den Envelopes der Nowcast- und
 Gemeinde-Warnfeeds mit Warnungen für Binnenseen (große Seen). Ohne aktive Warnungen
