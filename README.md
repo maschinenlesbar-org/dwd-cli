@@ -267,7 +267,7 @@ These apply to every command and may be given **before or after** it:
 | `--static-base-url <url>` | Static S3 bucket base URL, without `/v16` (default `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`) |
 | `--timeout <ms>` | Time limit per request attempt, reading the whole response included (default `30000`; `0` = no timeout; at most `2147483647`). Each retry gets the full limit again, so a run with retries can take longer than `--timeout` |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the requested wait) — never shorter |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the requested wait) — never shorter. Each retry logs one WARN record of `dwd.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 > An option that takes a value consumes the **next token** as that value, so give

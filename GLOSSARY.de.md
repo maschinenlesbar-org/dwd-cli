@@ -253,7 +253,7 @@ Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dwd.<Bereich>`,
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus, die Hinweise auf eine unbekannte Station und einen
 veralteten Feed und eine fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der
-falsche Inhaltstyp), `http` (die Verbindung, die Klartext-Warnung) und `output` (ein
+falsche Inhaltstyp), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
 Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden
 maskiert.
 
