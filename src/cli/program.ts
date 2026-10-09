@@ -91,10 +91,9 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       parseLogFormat,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    // No .showHelpAfterError(): a single bad flag should print a focused error,
-    // not dump the whole top-level command listing. Users who want the listing
-    // can run `--help` (which exits 0).
-    .showHelpAfterError(false)
+    // No whole help after an error: a single bad flag should print a focused error,
+    // not dump the whole command listing. run.ts's configureTree adds a one-line
+    // pointer instead (`(run "dwd crowd --help" for usage)`); `--help` exits 0.
     // The `help [command]` subcommand is added below by addHelpCommand (commander's
     // built-in one dumps the whole help to stderr for an unknown name).
     .helpCommand(false)

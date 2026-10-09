@@ -172,6 +172,14 @@ steer the terminal; a message longer than 4000 characters is cut and ends in
 dwd --log-format jsonl warnings coast 2>log.jsonl   # {"ts":"…","level":"INFO","topic":"dwd.api","msg":"coast warnings: the feed was published …"}
 ```
 
+A usage error is one `ERROR` record of `dwd.cli`, followed by an `INFO` record that points
+at the command's help instead of printing all of it:
+
+```text
+2026-10-09T14:03:12.481Z ERROR [dwd.cli] option '--lang <lang>' argument 'fr' is invalid. Allowed choices are de, en.
+2026-10-09T14:03:12.481Z INFO  [dwd.cli] (run "dwd warnings nowcast --help" for usage)
+```
+
 ```bash
 # Flatten nowcast warnings into an event/level/description TSV
 # (the feed has no `headline`/`regionName`; in --lang en only event/description translate)

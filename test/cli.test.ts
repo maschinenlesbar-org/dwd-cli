@@ -318,7 +318,11 @@ test("help with an unknown command name reports it as an unknown command", async
     const cli = makeCli(() => jsonResponse({}));
     assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
     assert.deepEqual(cli.out, []);
-    assert.equal(untimed(cli.err.join("\n")), `ERROR [dwd.cli] unknown command '${argv[argv.length - 1]}'`);
+    const path = argv.length === 2 ? "dwd" : "dwd warnings";
+    assert.equal(
+      untimed(cli.err.join("\n")),
+      `ERROR [dwd.cli] unknown command '${argv[argv.length - 1]}'\nINFO  [dwd.cli] (run "${path} --help" for usage)`,
+    );
   }
   const leaf = makeCli(() => jsonResponse({}));
   assert.equal(await run(["warnings", "help", "nowcast"], leaf.deps), 0);
@@ -428,5 +432,22 @@ test("an a:b@c argument (a station id, a User-Agent) is neither a credential in 
     const bare = makeCli(() => jsonResponse({}));
     assert.equal(await run([flag, "alice:hunter2-pw@mirror.example", "crowd"], bare.deps), 2);
     assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
+  }
+});
+
+test("a usage error is followed by a one-line pointer to the command's help, not the whole help", async () => {
+  for (const [argv, path] of [
+    [["crowd", "--bogus"], "dwd crowd"],
+    [["warnings", "nowcast", "--lang", "fr"], "dwd warnings nowcast"],
+    [["station-overview"], "dwd station-overview"],
+    [["--timeout", "x", "crowd"], "dwd"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    const lines = untimed(cli.err.join("\n")).split("\n");
+    assert.equal(lines.length, 2, lines.join("\n"));
+    assert.match(lines[0] ?? "", /^ERROR \[dwd\.cli\] /);
+    assert.equal(lines[1], `INFO  [dwd.cli] (run "${path} --help" for usage)`);
+    assert.deepEqual(cli.out, []);
   }
 });

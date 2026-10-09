@@ -50,6 +50,10 @@ export const EXIT = {
  */
 function configureTree(command: Command, deps: CliDeps): void {
   command.exitOverride();
+  // After a usage error commander points at the command's help in one line, rather than
+  // printing the whole help: the error stays the one thing to read. Set on every
+  // command, each with its own path.
+  command.showHelpAfterError(`(run "${commandPath(command)} --help" for usage)`);
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
     // commander's own messages are log records too: its "error: …" an ERROR, the help it
@@ -63,6 +67,13 @@ function configureTree(command: Command, deps: CliDeps): void {
     },
   });
   for (const child of command.commands) configureTree(child, deps);
+}
+
+/** `dwd warnings nowcast`: the command's name with its parents'. */
+function commandPath(command: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = command; c !== null; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
 }
 
 /**
