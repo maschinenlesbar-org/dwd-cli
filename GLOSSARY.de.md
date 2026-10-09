@@ -246,6 +246,16 @@ Beim Überschreiten wird ein `DwdNetworkError` ausgelöst.
 JSON ist (z. B. eine HTML-Seite eines Captive Portals), wird als `DwdParseError` mit
 dem tatsächlich gelieferten Typ gemeldet, statt an `JSON.parse` übergeben zu werden.
 
+**Log-Eintrag (log record).** Jede Diagnosezeile, die die CLI nach stderr schreibt: ein
+Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dwd.<Bereich>`, als Text
+(im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
+Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
+Antworten der API: ein Fehlerstatus, die Hinweise auf eine unbekannte Station und einen
+veralteten Feed und eine fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der
+falsche Inhaltstyp), `http` (die Verbindung, die Klartext-Warnung) und `output` (ein
+Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden
+maskiert.
+
 ---
 
 > **Bibliothek & Interna.** Begriffe zum TypeScript-Client und seinen Interna –

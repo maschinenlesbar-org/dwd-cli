@@ -399,9 +399,9 @@ longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a code po
 in `… (N more characters)` (a long id list in the unknown-station note, a request URL with
 thousands of ids). The library's error messages keep a server's line
 breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
-areas are `cli` (usage errors, commander's messages, parse errors of a
-response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station
-note, the stale-feed note), `http` (the connection: network errors, the cleartext
+areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the
+API's answers: HTTP errors, the unknown-station note, the stale-feed note, and a malformed
+answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection: network errors, the cleartext
 warning) and `output` (a failed write to stdout). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`

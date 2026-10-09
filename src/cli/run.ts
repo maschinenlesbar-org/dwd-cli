@@ -260,7 +260,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return EXIT.network;
     }
     if (err instanceof DwdParseError) {
-      log.error("cli", err.message);
+      // A malformed answer (bad JSON, the wrong shape or content type, an unknown
+      // charset) is the API's answer as much as an error status is.
+      log.error("api", err.message);
       return EXIT.parse;
     }
     if (err instanceof DwdError) {

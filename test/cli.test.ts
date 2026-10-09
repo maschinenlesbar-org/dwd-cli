@@ -309,7 +309,7 @@ test("a 200 body of null is a parse error (exit 7), not printed with exit 0", as
   assert.deepEqual(cli.out, []);
   assert.equal(
     untimed(cli.err.join("\n")),
-    "ERROR [dwd.cli] Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
+    "ERROR [dwd.api] Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
   );
 });
 
