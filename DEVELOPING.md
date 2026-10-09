@@ -401,8 +401,8 @@ thousands of ids). The library's error messages keep a server's line
 breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
 areas are `cli` (usage errors, commander's messages, parse errors of a
 response, unexpected errors), `api` (the API's answers: HTTP errors, the unknown-station
-note, the stale-feed note) and `http` (the connection: network errors, the cleartext
-warning). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
+note, the stale-feed note), `http` (the connection: network errors, the cleartext
+warning) and `output` (a failed write to stdout). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`
 counts, and the value of an option that takes one is skipped, as commander reads it; a
@@ -416,7 +416,7 @@ should there be no `error:` line, so every failed run has an ERROR record. The l
 built with the run's redaction (`withRedactedOutput`),
 which replaces a secret in the message only, before it is escaped: the frame is never
 touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
-carries data only. The one line that is not a record is `handleOutputErrors`'
-`Output error: …` (stdout itself failed; it writes to `process.stderr` directly, outside
-any run). Conformance test P23 checks all of this, and its body is shared across the
+carries data only. A failed write to stdout other than a closed pipe (`handleOutputErrors`,
+in the bin shim, outside `run()`) is an ERROR record of `dwd.output` (`Could not write to
+stdout: …`), in the format argv asks for (`processLogger`). Conformance test P23 checks all of this, and its body is shared across the
 *-cli repos.

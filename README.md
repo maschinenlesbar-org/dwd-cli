@@ -156,7 +156,7 @@ stderr, so piping stdout into `jq` stays clean.
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`dwd.cli` for usage
 errors, `dwd.api` for the API's answers and the notes about them, `dwd.http` for the
-connection). By default it is written log4j style; `--log-format jsonl` writes one JSON
+connection, `dwd.output` for a failed write to stdout). By default it is written log4j style; `--log-format jsonl` writes one JSON
 object per line instead. A record is always one line: a line break, a control character or
 a bidi control in a message (a server's text, a value you typed) is written as an escape
 (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor forge another one, nor
