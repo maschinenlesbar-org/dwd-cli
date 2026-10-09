@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { DwdClient } from "../src/client/client.js";
+import { credentialsIn } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
@@ -401,4 +402,22 @@ test("station-overview --decode prints real units; without it the scaled integer
   const decoded = makeCli(() => jsonResponse(body));
   assert.equal(await run(["--compact", "station-overview", "--id", "10865", "--decode"], decoded.deps), 0);
   assert.deepEqual(JSON.parse(decoded.out.join("")), { "10865": { forecast1: { start: 1, timeStep: 3600000, temperature: [9.7, null] }, days: [{ windDirection: 270 }] } });
+});
+
+test("an a:b@c argument (a station id, a User-Agent) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const cli = makeCli(() => jsonResponse({ "10865": { note: "run:2026-10-09@x" } }));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "station-overview", "--id", "10865", "--id", "a:b@c"], cli.deps), 0);
+  assert.match(cli.out.join("\n"), /"note": "run:2026-10-09@x"/);
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[dwd\.api\] no data for station id a:b@c /);
+  const typed = makeCli(() => jsonResponse({}));
+  assert.equal(await run(["--timeout", "run:2026-10-09@x", "crowd"], typed.deps), 2);
+  assert.ok(typed.err.some((line) => line.includes("'run:2026-10-09@x'")), typed.err.join("\n"));
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+  // A base URL typed without its scheme is still read as one: its password is never echoed.
+  for (const flag of ["--base-url", "--static-base-url"]) {
+    const bare = makeCli(() => jsonResponse({}));
+    assert.equal(await run([flag, "alice:hunter2-pw@mirror.example", "crowd"], bare.deps), 2);
+    assert.ok(!bare.err.join("\n").includes("hunter2-pw"), bare.err.join("\n"));
+  }
 });

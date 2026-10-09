@@ -23,6 +23,8 @@ const SIMPLE_COMMAND = ["station-overview", "--id", "10865"];
 const okBody = { "10865": { forecast1: { stationId: "10865" } } };
 /** The exit code of a usage error. */
 const USAGE_EXIT = 2;
+/** The option that writes the output to a file and logs where, or undefined if the CLI has none. */
+const OUTPUT_OPTION: string | undefined = undefined; // dwd has no -o
 /** An option that takes a value and validates it: a rejected value is echoed in the record. */
 const VALUE_OPTION = "--timeout";
 /** An error answer whose ERROR record quotes `message` (as far as the repo keeps it). */
@@ -213,5 +215,16 @@ test("P23: credentials a server echoes back are replaced in the record (Basic, u
     for (const form of [basic.slice("Basic ".length), "alice:s3cret-pw", "s3cret-pw"]) {
       assert.ok(!all.includes(form), `${format}: ${form} printed:\n${all}`);
     }
+  }
+});
+
+test("P23: a value shaped like a:b@c that is no URL is not taken for a credential", async () => {
+  const typed = await cli([VALUE_OPTION, "run:2026-10-09@x", ...SIMPLE_COMMAND]);
+  assert.equal(typed.code, USAGE_EXIT);
+  assert.ok(typed.err.some((line) => line.includes("run:2026-10-09@x")), typed.err.join("\n"));
+  if (OUTPUT_OPTION !== undefined) {
+    const written = await cli([OUTPUT_OPTION, "run:2026-10-09@x.json", ...SIMPLE_COMMAND]);
+    assert.equal(written.code, 0, written.err.join("\n"));
+    assert.ok(written.err.some((line) => line.includes("run:2026-10-09@x.json")), written.err.join("\n"));
   }
 });

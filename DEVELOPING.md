@@ -235,13 +235,16 @@ query or fragment, or a `%` in the user name or password that doesn't start an e
 "Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
 `DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
 auth. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
-(`redactionFor`, `withRedactedOutput`) takes the exact userinfo of every argument
-(`credentialsIn`, exported) and replaces it with `***` in everything it prints. The log
-replaces it in each record's *message*, before the record is cut and escaped, and writes
-to the raw stderr: the frame (time, level, topic) is never touched, and a password with
-DEL, C1 or bidi characters is matched in its raw form — commander's usage errors,
-which echo rejected values, and its own messages (unknown command) — so a password with
-spaces, quotes, `#`, `?` or `/` is caught as well as an ordinary one. `redactUrl` falls
+(`redactionFor`, `withRedactedOutput`) takes the exact userinfo of every URL argument
+(`credentialsIn`, exported) and replaces it with `***` in everything it prints —
+commander's usage errors, which echo rejected values, and its own messages (unknown
+command) — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as an
+ordinary one. Only a value that starts with a scheme counts (a bare `a:b@c` is a station
+id, a User-Agent or a typed value as often as a credential), except as the `--base-url`
+or `--static-base-url` value, where a `user:password@host` typed without its scheme is
+still a credential. The log replaces it in each record's *message*, before the record is
+cut and escaped, and writes to the raw stderr: the frame (time, level, topic) is never
+touched, and a password with DEL, C1 or bidi characters is matched in its raw form. `redactUrl` falls
 back to the same text-based cut (`redactCredentials`, exported) for a value that doesn't
 parse as a URL. Only an omitted value selects the default host. The client adds the version
 segment itself (`WS_VERSION` `/v30`, `STATIC_VERSION` `/v16`), so a value whose path

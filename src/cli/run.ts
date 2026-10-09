@@ -74,6 +74,24 @@ export function redactUserinfo(text: string): string {
   return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#']*@/gi, "$1***@");
 }
 
+/**
+ * The options whose value is a base URL: a `user:password@host` given there without its
+ * scheme is still a credential (anywhere else a bare `a:b@c` is not).
+ */
+const BASE_URL_FLAGS = ["--base-url", "--static-base-url"];
+
+/** The values of the `flags` in `argv`, in both forms (`--flag value`, `--flag=value`). */
+function flagValues(argv: readonly string[], flags: readonly string[]): string[] {
+  const found: string[] = [];
+  argv.forEach((token, i) => {
+    const next = argv[i + 1];
+    if (flags.includes(token) && next !== undefined) found.push(next);
+    const eq = token.indexOf("=");
+    if (eq > 0 && flags.includes(token.slice(0, eq))) found.push(token.slice(eq + 1));
+  });
+  return found;
+}
+
 /** The secrets of a run, and the two ways they are replaced. */
 export interface Redaction {
   /** stdout text: the userinfo of every URL-like argument replaced (`***@`). */
@@ -98,7 +116,9 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const secrets = new Set<string>();
   const echoed = new Set<string>();
   const passwords = new Set<string>();
-  for (const source of [...argv, ...values]) {
+  // A base URL typed without its scheme is read as if it had one.
+  const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
+  for (const source of [...values, ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       secrets.add(JSON.stringify(secret).slice(1, -1));
