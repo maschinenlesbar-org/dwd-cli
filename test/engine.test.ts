@@ -480,3 +480,19 @@ test("a server detail cut at 500 characters keeps the message well-formed", asyn
     });
   }
 });
+
+test("credentials a server echoes are scrubbed from the error: Basic, user:password, password (L13)", async () => {
+  // The engine sends the pair UTF-8 encoded (basicAuthorization), so that is the form a server echoes.
+  const basic = Buffer.from("alice:pä ss-pw", "utf8").toString("base64");
+  const body = JSON.stringify({ detail: `no: Basic ${basic} / alice:pä ss-pw / pä ss-pw` });
+  const engine = new RequestEngine({
+    baseUrl: "https://alice:p%C3%A4%20ss-pw@mirror.example",
+    maxRetries: 0,
+    transport: async () => ({ status: 401, headers: { "content-type": "application/json" }, body: Buffer.from(body) }),
+  });
+  await assert.rejects(engine.getJson("/v30/x"), (err: DwdApiError) => {
+    for (const form of [basic, "alice:pä ss-pw", "pä ss-pw"]) assert.ok(!err.message.includes(form), err.message);
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\* \/ \*\*\*/);
+    return true;
+  });
+});

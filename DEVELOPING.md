@@ -187,8 +187,11 @@ Whatever an injected transport throws becomes a `DwdNetworkError`
 the base URL's password: the engine keeps the base URL in a real `#private` field
 (so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it), every
 URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
-percent-decoded) is scrubbed from error bodies and details, transport error text and
-the `cause` chain.
+percent-decoded), and the forms a server echoes it back in (the `Basic` value, the decoded
+`user:password`, the password alone from 4 characters: `echoedCredentialForms`), are
+scrubbed from error bodies and details, transport error text and the `cause` chain. The
+CLI replaces the same forms: the `Basic` value and the pair on stdout and stderr, the
+password alone on stderr only, since it may well occur in the data.
 The CLI maps a `DwdValidationError` to the usage exit code `2`, `404` to exit
 code `4`, other API statuses to `5`, network failures to `6`, parse failures to
 `7`, and any other error to `1`.
