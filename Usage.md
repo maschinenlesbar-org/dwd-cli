@@ -16,7 +16,7 @@ This installs the `dwd` binary. Without a global install you can run it straight
 from a built checkout:
 
 ```bash
-node dist/src/cli/index.js --help
+node apps/cli/dist/src/cli/index.js --help
 ```
 
 All examples below use the installed bin name `dwd`.
