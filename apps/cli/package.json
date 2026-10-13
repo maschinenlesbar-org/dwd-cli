@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/dwd-cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "TypeScript API client and CLI for the open DWD Warnwetter app API (warnwetter.de)",
   "type": "module",
   "bin": {
