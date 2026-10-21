@@ -419,7 +419,13 @@ everything that drives the CLI is in `apps/cli/test/`.
   stderr warning for a plain-`http:` base URL and P21 README links: README.md ships in the npm
   tarball and shows on npmjs.com, so a relative link in it may only point to a file the
   `files` allowlist ships; other documents are linked by their GitHub URL
-  (`https://github.com/maschinenlesbar-org/dwd-cli/blob/main/<path>`).
+  (`https://github.com/maschinenlesbar-org/dwd-cli/blob/main/<path>`), P23 the log format, and
+  from the kit rollout (`.reviews/2026-10-21-kit-rollout/plan.md`) P24 the input corpus (every
+  text filter and path id canonicalised or refused, CLI and library alike; dwd has neither, its
+  station ids are a query parameter, so both lists are empty) and P25 the response corpus (a
+  number the answer can't carry exactly, and an empty answer, are a parse error, never a changed
+  value; its adapter reads dwd's parse exit `7` as the kit's `1`). Their adapters use
+  `kitParity`, `parity` with the library's error named by its class.
 
 ## Continuous integration
 
