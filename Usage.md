@@ -110,13 +110,24 @@ dwd warnings gemeinde --lang de
 ```
 
 Same envelope shape as nowcast (`time` + `warnings[]`). Warnings carry no
-`regionName` field (only `regions[]` geometry), so to find ones mentioning a
-specific town, search the headline/description text:
+`regionName` field, and their texts name no place either: the headlines and descriptions are
+templates ("Amtliche WARNUNG vor WINDBÖEN", "Es treten Windböen mit Geschwindigkeiten bis 60
+km/h auf"), so a text search for a town finds nothing, also when the town is under a warning.
+The only location is `regions[].polygonGeometry`, a GeoJSON polygon in `[lon, lat]` order. To
+find the warnings over a town, test its coordinates against the polygons (point in polygon;
+here Köln, 50.94 N 6.96 E):
 
 ```bash
-dwd --compact warnings gemeinde \
-  | jq '.warnings[] | select(((.headLine // "") + " " + (.descriptionText // "")) | test("München"))'
+dwd --compact warnings gemeinde | jq --argjson lat 50.94 --argjson lon 6.96 '
+  def inside($ring): reduce range(0; $ring | length) as $i (false;
+      $ring[$i] as [$xi, $yi] | $ring[$i - 1] as [$xj, $yj]
+      | if (($yi > $lat) != ($yj > $lat)) and ($lon < ($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi) then not else . end);
+  .warnings[] | select(any(.regions[]?; .polygonGeometry != null and inside(.polygonGeometry.coordinates[0])))
+  | {event, level, headLine}'
 ```
+
+The test is a plain ray casting on each region's outer ring, good enough for a town's centre;
+for a map, export the polygons instead (the dwd-warning-map skill).
 
 ### 7. Coastal warnings by zone
 
