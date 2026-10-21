@@ -263,6 +263,10 @@ unknown-station and stale-feed notes, and a malformed answer — bad JSON, the w
 content type), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write
 to stdout, an answer too deeply nested or too large to print). A record is always one line; control characters in it are escaped.
 
+**Replaced text.** Bytes of an answer that are not valid in its charset, and half characters
+(lone surrogates), are replaced with U+FFFD and reported in one `WARN` record of `dwd.api`
+with the count and the request; the run still succeeds.
+
 ---
 
 > **Library & internals.** Terms for the TypeScript client and its internals —

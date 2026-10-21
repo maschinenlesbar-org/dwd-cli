@@ -275,6 +275,11 @@ falsche Inhaltstyp), `http` (die Verbindung, die Klartext-Warnung und je Wiederh
 Schreibfehler auf stdout, eine Antwort, die zu tief verschachtelt oder zu groß zum Ausgeben ist). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden
 maskiert.
 
+**Ersetzter Text (replaced text).** Bytes einer Antwort, die in ihrem Zeichensatz ungültig
+sind, und halbe Zeichen (einzelne Surrogates) werden durch U+FFFD ersetzt und in einem
+`WARN`-Eintrag von `dwd.api` mit ihrer Anzahl und der Anfrage gemeldet; der Lauf gelingt
+trotzdem.
+
 ---
 
 > **Bibliothek & Interna.** Begriffe zum TypeScript-Client und seinen Interna –

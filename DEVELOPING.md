@@ -72,6 +72,7 @@ new DwdClient({
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
   bigIntegerKeys: new Set(["_version_"]), // members whose numbers may pass 2^53: delivered as strings
+  onWarning: (message) => console.warn(message), // text in an answer replaced with U+FFFD
 });
 ```
 
@@ -382,7 +383,13 @@ hosts sent the bad answer.
 
 **Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when
 none is given; a leading byte-order mark is dropped); an unknown charset is a
-`DwdParseError` (`GET <url>: unsupported response charset "…".`). An empty body (or one of
+`DwdParseError` (`GET <url>: unsupported response charset "…".`). Text is never changed
+silently: bytes that are not valid in the charset, and lone surrogates written as JSON escapes
+(`\ud800`, which `jq` refuses), are replaced with U+FFFD, so the result is well-formed, and the
+engine option `onWarning` is told once per answer, naming the request: `GET <url>: 2 characters
+of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with
+U+FFFD.` The CLI logs it as a `WARN` record of `dwd.api`. One bad character never sinks a
+whole answer. An empty body (or one of
 whitespace only) is `GET <url>: empty response body.`, never "nothing found". A body that does
 not parse raises `DwdParseError` `GET <url>: the answer is not valid JSON: <the parser's
 reason>`. A body that parses
@@ -463,8 +470,12 @@ everything that drives the CLI is in `apps/cli/test/`.
   text filter and path id canonicalised or refused, CLI and library alike; dwd has neither, its
   station ids are a query parameter, so both lists are empty) and P25 the response corpus (a
   number the answer can't carry exactly, and an empty answer, are a parse error, never a changed
-  value; its adapter reads dwd's parse exit `7` as the kit's `1`). Their adapters use
-  `kitParity`, `parity` with the library's error named by its class.
+  value, and every answer error names the request; its adapter sets dwd's parse exit `7`), and
+  from the fix round `.reviews/2026-10-21-exploratory/fix-plan.md` P27 big and odd answers (a
+  large flat answer and one full of DEL characters print within a small heap, or past V8's
+  longest string are one ERROR record of `dwd.output`; a lone surrogate or invalid bytes are
+  replaced with U+FFFD and reported in a WARN of `dwd.api`; it starts the built bin, so 30 s).
+  Their adapters use `kitParity`, `parity` with the library's error named by its class.
 
 ## Continuous integration
 
@@ -533,7 +544,7 @@ in `… (N more characters)` (a long id list in the unknown-station note, a requ
 thousands of ids). The library's error messages keep a server's line
 breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
 areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the
-API's answers: HTTP errors, the unknown-station note, the stale-feed note, and a malformed
+API's answers: HTTP errors, text replaced with U+FFFD (a WARN), the unknown-station note, the stale-feed note, and a malformed
 answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection: network errors, the cleartext
 warning) and `output` (a failed write to stdout, an answer too deeply nested or too large to
 print). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
