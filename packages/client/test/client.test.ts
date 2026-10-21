@@ -294,3 +294,22 @@ test("a shape error names the request: method and full URL, on both hosts (D9)",
     err instanceof DwdParseError &&
     err.message === "GET https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16/crowd_meldungen_overview_v2.json: unexpected response shape: expected a JSON object with a meldungen array.");
 });
+
+test("a station overview nested thousands deep is copied without a stack overflow, raw and decoded (02 Bug 1)", async () => {
+  // replaceMissingValues and decodeStationOverview walked the data recursively: from about 2000
+  // levels they threw a RangeError ("Maximum call stack size exceeded"), outside the DwdError contract.
+  const depth = 20_000;
+  const body = `{"10865":{"forecast1":{"temperature":${"[".repeat(depth)}32767,97${"]".repeat(depth)},"windDirection":2700}}}`;
+  const mt = makeMockTransport(() => rawResponse(body, "application/json"));
+  const overview = await clientWith(mt).weather.stationOverview(["10865"]);
+  let inner: unknown = (overview["10865"]!["forecast1"] as Record<string, unknown>)["temperature"];
+  for (let i = 1; i < depth; i++) inner = (inner as unknown[])[0];
+  assert.deepEqual(inner, [null, 97]);
+  const decoded = decodeStationOverview(overview);
+  const forecast = decoded["10865"]!["forecast1"] as Record<string, unknown>;
+  assert.equal(forecast["windDirection"], 270);
+  // A scaled field holding nested arrays keeps them as delivered (only its numbers are scaled).
+  let kept: unknown = forecast["temperature"];
+  for (let i = 1; i < depth; i++) kept = (kept as unknown[])[0];
+  assert.deepEqual(kept, [null, 97]);
+});

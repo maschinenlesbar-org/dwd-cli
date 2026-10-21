@@ -192,16 +192,44 @@ function put(record: object, key: string, value: unknown): void {
   Object.defineProperty(record, key, { value, enumerable: true, writable: true, configurable: true });
 }
 
-/** `value` with every number equal to STATION_MISSING_VALUE replaced by `null`, recursively. */
-function nullMarkers(value: JsonValue): JsonValue {
-  if (value === STATION_MISSING_VALUE) return null;
-  if (Array.isArray(value)) return value.map(nullMarkers);
-  if (typeof value === "object" && value !== null) {
-    const out: JsonObject = {};
-    for (const [k, v] of Object.entries(value)) put(out, k, nullMarkers(v));
-    return out;
+/**
+ * How {@link copyTree} copies one value: the value the copy holds instead (a rewrite), or
+ * `undefined` to copy it as it is (an object or array member by member). `key` is the member name,
+ * or undefined for an array element and the root.
+ */
+type Rewrite = (key: string | undefined, value: JsonValue) => JsonValue | undefined;
+
+/**
+ * A copy of `root` with `rewrite` applied to every value, made without recursion: a work list
+ * of (source, copy) pairs, so an answer nested thousands deep (a hostile or broken mirror) can't
+ * overflow the stack, as the recursive walk did from about 2000 levels ("Maximum call stack size
+ * exceeded", a RangeError outside the DwdError contract). Members are put with {@link put}.
+ */
+function copyTree(root: JsonValue, rewrite: Rewrite): JsonValue {
+  const work: Array<[JsonValue[] | JsonObject, JsonValue[] | JsonObject]> = [];
+  const place = (key: string | undefined, value: JsonValue): JsonValue => {
+    const rewritten = rewrite(key, value);
+    if (rewritten !== undefined) return rewritten;
+    if (typeof value !== "object" || value === null) return value;
+    const copy: JsonValue[] | JsonObject = Array.isArray(value) ? new Array<JsonValue>(value.length) : {};
+    work.push([value, copy]);
+    return copy;
+  };
+  const top = place(undefined, root);
+  for (let pair = work.pop(); pair !== undefined; pair = work.pop()) {
+    const [source, copy] = pair;
+    if (Array.isArray(source)) {
+      for (let i = 0; i < source.length; i++) (copy as JsonValue[])[i] = place(undefined, source[i] as JsonValue);
+    } else {
+      for (const key of Object.keys(source)) put(copy, key, place(key, source[key] as JsonValue));
+    }
   }
-  return value;
+  return top;
+}
+
+/** `value` with every number equal to STATION_MISSING_VALUE replaced by `null`, at any depth. */
+function nullMarkers(value: JsonValue): JsonValue {
+  return copyTree(value, (_key, v) => (v === STATION_MISSING_VALUE ? null : undefined));
 }
 
 /**
@@ -284,19 +312,13 @@ function unscale(value: JsonValue): JsonValue {
   return typeof value === "number" ? value / STATION_SCALE : value;
 }
 
-/** `value` with every field of STATION_SCALED_FIELDS (a number, or an array of them) decoded, recursively. */
+/** `value` with every field of STATION_SCALED_FIELDS (a number, or an array of them) decoded, at any depth. */
 function decodeScaled(value: JsonValue): JsonValue {
-  if (Array.isArray(value)) return value.map(decodeScaled);
-  if (typeof value !== "object" || value === null) return value;
-  const out: JsonObject = {};
-  for (const [k, v] of Object.entries(value)) {
-    if (Object.prototype.hasOwnProperty.call(STATION_SCALED_FIELDS, k)) {
-      put(out, k, Array.isArray(v) ? v.map(unscale) : unscale(v));
-    } else {
-      put(out, k, decodeScaled(v));
-    }
-  }
-  return out;
+  return copyTree(value, (key, v) =>
+    key !== undefined && Object.prototype.hasOwnProperty.call(STATION_SCALED_FIELDS, key)
+      ? Array.isArray(v) ? v.map(unscale) : unscale(v)
+      : undefined,
+  );
 }
 
 /**

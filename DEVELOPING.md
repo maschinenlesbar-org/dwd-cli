@@ -105,6 +105,13 @@ sentence, or `undefined` (also for a `time` that is no time: not finite, or beyo
 boolean added after DWD's keys and, for a stale one, a note on stderr (an `INFO`
 record of `dwd.api`, `<feed> warnings: <sentence>`); the library adds no field.
 
+The station data is copied, never changed in place: `stationOverview()` turns the
+missing-value marker into `null` (`replaceMissingValues`) and `decodeStationOverview` divides the
+scaled fields. Both walk the data with a work list, not recursion (`copyTree` in `client.ts`), so
+an answer nested thousands deep (only a broken or hostile mirror sends one) can't overflow the
+stack: the library returns it, and the CLI prints it with `--compact` or refuses it with an
+`ERROR` record of `dwd.output`. A member named `__proto__` stays an ordinary member of the copy.
+
 ## Authentication internals
 
 These endpoints require **no API key** — they are open, read-only, and

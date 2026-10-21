@@ -327,6 +327,28 @@ test("an answer nested too deeply is a clean error; it suggests --compact only w
   else assert.equal(untimed(compact.err.join("\n")), "ERROR [dwd.output] The answer is nested too deeply to print.");
 });
 
+test("a station overview nested thousands deep is a clean output error, or printed with --compact; never \"Unexpected error\" (02 Bug 1)", async () => {
+  // Deep enough for the pretty printer to give up on any runtime; the client copies it either way.
+  const depth = 200_000;
+  const body = `{"10865":{"forecast1":{"temperature":${"[".repeat(depth)}1${"]".repeat(depth)}}}}`;
+  let compactPrints = true;
+  try {
+    JSON.stringify(JSON.parse(body));
+  } catch {
+    compactPrints = false;
+  }
+  for (const decode of [[], ["--decode"]]) {
+    const pretty = makeCli(() => rawResponse(body, "application/json"));
+    assert.equal(await run(["station-overview", "--id", "10865", ...decode], pretty.deps), 1);
+    assert.match(untimed(pretty.err.join("\n")), /^ERROR \[dwd\.output\] The answer is nested too deeply to pretty-print/);
+    const compact = makeCli(() => rawResponse(body, "application/json"));
+    const code = await run(["--compact", "station-overview", "--id", "10865", ...decode], compact.deps);
+    assert.equal(code, compactPrints ? 0 : 1, untimed(compact.err.join("\n")));
+    if (compactPrints && decode.length === 0) assert.equal(compact.out.join(""), body);
+    else assert.match(untimed(compact.err.join("\n")), /^ERROR \[dwd\.output\] The answer is nested too deeply to print\.$/);
+  }
+});
+
 test("an answer too large to print is called too large, not too deep; the hint only where --compact prints (D7)", (t) => {
   const { deps } = makeCli(() => jsonResponse({}));
   const real = JSON.stringify;
