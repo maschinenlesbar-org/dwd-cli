@@ -39,7 +39,7 @@ test("the validation layer is exported from the package root", () => {
   assert.equal(lib.DwdValidationError, DwdValidationError);
 });
 
-test("run() maps a DwdValidationError raised in an action to exit 2 and an ERROR record", async () => {
+test("run() maps a DwdValidationError raised in an action to exit 2, an ERROR record and the help pointer", async () => {
   const out: string[] = [];
   const err: string[] = [];
   const deps: CliDeps = {
@@ -49,7 +49,10 @@ test("run() maps a DwdValidationError raised in an action to exit 2 and an ERROR
     },
   };
   assert.equal(await run(["crowd"], deps), 2);
-  assert.deepEqual(err.map(untimed), ["ERROR [dwd.cli] Invalid thing: Expected a non-empty value."]);
+  assert.deepEqual(err.map(untimed), [
+    "ERROR [dwd.cli] Invalid thing: Expected a non-empty value.",
+    'INFO  [dwd.cli] (run "dwd crowd --help" for usage)',
+  ]);
   assert.deepEqual(out, []);
 });
 

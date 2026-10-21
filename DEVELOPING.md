@@ -261,7 +261,8 @@ percent-decoded), and the forms a server echoes it back in (the `Basic` value, t
 scrubbed from error bodies and details, transport error text and the `cause` chain. The
 CLI replaces the same forms: the `Basic` value and the pair on stdout and stderr, the
 password alone on stderr only, since it may well occur in the data.
-The CLI maps a `DwdValidationError` to the usage exit code `2`, `404` to exit
+The CLI maps a `DwdValidationError` to the usage exit code `2` (an ERROR record of `dwd.cli`
+and the INFO record pointing at the command's help, as for commander's own usage errors), `404` to exit
 code `4`, other API statuses to `5`, network failures to `6`, parse failures to
 `7`, and any other error to `1`.
 

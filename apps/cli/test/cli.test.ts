@@ -663,3 +663,17 @@ test("a boolean that can be switched both ways may be given only once: optional 
     assert.deepEqual(seen, [expected], argv.join(" "));
   }
 });
+
+test("an input the library refuses is a usage error with the help pointer, like commander's own (01 Bug 3)", async () => {
+  // README: a usage error is one ERROR record of dwd.cli, then an INFO record pointing at the
+  // command's help. `--id ""` had both; an id the library refuses (`;`, DEL, C1) had the ERROR only.
+  for (const id of ["10865;1", "10865\u007f", "10865\u0085", "10865​"]) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run(["station-overview", "--id", id], cli.deps), 2, JSON.stringify(id));
+    assert.equal(cli.mt.calls.length, 0);
+    const lines = untimed(cli.err.join("\n")).split("\n");
+    assert.equal(lines.length, 2, lines.join("\n"));
+    assert.match(lines[0]!, /^ERROR \[dwd\.cli\] Invalid stationIds: /);
+    assert.equal(lines[1], 'INFO  [dwd.cli] (run "dwd station-overview --help" for usage)');
+  }
+});

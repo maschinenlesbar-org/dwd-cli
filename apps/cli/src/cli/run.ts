@@ -265,7 +265,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   // commander's parse of a value). Ancestors' hooks run first, so this precedes every
   // other preAction check.
   const log = deps.log;
+  /** The command whose action runs: a usage error the library raises points at its help. */
+  let running: Command = program;
   program.hook("preAction", (_program, actionCommand) => {
+    running = actionCommand;
     const format = (actionCommand.optsWithGlobals() as { logFormat?: LogFormat }).logFormat;
     if (log !== undefined) log.format = format ?? DEFAULT_LOG_FORMAT;
   });
@@ -285,6 +288,8 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // The library rejected an input before any request: a usage error, like a
       // value commander's parsers reject.
       log.error("cli", err.message);
+      // The same pointer commander adds after its own usage errors (configureTree).
+      log.info("cli", `(run "${commandPath(running)} --help" for usage)`);
       return EXIT.usage;
     }
     if (err instanceof DwdApiError) {
