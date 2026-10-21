@@ -343,7 +343,7 @@ test("a 200 body of null is a parse error (exit 7), not printed with exit 0", as
   assert.deepEqual(cli.out, []);
   assert.equal(
     untimed(cli.err.join("\n")),
-    "ERROR [dwd.api] Unexpected response shape from /v16/crowd_meldungen_overview_v2.json: expected a JSON object with a meldungen array.",
+    "ERROR [dwd.api] GET https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16/crowd_meldungen_overview_v2.json: unexpected response shape: expected a JSON object with a meldungen array.",
   );
 });
 
@@ -512,7 +512,7 @@ test("a feed time no Date can hold exits 7 with an api record, not \"Unexpected 
     const cli = makeCli(() => jsonResponse({ time: -1e20, warnings: [] }));
     assert.equal(await run(argv, cli.deps), 7, argv.join(" "));
     assert.deepEqual(cli.out, []);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dwd\.api\] Unexpected response shape from \/v16\/\S+: expected a numeric time \(epoch milliseconds\)\.$/);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dwd\.api\] GET https:\/\/s3\.eu-central-1\.amazonaws\.com\/app-prod-static\.warnwetter\.de\/v16\/\S+: unexpected response shape: expected a numeric time \(epoch milliseconds\)\.$/);
   }
 });
 

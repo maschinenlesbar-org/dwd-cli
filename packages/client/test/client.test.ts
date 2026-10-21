@@ -116,7 +116,12 @@ test("a 2xx body without the promised top-level shape is a DwdParseError", async
   for (const [body, call, message] of cases) {
     await assert.rejects(
       () => call(clientWith(constantJson(body))),
-      (err: unknown) => err instanceof DwdParseError && err.message === `Unexpected response shape from ${message}`,
+      (err: unknown) => {
+        // The error names the request on its host (D9): `GET <url>: unexpected response shape: …`.
+        const [path, expected] = message.split(": ") as [string, string];
+        const url = path.startsWith("/v30") ? `https://app-prod-ws.warnwetter.de${path}?stationIds=1` : `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de${path}`;
+        return err instanceof DwdParseError && err.message === `GET ${url}: unexpected response shape: ${expected}`;
+      },
       message,
     );
   }
@@ -277,4 +282,15 @@ test("a member named __proto__ in station data stays an own member, through stat
   const real = decoded["10865"]!["forecast1"] as Record<string, unknown>;
   assert.ok(own(decoded, "__proto__") && own(real, "__proto__"));
   assert.deepEqual(JSON.parse(JSON.stringify(real))["__proto__"], { temperature: [9.7, null] });
+});
+
+test("a shape error names the request: method and full URL, on both hosts (D9)", async () => {
+  const { DwdParseError } = await import("../src/errors.js");
+  const mt = makeMockTransport(() => jsonResponse([]));
+  await assert.rejects(clientWith(mt).weather.stationOverview(["10865"]), (err: unknown) =>
+    err instanceof DwdParseError &&
+    err.message === "GET https://app-prod-ws.warnwetter.de/v30/stationOverviewExtended?stationIds=10865: unexpected response shape: expected a JSON object.");
+  await assert.rejects(clientWith(mt).crowd(), (err: unknown) =>
+    err instanceof DwdParseError &&
+    err.message === "GET https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16/crowd_meldungen_overview_v2.json: unexpected response shape: expected a JSON object with a meldungen array.");
 });

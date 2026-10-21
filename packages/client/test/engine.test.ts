@@ -83,7 +83,7 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/v30/stationOverviewExtended"), (err: unknown) => {
       assert.ok(err instanceof DwdParseError, n);
-      assert.equal(err.message, `Unexpected response from /v30/stationOverviewExtended: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://app-prod-ws.warnwetter.de/v30/stationOverviewExtended: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -441,22 +441,22 @@ test("a UTF-8 BOM is ignored and the Content-Type charset is honoured", async ()
   await assert.rejects(
     () => new RequestEngine({ transport: unknown.transport }).getJson("/x"),
     (err: unknown) =>
-      err instanceof DwdParseError && err.message === 'Unsupported response charset "x-bogus[2J" from /x.',
+      err instanceof DwdParseError && err.message === 'GET https://app-prod-ws.warnwetter.de/x: unsupported response charset "x-bogus[2J".',
   );
 });
 
-test("a JSON parse error names the parser's reason", async () => {
+test("a JSON parse error names the parser's reason; an empty body says it is empty", async () => {
   for (const [body, reason] of [
-    ["", /: Unexpected end of JSON input$/],
-    ['{"a":', /: Unexpected end of JSON input$/],
-    ["nope", /: Unexpected token/],
+    ["", /^GET https:\/\/app-prod-ws\.warnwetter\.de\/x: empty response body\.$/],
+    ['{"a":', /: the answer is not valid JSON: Unexpected end of JSON input$/],
+    ["nope", /: the answer is not valid JSON: Unexpected token/],
   ] as const) {
     const mt = makeMockTransport(() => rawResponse(body, "application/json"));
     await assert.rejects(
       () => new RequestEngine({ transport: mt.transport }).getJson("/x"),
       (err: unknown) =>
         err instanceof DwdParseError &&
-        err.message.startsWith("Failed to parse JSON response from /x: ") &&
+        err.message.startsWith("GET https://app-prod-ws.warnwetter.de/x: ") &&
         reason.test(err.message),
       JSON.stringify(body),
     );
@@ -661,7 +661,7 @@ test("bigIntegerKeys: a declared member's number is its exact literal as a strin
   await assert.rejects(other.getJson("/x"), /the number 12345678901234567890 cannot be represented exactly/);
   // Malformed stays malformed: a declared member with a leading zero still fails JSON.parse.
   const malformed = new RequestEngine({ bigIntegerKeys: new Set(["_version_"]), transport: makeMockTransport(() => rawResponse('{"_version_":01}', "application/json")).transport });
-  await assert.rejects(malformed.getJson("/x"), /Failed to parse JSON/);
+  await assert.rejects(malformed.getJson("/x"), /the answer is not valid JSON/);
   for (const bad of [new Set([""]), new Set([1]), "x", 5, null]) {
     assert.throws(() => new RequestEngine({ bigIntegerKeys: bad as unknown as ReadonlySet<string> }),
       (err: unknown) => err instanceof DwdValidationError && err.message === "Invalid option bigIntegerKeys: expected a set of non-empty member names.");
@@ -676,4 +676,28 @@ test("bigIntegerKeys: a declared member's number is its exact literal as a strin
   // Without declarations the scan is the plain number check.
   assert.equal(firstInexactNumber('{"a":"1e400","b":3e-324}'), "3e-324");
   assert.deepEqual(scanNumbers('{"a":1}'), { json: '{"a":1}', inexact: undefined });
+});
+
+test("an answer error names the request: method and URL, userinfo redacted (D9)", async () => {
+  const answers: Array<[string, () => HttpResponse]> = [
+    ["the answer is not valid JSON", () => rawResponse("{", "application/json")],
+    ["expected a JSON answer, got Content-Type \"text/html\"", () => rawResponse("<html>", "text/html")],
+    ["empty response body", () => rawResponse(" ", "application/json")],
+    ["cannot be represented exactly", () => rawResponse('{"n":1e400}', "application/json")],
+    ["unsupported response charset", () => rawResponse("{}", "application/json; charset=x-bogus")],
+  ];
+  const base = new URL("https://app-prod-ws.warnwetter.de");
+  base.username = "alice";
+  base.password = "s3cret";
+  for (const [what, respond] of answers) {
+    const e = new RequestEngine({ baseUrl: base.href, transport: makeMockTransport(respond).transport });
+    await assert.rejects(e.getJson("/v30/stationOverviewExtended", { stationIds: "10865" }), (err: unknown) => {
+      assert.ok(err instanceof DwdParseError, what);
+      // dwd's request URLs carry no userinfo (it is sent as a header): the messages show none.
+      assert.ok(err.message.startsWith(`GET ${base.protocol}//${base.host}/v30/stationOverviewExtended?stationIds=10865: `), err.message);
+      assert.ok(err.message.includes(what), `${what}: ${err.message}`);
+      assert.ok(!err.message.includes("s3cret") && !err.message.includes("alice"), err.message);
+      return true;
+    });
+  }
 });

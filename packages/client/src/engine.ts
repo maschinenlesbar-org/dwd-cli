@@ -534,6 +534,22 @@ export class RequestEngine {
     return this.composeUrl(path, query, true);
   }
 
+  /**
+   * The request URL as error messages show it: absolute (so a message names the host that gave
+   * a bad answer, which matters with two hosts and a custom base URL), userinfo redacted and cut
+   * at MAX_QUOTED_LENGTH characters. It never throws: describing a URL for a message does not
+   * validate it (buildUrl does).
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    let url: string;
+    try {
+      url = this.composeUrl(path, query, false);
+    } catch {
+      url = `${this.#baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+    }
+    return cutForMessage(redactUrl(url));
+  }
+
   /** buildUrl, with or without the base URL's userinfo. */
   private composeUrl(path: string, query: QueryParams | undefined, withUserinfo: boolean): string {
     let base: URL;
@@ -780,19 +796,29 @@ export class RequestEngine {
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. Every error about the answer names the
+   * request, `GET <url>: …` (userinfo redacted), so a message says which of the two hosts sent
+   * the bad answer.
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
+    const request = `GET ${this.describeUrl(path, query)}`;
     // Honour the Content-Type: a 200 with a clearly non-JSON type (e.g. a
     // captive-portal HTML error page) should report what was actually returned
     // rather than feeding HTML into JSON.parse and blaming a parse failure. A
     // missing/empty Content-Type is treated leniently and still parsed.
     if (res.contentType && !isJsonContentType(res.contentType)) {
       throw new DwdParseError(
-        `Expected a JSON response from ${path} but got Content-Type "${sanitizeServerText(mediaType(res.contentType))}"`,
+        `${request}: expected a JSON answer, got Content-Type "${sanitizeServerText(mediaType(res.contentType))}".`,
       );
     }
-    const text = decodeBody(res.data, res.contentType, path);
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") {
+      // A broken answer, not "no results": printed as nothing with exit 0, it would let a
+      // script carry on as if the API had found nothing.
+      throw new DwdParseError(`${request}: empty response body.`);
+    }
     // Declared big integers are quoted first, so JSON.parse delivers them exactly.
     const { json, inexact } = scanNumbers(text, this.bigIntegerKeys);
     let parsed: T;
@@ -800,21 +826,16 @@ export class RequestEngine {
       parsed = JSON.parse(json) as T;
     } catch (cause) {
       // Name the parser's reason (position/token, "Unexpected end of JSON input"):
-      // the CLI never prints `cause`, and an empty, truncated or garbled body
-      // otherwise all read the same. It can quote the body, so it is sanitised.
+      // the CLI never prints `cause`, and a truncated or garbled body otherwise all
+      // read the same. It can quote the body, so it is sanitised.
       const reason = cause instanceof Error ? sanitizeServerText(cause.message) : "";
-      throw new DwdParseError(
-        `Failed to parse JSON response from ${path}${reason ? `: ${reason}` : ""}`,
-        { cause },
-      );
+      throw new DwdParseError(`${request}: the answer is not valid JSON${reason ? `: ${reason}` : "."}`, { cause });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value. The station data's "no value" marker (32767) and the epoch-ms times are
     // far below 2^53 and pass unchanged.
     if (inexact !== undefined) {
-      throw new DwdParseError(
-        `Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new DwdParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -873,15 +894,13 @@ function originOf(url: string): string {
  * that by default, where Buffer#toString kept it and JSON.parse then failed. DWD
  * sends UTF-8; this matters for proxies and mirrors that re-encode.
  */
-function decodeBody(body: Buffer, contentType: string, path: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new DwdParseError(
-      `Unsupported response charset "${sanitizeServerText(charset)}" from ${path}.`,
-    );
+    throw new DwdParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
   }
   return decoder.decode(body);
 }

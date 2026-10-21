@@ -88,8 +88,9 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function shapeError(path: string, expected: string): DwdParseError {
-  return new DwdParseError(`Unexpected response shape from ${path}: expected ${expected}.`);
+/** `GET <url>: unexpected response shape: expected <what>.`, naming the request (`describeUrl`). */
+function shapeError(request: string, expected: string): DwdParseError {
+  return new DwdParseError(`${request}: unexpected response shape: expected ${expected}.`);
 }
 
 /**
@@ -117,21 +118,22 @@ async function getChecked<T>(
   numbers: NumberFields = {},
 ): Promise<T> {
   const body = await e.getJson<unknown>(path, query);
+  const request = `GET ${e.describeUrl(path, query)}`;
   if (key === undefined) {
-    if (!isObject(body)) throw shapeError(path, "a JSON object");
+    if (!isObject(body)) throw shapeError(request, "a JSON object");
     return body as T;
   }
   const value = isObject(body) ? body[key] : undefined;
   const ok = kind === "array" ? Array.isArray(value) : isObject(value);
-  if (!ok) throw shapeError(path, `a JSON object with a ${key} ${kind}`);
+  if (!ok) throw shapeError(request, `a JSON object with a ${key} ${kind}`);
   const envelope = body as Record<string, unknown>;
   const isNumber = (v: unknown): boolean => typeof v === "number" && isDateTime(v);
   for (const field of numbers.required ?? []) {
-    if (!isNumber(envelope[field])) throw shapeError(path, `a numeric ${field} (epoch milliseconds)`);
+    if (!isNumber(envelope[field])) throw shapeError(request, `a numeric ${field} (epoch milliseconds)`);
   }
   for (const field of numbers.optional ?? []) {
     if (field in envelope && !isNumber(envelope[field])) {
-      throw shapeError(path, `a numeric ${field} (epoch milliseconds) when it is present`);
+      throw shapeError(request, `a numeric ${field} (epoch milliseconds) when it is present`);
     }
   }
   return body as T;

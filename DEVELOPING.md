@@ -369,19 +369,23 @@ array (nowcast/gemeinde), a `warnings` object (coast), a `meldungen` array (crow
 a numeric `time` on the three warning feeds and, when present, a numeric `start`/`end`
 on the crowd feed, each epoch milliseconds a Date can hold (within ±8.64e15) — never the
 records inside. Anything else throws `DwdParseError` with the text
-`Unexpected response shape from <path>: expected <what>.`
+`GET <url>: unexpected response shape: expected <what>.`, naming the request (`describeUrl`:
+the full URL, without userinfo, cut at 200 characters), so a message says which of the two
+hosts sent the bad answer.
 
 **Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when
 none is given; a leading byte-order mark is dropped); an unknown charset is a
-`DwdParseError`. A body that does not parse raises `DwdParseError`
-`Failed to parse JSON response from <path>: <the parser's reason>`. A body that parses
+`DwdParseError` (`GET <url>: unsupported response charset "…".`). An empty body (or one of
+whitespace only) is `GET <url>: empty response body.`, never "nothing found". A body that does
+not parse raises `DwdParseError` `GET <url>: the answer is not valid JSON: <the parser's
+reason>`. A body that parses
 but holds a number `JSON.parse` cannot carry exactly — past 2^53 one that prints as a
 different number, in any written form (`12345678901234567890`, which prints as
 `12345678901234567000`, `…890.0`, `9007199254740993e0`, `9007199254740992.5`), out of a
 double's range (`1e400`), non-zero and too small (`1e-400`, which becomes 0), or a subnormal
 (below 2.2250738585072014e-308) that does not print as written (`3e-324`, which becomes
 `5e-324`) — raises
-`DwdParseError` `Unexpected response from <path>: the number <N> cannot be represented
+`DwdParseError` `GET <url>: the number <N> cannot be represented
 exactly.` rather than returning a changed value (`scanNumbers`, a linear scan of the
 text before `JSON.parse` that skips strings). Below 2^53 and above the subnormal range a
 decimal fraction keeps a double's precision, as JSON means it. Past 2^53 and below the normal
@@ -392,7 +396,8 @@ epoch-ms times are far below 2^53: the marker handling after the parse is unchan
 
 **Content-Type guard.** A `200` response whose `Content-Type` is clearly not JSON
 (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming the
-actual type, rather than being fed to `JSON.parse`.
+actual type (`GET <url>: expected a JSON answer, got Content-Type "text/html".`), rather than
+being fed to `JSON.parse`.
 
 **JSON rendering.** The CLI prints the answer pretty (two spaces) or with `--compact` on one
 line (`renderJson` in `shared.ts`). An answer nested too deeply to pretty-print is an ERROR
