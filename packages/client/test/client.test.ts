@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DwdClient } from "../src/client.js";
+import { DwdClient, decodeStationOverview } from "../src/client.js";
 import { DwdApiError } from "../src/errors.js";
-import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
+import { makeMockTransport, jsonResponse, constantJson, rawResponse } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): DwdClient {
   return new DwdClient({ transport: mt.transport });
@@ -260,4 +260,21 @@ test("staleFeedProblem never throws: a time no Date can hold is never stale, lik
   const { staleFeedProblem } = await import("../src/index.js");
   for (const time of [-1e20, -8.64e15 - 1, 1e20]) assert.equal(staleFeedProblem(time), undefined, String(time));
   assert.match(staleFeedProblem(-8.64e15) ?? "", /\(time -271821-04-20T00:00:00\.000Z\)/);
+});
+
+test("a member named __proto__ in station data stays an own member, through stationOverview and decodeStationOverview (T12)", async () => {
+  // JSON.parse makes "__proto__" an own key; `out[key] = …` would make it the copy's prototype.
+  const body = '{"__proto__":{"forecast1":{}},"10865":{"forecast1":{"__proto__":{"temperature":[97,32767]}}}}';
+  const mt = makeMockTransport(() => rawResponse(body, "application/json"));
+  const overview = await clientWith(mt).weather.stationOverview(["10865"]);
+  const own = (o: object, key: string): boolean => Object.prototype.hasOwnProperty.call(o, key);
+  assert.ok(own(overview, "__proto__"), "the station named __proto__ became the prototype");
+  assert.equal(Object.getPrototypeOf(overview), Object.prototype);
+  const forecast = overview["10865"]!["forecast1"] as Record<string, unknown>;
+  assert.ok(own(forecast, "__proto__"), "the member named __proto__ became the prototype");
+  assert.deepEqual(JSON.parse(JSON.stringify(forecast))["__proto__"], { temperature: [97, null] });
+  const decoded = decodeStationOverview(overview);
+  const real = decoded["10865"]!["forecast1"] as Record<string, unknown>;
+  assert.ok(own(decoded, "__proto__") && own(real, "__proto__"));
+  assert.deepEqual(JSON.parse(JSON.stringify(real))["__proto__"], { temperature: [9.7, null] });
 });

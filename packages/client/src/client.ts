@@ -181,13 +181,22 @@ export const STATION_MISSING_VALUE = 32767;
 /** The parts of a station's value that hold scaled numbers (not `warnings`). */
 const STATION_DATA_KEYS = ["forecast1", "forecast2", "days", "threeHourSummaries"] as const;
 
+/**
+ * `record[key] = value` as an own, enumerable member, also for a key named `__proto__`: an
+ * assignment would make that value the record's prototype, and the member would vanish from the
+ * copy (JSON.parse makes `"__proto__"` an ordinary own key of an answer).
+ */
+function put(record: object, key: string, value: unknown): void {
+  Object.defineProperty(record, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
 /** `value` with every number equal to STATION_MISSING_VALUE replaced by `null`, recursively. */
 function nullMarkers(value: JsonValue): JsonValue {
   if (value === STATION_MISSING_VALUE) return null;
   if (Array.isArray(value)) return value.map(nullMarkers);
   if (typeof value === "object" && value !== null) {
     const out: JsonObject = {};
-    for (const [k, v] of Object.entries(value)) out[k] = nullMarkers(v);
+    for (const [k, v] of Object.entries(value)) put(out, k, nullMarkers(v));
     return out;
   }
   return value;
@@ -204,14 +213,14 @@ export function replaceMissingValues(overview: StationOverview): StationOverview
   const out: StationOverview = {};
   for (const [id, station] of Object.entries(overview)) {
     if (typeof station !== "object" || station === null || Array.isArray(station)) {
-      out[id] = station;
+      put(out, id, station);
       continue;
     }
     const copy: JsonObject = { ...station };
     for (const key of STATION_DATA_KEYS) {
       if (key in copy) copy[key] = nullMarkers(copy[key] as JsonValue);
     }
-    out[id] = copy;
+    put(out, id, copy);
   }
   return out;
 }
@@ -280,9 +289,9 @@ function decodeScaled(value: JsonValue): JsonValue {
   const out: JsonObject = {};
   for (const [k, v] of Object.entries(value)) {
     if (Object.prototype.hasOwnProperty.call(STATION_SCALED_FIELDS, k)) {
-      out[k] = Array.isArray(v) ? v.map(unscale) : unscale(v);
+      put(out, k, Array.isArray(v) ? v.map(unscale) : unscale(v));
     } else {
-      out[k] = decodeScaled(v);
+      put(out, k, decodeScaled(v));
     }
   }
   return out;
@@ -304,14 +313,14 @@ export function decodeStationOverview(overview: StationOverview): StationOvervie
   const out: StationOverview = {};
   for (const [id, station] of Object.entries(overview)) {
     if (typeof station !== "object" || station === null || Array.isArray(station)) {
-      out[id] = station;
+      put(out, id, station);
       continue;
     }
     const copy: JsonObject = { ...station };
     for (const key of STATION_DATA_KEYS) {
       if (key in copy) copy[key] = decodeScaled(copy[key] as JsonValue);
     }
-    out[id] = copy;
+    put(out, id, copy);
   }
   return out;
 }
