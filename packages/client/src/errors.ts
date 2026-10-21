@@ -135,6 +135,34 @@ export function cutForMessage(text: string, max: number = MAX_QUOTED_LENGTH): st
   return units >= text.length ? text : `${text.slice(0, units)}…`;
 }
 
+/** A Unicode format character (category Cf): bidi controls, zero-width characters, the soft hyphen. */
+const FORMAT_CHAR = /\p{Cf}/u;
+
+/**
+ * Quote a value for an error message, as `JSON.stringify` does, and also escape what it
+ * leaves raw although a terminal acts on it or a reader can't see it: DEL, the C1 controls,
+ * every Unicode format character (bidi overrides, zero-width characters, the soft hyphen), the
+ * line and paragraph separators U+2028/U+2029, and a lone surrogate (half a character). A
+ * station id with a zero-width space then reads `"10865\u200b"`, not `"10865"`, so the user
+ * can see why it was refused. A value longer than MAX_QUOTED_LENGTH characters is cut, and the
+ * "…" goes after the closing quote (`"AAAA"…`), so it does not read as part of the value. The
+ * quoted part stays a valid JSON string.
+ */
+export function quoteValue(value: string): string {
+  const cut = value.length > MAX_QUOTED_LENGTH;
+  let out = "";
+  for (const ch of JSON.stringify(cut ? cutText(value, MAX_QUOTED_LENGTH) : value)) {
+    const n = ch.codePointAt(0) ?? 0;
+    if ((n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || FORMAT_CHAR.test(ch)) {
+      // One escape per UTF-16 unit, so a character above U+FFFF stays valid JSON.
+      for (let i = 0; i < ch.length; i++) out += `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`;
+    } else {
+      out += ch;
+    }
+  }
+  return cut ? `${out}…` : out;
+}
+
 function isHighSurrogate(c: number): boolean {
   return c >= 0xd800 && c <= 0xdbff;
 }

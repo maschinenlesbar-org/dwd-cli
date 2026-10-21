@@ -10,7 +10,8 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { DwdValidationError, cutForMessage, cutText, redactUrl } from "./errors.js";
+import { LangValues, type Lang } from "./enums.js";
+import { DwdValidationError, cutForMessage, quoteValue, redactUrl } from "./errors.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -89,43 +90,128 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   return undefined;
 };
 
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which URLSearchParams would send as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it holds only whitespace, control and
+ * format characters (a zero-width space, a soft hyphen) and combining marks. Such a value reads
+ * as "no filter" upstream, or matches nothing, so it is refused as blank.
+ */
+function isBlank(value: string): boolean {
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is an id, a code, an
+ * enum value: a value the API compares exactly. The rules apply to the value with surrounding
+ * whitespace trimmed, as it is sent ({@link normalizeToken}): not blank (and not only invisible
+ * characters or combining marks), no lone surrogate, and no control or format character at all
+ * (a zero-width space, a word joiner, a soft hyphen, a byte order mark, a bidi control), since an
+ * invisible character in an id only ever makes it match nothing — for a station id, the API's
+ * `{}`, which reads as "no such station". The reason quotes the value visibly ({@link quoteValue}).
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/** A token as it is sent: trimmed and in composed Unicode (NFC). Check it with {@link tokenProblem} first. */
+export function normalizeToken(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * The items of a comma-separated list option (`--id 10865,10147`), as typed: each item is checked
+ * (`listProblem`) and canonicalised (`normalizeToken`) on its own, so `"a1, a2"` sends `a2`, and
+ * `"a1,,a2"`, `"a1,"` and `","` are refused rather than sent as an empty item.
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be sent as a list, or undefined when it can: not an array of strings, no
+ * item at all, or an item that `itemProblem` refuses (by default {@link tokenProblem}: a blank
+ * item is refused, never dropped). The reason names the item (`item 2 of 3: …`).
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem<string> = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i] as string);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
+}
+
+/**
+ * The feed language must be one of {@link LangValues} (`de`, `en`), exactly: the client picks
+ * the feed file by it, and any other value would silently serve the German feed. The reason
+ * quotes a refused value visibly.
+ */
+export const langProblem: Problem<unknown> = (value) =>
+  (LangValues as readonly unknown[]).includes(value)
+    ? undefined
+    : `expected one of ${LangValues.join(", ")}, got ${quoteId(value)}.`;
+
+/** `lang` checked with {@link langProblem}: the value, or a DwdValidationError ("Invalid lang: …"). */
+export function assertLang(lang: unknown): Lang {
+  return assertValid("lang", lang, langProblem) as Lang;
+}
+
 /**
  * Station ids in canonical form: each id trimmed (`" 10865 "` -> `"10865"`) and in
- * Unicode NFC, so a padded id is not sent as `stationIds=%2010865%20`, which the API
- * may drop like an unknown station. Idempotent; a non-string entry is left for the
+ * Unicode NFC ({@link normalizeToken}), so a padded id is not sent as `stationIds=%2010865%20`,
+ * which the API may drop like an unknown station. Idempotent; a non-string entry is left for the
  * validator.
  */
 export function normalizeStationIds(stationIds: readonly unknown[]): unknown[] {
-  return stationIds.map((id) => (typeof id === "string" ? id.trim().normalize("NFC") : id));
+  return stationIds.map((id) => (typeof id === "string" ? normalizeToken(id) : id));
 }
 
 /**
  * A station id (after {@link normalizeStationIds}) must be a non-blank string
- * without commas, whitespace, semicolons or control characters. A blank id or a
- * comma would send an empty slot in `stationIds` (`stationIds=` or `1,,2`); a list
- * joined with spaces, newlines or `;` (`"10865 10147"`, what `--id "$IDS"` gives for
- * a shell list) is sent as one id. The API answers all of them with `{}` —
- * indistinguishable from "no such station". Several ids are separate list entries.
+ * without commas, whitespace, semicolons, control or invisible characters ({@link tokenProblem}).
+ * A blank id or a comma would send an empty slot in `stationIds` (`stationIds=` or `1,,2`); a
+ * list joined with spaces, newlines or `;` (`"10865 10147"`, what `--id "$IDS"` gives for
+ * a shell list) is sent as one id; a zero-width space or a word joiner copied along from a web
+ * page makes a real id unknown. The API answers all of them with `{}` — indistinguishable from
+ * "no such station". Several ids are separate list entries. A refused id is quoted visibly.
  */
 export const stationIdProblem: Problem<unknown> = (id) => {
-  if (typeof id !== "string" || id.trim() === "" || id.includes(",")) {
+  if (typeof id !== "string" || isBlank(id) || id.includes(",")) {
     return `expected a non-blank id without commas, got ${quoteId(id)}.`;
   }
-  if (/[\s;\u0000-\u001f\u007f-\u009f]/.test(id)) {
+  if (/[\s;]/.test(id.trim())) {
     return `expected one id, got ${quoteId(id)}: a station id has no spaces, line breaks, ";" or control characters (give several ids as separate entries).`;
   }
-  return undefined;
+  return tokenProblem(id);
 };
 
-/** An id as an error message shows it: JSON-quoted (control characters escaped), at most 50 characters. */
-function quoteId(id: unknown): string {
-  if (id === null || id === undefined || typeof id === "number" || typeof id === "boolean") return String(id);
-  if (typeof id !== "string") return `a ${typeof id}`;
-  // JSON.stringify escapes C0 controls but not DEL or C1 (U+0080–U+009F, which terminals may act on).
-  return JSON.stringify(id.length > 50 ? `${cutText(id, 50)}…` : id).replace(
-    /[\u007f-\u009f]/g,
-    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
+/** A value as an error message shows it: a string quoted visibly ({@link quoteValue}), anything else by its value or type. */
+function quoteId(value: unknown): string {
+  if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value !== "string") return `a ${typeof value}`;
+  return quoteValue(value);
 }
 
 /**

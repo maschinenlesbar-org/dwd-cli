@@ -4,17 +4,27 @@ import { logOf, type CliDeps } from "../io.js";
 import { action, addHelpCommand, renderJson, helpOrUnknownCommand, repeatable } from "../shared.js";
 import { LangValues, type Lang } from "@maschinenlesbar.org/dwd-client/internal/enums";
 import { decodeStationOverview, missingStationIds, staleFeedProblem } from "@maschinenlesbar.org/dwd-client/internal/client";
+import { langProblem, splitList } from "@maschinenlesbar.org/dwd-client/internal/validate";
 import type { ActionContext } from "../shared.js";
 
 /**
- * The `--lang` option, validated by commander's own `.choices()` so a bad value
- * (e.g. `--lang fr`) is a usage error (exit 2) with a clear message — the same
- * class and exit code as a bad `--timeout` — rather than a generic exit-1 error.
+ * The `--lang` option. Its help lists the choices; the value is checked by the library's
+ * rule ({@link langProblem}), so a bad value (`--lang fr`, `--lang "en\u200b"`) is a usage error
+ * (exit 2) with the library's reason, the value quoted visibly, before any request.
  */
 function langOption(): Option {
   return new Option("--lang <lang>", `feed language: ${LangValues.join(" | ")}`)
     .choices([...LangValues])
+    .argParser(parseLang)
     .default("de");
+}
+
+/** commander value-parser for `--lang`: the library's {@link langProblem}. */
+function parseLang(value: string): Lang {
+  const problem = langProblem(value);
+  // Commander puts it after its own sentence ("… is invalid."): start it as one.
+  if (problem !== undefined) throw new InvalidArgumentError(problem.charAt(0).toUpperCase() + problem.slice(1));
+  return value as Lang;
 }
 
 /**
@@ -28,7 +38,7 @@ function langOption(): Option {
  * (`client.weather.stationOverview`).
  */
 function collectStationId(value: string, previous: string[] = []): string[] {
-  const ids = value.split(",");
+  const ids = splitList(value);
   if (ids.some((id) => id.trim() === "")) {
     throw new InvalidArgumentError("A station id must not be empty.");
   }

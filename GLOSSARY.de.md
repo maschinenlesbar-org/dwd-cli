@@ -96,8 +96,9 @@ der CLI wiederholbar (`--id 10865 --id 01766`); ein einzelner Wert kann auch ein
 komma- oder leerzeichengetrennte Liste sein (`--id 10865,01766`, `--id "10865 01766"`).
 Die Formen sind gleichwertig – alle werden kommagetrennt als `stationIds=10865,01766`
 an den Webdienst gesendet. Der Client entfernt Leerraum um jede ID (`" 10865 "` wird
-als `10865` gesendet) und weist eine leere ID oder eine mit Komma, Leerraum, `;` oder
-Steuerzeichen (die API beantwortete sie mit `{}` wie eine unbekannte Station) vor jeder
+als `10865` gesendet) und weist eine leere ID oder eine mit Komma, Leerraum, `;`,
+Steuerzeichen oder unsichtbarem Zeichen (ein Leerzeichen ohne Breite oder ein Wortverbinder,
+von einer Webseite mitkopiert; die API beantwortete sie mit `{}` wie eine unbekannte Station) vor jeder
 Anfrage zurück – für die CLI wie für Aufrufe der Bibliothek. Eine unbekannte ID beantwortet
 die API mit Status 200 und ohne Eintrag für sie (`{}` bei einer einzelnen ID);
 `missingStationIds(ids, overview)` nennt solche IDs, und die CLI meldet sie auf stderr als

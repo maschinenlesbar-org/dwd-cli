@@ -94,8 +94,9 @@ on the CLI (`--id 10865 --id 01766`); a single value may also be a comma- or
 space-separated list (`--id 10865,01766`, `--id "10865 01766"`), and the forms are
 equivalent — all are sent to the web service joined by commas as
 `stationIds=10865,01766`. The client trims each id (`" 10865 "` is sent as `10865`)
-and rejects a blank id, or one containing a comma, whitespace, `;` or a control
-character (the API would answer such an id with `{}`, like an unknown station), before
+and rejects a blank id, or one containing a comma, whitespace, `;`, a control character or an
+invisible one (a zero-width space or a word joiner copied along from a web page; the API would
+answer such an id with `{}`, like an unknown station), before
 any request, for the CLI and library callers alike. An unknown id is answered with status
 200 and no entry for it (`{}` for one id); `missingStationIds(ids, overview)` names such
 ids, and the CLI logs them as a note on stderr, an `INFO` record of `dwd.api` (exit `0` unchanged).

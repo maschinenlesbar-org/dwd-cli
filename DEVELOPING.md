@@ -92,12 +92,18 @@ compiles under `exactOptionalPropertyTypes` too.
 
 `client.weather.stationOverview(ids)`, `client.warnings` (`.nowcast(lang)` / `.gemeinde(lang)` / `.coast(lang)`),
 and `client.crowd()`. The arguments are checked before any request, as the CLI
-does: `lang` must be `"de"` or `"en"` (else a `DwdValidationError`). `ids` are trimmed
-(`normalizeStationIds`, so `" 10865 "` is sent as `10865`) and must then be a
-non-empty list of non-blank ids without commas, whitespace, `;` or control characters
-(`stationIdProblem`); anything else rejects with a `DwdValidationError` (an empty slot
-in `stationIds`, or `10865 10147` sent as one id, would come back as `{}`, like an
-unknown station). The CLI only splits an `--id` value on commas and whitespace.
+does: `lang` must be `"de"` or `"en"` exactly (`langProblem`; else a `DwdValidationError`,
+which the CLI's `--lang` parser turns into a usage error). `ids` are trimmed and in NFC
+(`normalizeStationIds`, with `normalizeToken`, so `" 10865 "` is sent as `10865`) and must then be a
+non-empty list (`listProblem`, which names the item: `item 2 of 3: …`) of non-blank ids without
+commas, whitespace, `;`, control or invisible characters (`stationIdProblem`, which runs
+`tokenProblem`: no Cc, no Cf such as a zero-width space, a word joiner, a soft hyphen or a
+bidi mark, no lone surrogate; a value of only such characters is blank); anything else rejects
+with a `DwdValidationError` (an empty slot in `stationIds`, `10865 10147` sent as one id, or
+`10865` with a zero-width space copied along from a web page, would come back as `{}`, like an
+unknown station). A refused value is quoted visibly (`quoteValue`: `"10865\u200b"`). The CLI
+only splits an `--id` value on commas (`splitList`) and whitespace; commander's own echo of a
+rejected value is escaped the same way (`escapeCommanderError` in `run.ts`).
 
 The warning feeds come back as DWD published them. `staleFeedProblem(time, now?, maxAgeMs?)`
 says whether one is stale — its `time` more than `STALE_FEED_MS` (60 minutes) old — as a
@@ -279,8 +285,8 @@ isn't a function. Server text in a message (an error `detail`, a redirect target
 echoed Content-Type, a transport's reason) is cut at 500 characters
 (`MAX_SERVER_TEXT_LENGTH`), never inside a surrogate pair (`cutText`), so the message stays
 well-formed; `DwdApiError.body` keeps all of it. A value an own message quotes from the
-user's input is cut too: a rejected `lang` or station id at 50 characters, a base URL's
-scheme and the base URL the `/v30`/`/v16` hint suggests at `MAX_QUOTED_LENGTH` (200,
+user's input is cut too: a rejected `lang` or station id (quoted visibly by `quoteValue`), a
+base URL's scheme and the base URL the `/v30`/`/v16` hint suggests at `MAX_QUOTED_LENGTH` (200,
 `cutForMessage`, in `errors.ts`), so `err.message` stays bounded for a library caller.
 
 `userAgent` is checked there too, with the same rule as the CLI's `--user-agent`

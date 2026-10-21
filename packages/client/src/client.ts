@@ -12,9 +12,17 @@
 //   client.warnings.nowcast("de")
 
 import { RequestEngine, validateBaseUrl, type EngineOptions } from "./engine.js";
-import { LangValues, type Lang } from "./enums.js";
-import { DwdParseError, DwdValidationError, cutText } from "./errors.js";
-import { assertValid, normalizeStationIds, serviceBaseUrlProblem, stationIdProblem } from "./validate.js";
+import type { Lang } from "./enums.js";
+import { DwdParseError } from "./errors.js";
+import {
+  assertLang,
+  assertValid,
+  listProblem,
+  normalizeStationIds,
+  serviceBaseUrlProblem,
+  stationIdProblem,
+  type Problem,
+} from "./validate.js";
 import type {
   JsonObject,
   JsonValue,
@@ -50,28 +58,25 @@ export interface DwdClientOptions extends EngineOptions {
 /**
  * German feeds have no suffix; English feeds use the `_en` filename suffix. Any
  * other value (a JS caller, untyped input) throws a DwdValidationError instead of
- * silently serving the German feed.
+ * silently serving the German feed ({@link langProblem}).
  */
 function langSuffix(lang: Lang): string {
-  if (!(LangValues as readonly unknown[]).includes(lang)) {
-    const shown = typeof lang === "string" ? JSON.stringify(lang.length > 50 ? `${cutText(lang, 50)}…` : lang) : `a ${typeof lang}`;
-    throw new DwdValidationError(`Invalid lang: expected one of ${LangValues.join(", ")}, got ${shown}.`);
-  }
-  return lang === "en" ? "_en" : "";
+  return assertLang(lang) === "en" ? "_en" : "";
 }
 
 /**
- * The ids joined for the `stationIds` parameter: each id trimmed
- * ({@link normalizeStationIds}), then checked ({@link stationIdProblem}). An empty
- * list, a blank id or one containing a comma would send an empty slot, which the
- * API answers with `{}`, so they throw a DwdValidationError.
+ * The ids joined for the `stationIds` parameter: each id trimmed and in NFC
+ * ({@link normalizeStationIds}), then checked as a list ({@link listProblem} with
+ * {@link stationIdProblem}). An empty list, a blank id, one containing a comma, whitespace, `;`,
+ * a control or an invisible character would be answered with `{}`, so they throw a
+ * DwdValidationError (`Invalid stationIds: item 2 of 3: …`).
  */
 function joinStationIds(stationIds: readonly string[]): string {
   assertValid("stationIds", stationIds, (v) =>
     Array.isArray(v) && v.length > 0 ? undefined : "expected at least one station id.",
   );
   const ids = normalizeStationIds(stationIds);
-  for (const id of ids) assertValid("station id", id, stationIdProblem);
+  assertValid("stationIds", ids as string[], (list) => listProblem(list, stationIdProblem as Problem<string>));
   return ids.join(",");
 }
 

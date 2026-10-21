@@ -90,7 +90,7 @@ test("stationOverview rejects an empty list, a blank id or an id with a comma be
   for (const ids of [["1,2"], ["10865", ""], [" "]]) {
     await assert.rejects(
       () => client.weather.stationOverview(ids),
-      (err: unknown) => err instanceof DwdError && /^Invalid station id: expected a non-blank id without commas/.test(err.message),
+      (err: unknown) => err instanceof DwdError && /^Invalid stationIds: (item \d of \d: )?expected a non-blank id without commas/.test(err.message),
       JSON.stringify(ids),
     );
   }
@@ -136,13 +136,19 @@ test("a 2xx body without the promised top-level shape is a DwdParseError", async
 test("stationOverview rejects an id with inner whitespace, ';' or a control character (finding 01#3)", async () => {
   const { DwdValidationError } = await import("../src/errors.js");
   const mt = constantJson({});
-  for (const id of ["10865 10147", "10865\n10147", "10865;10147", "108\u009b65"]) {
+  for (const id of ["10865 10147", "10865\n10147", "10865;10147"]) {
     await assert.rejects(
       () => clientWith(mt).weather.stationOverview([id]),
-      (err: unknown) => err instanceof DwdValidationError && /^Invalid station id: expected one id/.test(err.message) && !/[\u0080-\u009f]/.test(err.message),
+      (err: unknown) => err instanceof DwdValidationError && /^Invalid stationIds: expected one id/.test(err.message),
       JSON.stringify(id),
     );
   }
+  // A control character is refused as one, shown escaped (quoteValue), never raw.
+  await assert.rejects(
+    () => clientWith(mt).weather.stationOverview(["108\u009b65"]),
+    (err: unknown) => err instanceof DwdValidationError &&
+      err.message === 'Invalid stationIds: "108\\u009b65" contains an invisible or control character (U+009B).',
+  );
   assert.equal(mt.calls.length, 0);
 });
 
@@ -312,4 +318,23 @@ test("a station overview nested thousands deep is copied without a stack overflo
   let kept: unknown = forecast["temperature"];
   for (let i = 1; i < depth; i++) kept = (kept as unknown[])[0];
   assert.deepEqual(kept, [null, 97]);
+});
+
+test("an invisible format character in a station id is refused before any request, shown escaped (01 Bug 1)", async () => {
+  const { DwdValidationError } = await import("../src/errors.js");
+  // Copied from a web page or a PDF: "10865" plus a zero-width space, a word joiner, a soft hyphen,
+  // a BOM inside, a bidi mark. It was sent as is, and the API's `{}` read as "no such station".
+  for (const [id, escape] of [["10865​", "\\u200b"], ["⁠10865", "\\u2060"], ["108­65", "\\u00ad"], ["108﻿65", "\\ufeff"], ["10865‎", "\\u200e"], ["\ud80010865", "\\ud800"]] as const) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    await assert.rejects(clientWith(mt).weather.stationOverview(["10147", id]), (err: unknown) =>
+      err instanceof DwdValidationError &&
+      err.message.startsWith("Invalid stationIds: item 2 of 2: ") &&
+      err.message.includes(escape) && !err.message.includes(id), JSON.stringify(id));
+    assert.equal(mt.calls.length, 0, JSON.stringify(id));
+  }
+  // Only invisible characters is blank; NFC still applies to a real id.
+  const mt = makeMockTransport(() => jsonResponse({}));
+  await assert.rejects(clientWith(mt).weather.stationOverview(["​"]), /Invalid stationIds: /);
+  await clientWith(mt).weather.stationOverview([" é "]);
+  assert.equal(new URL(mt.last().url).searchParams.get("stationIds"), "é");
 });
