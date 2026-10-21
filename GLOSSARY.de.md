@@ -92,9 +92,9 @@ Client: `client.crowd()`. CLI: `crowd`.
 
 **Stations-ID.** Die Kennung einer DWD-Wetterstation, wie sie die Warnwetter-App
 verwendet – meist eine 5-stellige numerische ID (z. B. München-Stadt = `10865`). In
-der CLI wiederholbar (`--id 10865 --id 01766`); ein einzelner Wert kann auch eine
-komma- oder leerzeichengetrennte Liste sein (`--id 10865,01766`, `--id "10865 01766"`).
-Die Formen sind gleichwertig – alle werden kommagetrennt als `stationIds=10865,01766`
+der CLI wiederholbar (`--id 10865 --id 10147`); ein einzelner Wert kann auch eine
+komma- oder leerzeichengetrennte Liste sein (`--id 10865,10147`, `--id "10865 10147"`).
+Die Formen sind gleichwertig – alle werden kommagetrennt als `stationIds=10865,10147`
 an den Webdienst gesendet. Der Client entfernt Leerraum um jede ID (`" 10865 "` wird
 als `10865` gesendet) und weist eine leere ID oder eine mit Komma, Leerraum, `;`,
 Steuerzeichen oder unsichtbarem Zeichen (ein Leerzeichen ohne Breite oder ein Wortverbinder,

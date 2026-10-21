@@ -90,10 +90,10 @@ Client: `client.crowd()`. CLI: `crowd`.
 
 **Station id.** The identifier of a DWD weather station, used by the Warnwetter
 app — typically a 5-digit numeric id (e.g. München-Stadt = `10865`). Repeatable
-on the CLI (`--id 10865 --id 01766`); a single value may also be a comma- or
-space-separated list (`--id 10865,01766`, `--id "10865 01766"`), and the forms are
+on the CLI (`--id 10865 --id 10147`); a single value may also be a comma- or
+space-separated list (`--id 10865,10147`, `--id "10865 10147"`), and the forms are
 equivalent — all are sent to the web service joined by commas as
-`stationIds=10865,01766`. The client trims each id (`" 10865 "` is sent as `10865`)
+`stationIds=10865,10147`. The client trims each id (`" 10865 "` is sent as `10865`)
 and rejects a blank id, or one containing a comma, whitespace, `;`, a control character or an
 invisible one (a zero-width space or a word joiner copied along from a web page; the API would
 answer such an id with `{}`, like an unknown station), before
