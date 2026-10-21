@@ -478,8 +478,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   `files` allowlist ships; other documents are linked by their GitHub URL
   (`https://github.com/maschinenlesbar-org/dwd-cli/blob/main/<path>`), P23 the log format, and
   from the kit rollout (`.reviews/2026-10-21-kit-rollout/plan.md`) P24 the input corpus (every
-  text filter and path id canonicalised or refused, CLI and library alike; dwd has neither, its
-  station ids are a query parameter, so both lists are empty) and P25 the response corpus (a
+  text filter, token and list canonicalised or refused, CLI and library alike, a refusal showing
+  an invisible character escaped; dwd has no text filter, its token is `--lang` and its list
+  the station ids, `--id`) and P25 the response corpus (a
   number the answer can't carry exactly, and an empty answer, are a parse error, never a changed
   value, and every answer error names the request; its adapter sets dwd's parse exit `7`), and
   from the fix round `.reviews/2026-10-21-exploratory/fix-plan.md` P27 big and odd answers (a
