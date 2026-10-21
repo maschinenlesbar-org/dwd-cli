@@ -21,6 +21,7 @@ export {
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
   MAX_SERVER_TEXT_LENGTH,
+  isBidiControl,
   isTransientNetworkError,
   assertHeaderValue,
   cleartextProblem,

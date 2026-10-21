@@ -93,6 +93,20 @@ test("DEL and C1 control characters in server data are escaped in the JSON outpu
   }
 });
 
+test("bidi controls in server data are escaped in the JSON output, so they can't reorder the terminal", async () => {
+  // U+202E (right-to-left override) turned "Sturm" + "‮mrofnietS" into a spoofed line on screen.
+  const bidi = [0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069];
+  const served = { time: 1, warnings: [{ headline: `Sturm${String.fromCharCode(0x202e)}gnunraW`, all: String.fromCharCode(...bidi) }] };
+  for (const format of [[], ["--compact"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "warnings", "nowcast"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.match(text, /Sturm\\u202egnunraW/, format.join(" "));
+    assert.deepEqual([...text].filter((c) => bidi.includes(c.charCodeAt(0))), [], format.join(" "));
+    assert.deepEqual(JSON.parse(text), { ...served, staleFeed: true });
+  }
+});
+
 test("a 404 from the API maps to exit code 4", async () => {
   const cli = makeCli(() => jsonResponse({}, 404));
   const code = await run(["crowd"], cli.deps);
