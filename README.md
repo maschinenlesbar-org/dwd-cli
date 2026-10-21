@@ -220,7 +220,7 @@ same thing.
 | `4` | Resource not found (`404`) |
 | `5` | API returned a non-404, non-success status |
 | `6` | Network/transport failure (DNS, connection, timeout, oversized response, unsupported protocol, too many redirects) |
-| `7` | Response body could not be parsed as JSON |
+| `7` | Response body could not be parsed as JSON, or holds a number JSON can't carry exactly (past 2^53, out of range) |
 | `1` | Any other error |
 
 A reader that stops early (`dwd crowd | head -c 100`) is ordinary use: the CLI exits `0`

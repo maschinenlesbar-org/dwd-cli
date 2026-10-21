@@ -361,7 +361,15 @@ records inside. Anything else throws `DwdParseError` with the text
 **Decoding.** A JSON body is decoded by the Content-Type's `charset` (UTF-8 when
 none is given; a leading byte-order mark is dropped); an unknown charset is a
 `DwdParseError`. A body that does not parse raises `DwdParseError`
-`Failed to parse JSON response from <path>: <the parser's reason>`.
+`Failed to parse JSON response from <path>: <the parser's reason>`. A body that parses
+but holds a number `JSON.parse` cannot carry exactly — past 2^53 in any written form
+(`12345678901234567890`, `…890.0`, `9007199254740993e0`, `9007199254740992.5`), out of a
+double's range (`1e400`) or non-zero and too small (`1e-400`, which becomes 0) — raises
+`DwdParseError` `Unexpected response from <path>: the number <N> cannot be represented
+exactly.` rather than returning a changed value (`firstInexactNumber`, a linear scan of the
+text after `JSON.parse` that skips strings). Below 2^53 a decimal fraction keeps a double's
+precision, as JSON means it. The station data's missing-value marker `32767` and the
+epoch-ms times are far below 2^53: the marker handling after the parse is unchanged.
 
 **Content-Type guard.** A `200` response whose `Content-Type` is clearly not JSON
 (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming the

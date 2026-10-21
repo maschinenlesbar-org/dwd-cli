@@ -240,6 +240,14 @@ feed cannot expand into an out-of-memory condition. Exceeding it raises a
 JSON (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming
 the type actually returned, rather than being fed to `JSON.parse`.
 
+**Number check.** `JSON.parse` changes some numbers silently: one past 2^53 is rounded
+(`12345678901234567890`, `9007199254740992.5`), one out of a double's range becomes
+`Infinity` (`1e400`, printed as `null`), a tiny non-zero one becomes `0` (`1e-400`). A
+`2xx` answer holding such a number is a `DwdParseError` (exit `7`), `Unexpected response
+from <path>: the number <N> cannot be represented exactly.`, never a changed value. The
+values DWD sends (scaled integers, the `32767` "no value" marker, epoch-ms times) are far
+below 2^53 and pass unchanged.
+
 **Log record.** Every diagnostic line the CLI writes to stderr: a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic `dwd.<area>`, as text (log4j style) or with
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,

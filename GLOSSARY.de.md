@@ -247,6 +247,15 @@ Beim Überschreiten wird ein `DwdNetworkError` ausgelöst.
 JSON ist (z. B. eine HTML-Seite eines Captive Portals), wird als `DwdParseError` mit
 dem tatsächlich gelieferten Typ gemeldet, statt an `JSON.parse` übergeben zu werden.
 
+**Zahlenprüfung (number check).** `JSON.parse` ändert manche Zahlen stillschweigend:
+eine jenseits von 2^53 wird gerundet (`12345678901234567890`, `9007199254740992.5`), eine
+außerhalb des Bereichs eines Doubles wird zu `Infinity` (`1e400`, ausgegeben als `null`),
+eine winzige von null verschiedene zu `0` (`1e-400`). Eine `2xx`-Antwort mit einer solchen
+Zahl ist ein `DwdParseError` (Exit `7`), `Unexpected response from <path>: the number <N>
+cannot be represented exactly.`, nie ein veränderter Wert. Die Werte, die der DWD sendet
+(skalierte Ganzzahlen, die Markierung `32767` für „kein Wert“, Zeiten in Epoch-ms), liegen
+weit unter 2^53 und bleiben unverändert.
+
 **Log-Eintrag (log record).** Jede Diagnosezeile, die die CLI nach stderr schreibt: ein
 Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dwd.<Bereich>`, als Text
 (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
