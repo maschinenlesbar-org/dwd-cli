@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
-import { renderJson } from "../src/cli/shared.js";
+import { forbidRepeatedOptions, renderJson } from "../src/cli/shared.js";
+import { buildProgram } from "../src/cli/program.js";
 import { DwdClient } from "@maschinenlesbar.org/dwd-client/internal/client";
 import { credentialsIn } from "@maschinenlesbar.org/dwd-client/internal/errors";
 import type { CliDeps } from "../src/cli/io.js";
@@ -620,4 +621,45 @@ test("an answer that escaped would pass V8's longest string is an output error n
   assert.throws(() => renderJson(deps, { compact: true }, {}), (err: Error) =>
     err.constructor.name === "OutputError" &&
     err.message === "The answer is too large to print (648000002 characters once its control characters are escaped).");
+});
+
+test("a boolean that can be switched both ways may be given only once: optional value, or --x / --no-x (T11)", async () => {
+  // commander calls no value parser for a bare `--is-open`, so `--is-open false --is-open` turned
+  // into true without a word (fragdenstaat-cli); `--x --no-x` keeps the last one the same way.
+  // dwd has no such option today; the rule is the kit's, for the next one.
+  const build = () => {
+    const program = buildProgram(makeCli(() => jsonResponse({})).deps);
+    const seen: unknown[] = [];
+    program
+      .command("flags")
+      .option("--is-open [bool]", "optional value", (value: string) => value === "true")
+      .option("--cache", "negatable")
+      .option("--no-cache", "negatable")
+      .option("--archived", "plain flag")
+      .action((opts: Record<string, unknown>) => void seen.push(opts));
+    forbidRepeatedOptions(program.commands.find((c) => c.name() === "flags")!);
+    for (const command of program.commands) command.exitOverride().configureOutput({ writeErr: () => {}, outputError: () => {} });
+    program.exitOverride();
+    return { program, seen };
+  };
+  for (const argv of [
+    ["--is-open", "false", "--is-open"],
+    ["--is-open", "--is-open", "false"],
+    ["--is-open", "--is-open"],
+    ["--cache", "--no-cache"],
+    ["--no-cache", "--no-cache"],
+  ]) {
+    const { program, seen } = build();
+    await assert.rejects(program.parseAsync(["flags", ...argv], { from: "user" }), (err: Error) => /may be given only once/.test(err.message), argv.join(" "));
+    assert.deepEqual(seen, [], argv.join(" "));
+  }
+  for (const [argv, expected] of [
+    [["--is-open", "false"], { isOpen: false }],
+    [["--is-open"], { isOpen: true }],
+    [["--no-cache", "--archived", "--archived"], { cache: false, archived: true }],
+  ] as const) {
+    const { program, seen } = build();
+    await program.parseAsync(["flags", ...argv], { from: "user" });
+    assert.deepEqual(seen, [expected], argv.join(" "));
+  }
 });
