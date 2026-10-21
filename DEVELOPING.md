@@ -74,6 +74,10 @@ new DwdClient({
 });
 ```
 
+Every option is optional and typed `?: T | undefined`: an option given as `undefined`
+means its default, as an omitted one does, so `{ baseUrl: process.env.DWD_BASE_URL }`
+compiles under `exactOptionalPropertyTypes` too.
+
 ### Resource groups
 
 `client.weather.stationOverview(ids)`, `client.warnings` (`.nowcast(lang)` / `.gemeinde(lang)` / `.coast(lang)`),
@@ -383,10 +387,12 @@ npm run coverage  # the same tests in one run, with a coverage report
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`, `types`),
 everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
+- **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` (it
+  starts a process, so it has 30 s), and every option given as `undefined` meaning its default.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`: gzip/deflate
   (zlib + raw)/brotli decoding, malformed-body handling, the decompressed-size cap, and the timeout path.
 - **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, redirect following,

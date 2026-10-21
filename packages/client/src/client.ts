@@ -44,7 +44,7 @@ export interface DwdClientOptions extends EngineOptions {
    * Base URL of the static S3 bucket. Defaults to the production bucket. It must
    * pass the same rules as `baseUrl`; a bad value throws a DwdValidationError.
    */
-  staticBaseUrl?: string;
+  staticBaseUrl?: string | undefined;
 }
 
 /**
