@@ -252,7 +252,11 @@ eine jenseits von 2^53 wird gerundet (`12345678901234567890`, `9007199254740992.
 außerhalb des Bereichs eines Doubles wird zu `Infinity` (`1e400`, ausgegeben als `null`),
 eine winzige von null verschiedene zu `0` (`1e-400`). Eine `2xx`-Antwort mit einer solchen
 Zahl ist ein `DwdParseError` (Exit `7`), `Unexpected response from <path>: the number <N>
-cannot be represented exactly.`, nie ein veränderter Wert. Die Werte, die der DWD sendet
+cannot be represented exactly.`, nie ein veränderter Wert. Jenseits von 2^53 fragt die
+Prüfung, ob die Zahl so ausgegeben wird, wie sie geschrieben stand: `1E23` oder
+`1.7976931348623157E308`, ein Double, das ein Server in seiner kürzesten Form geschrieben hat,
+wird gleich ausgegeben und geht durch; `12345678901234567890` wird als `12345678901234567000`
+ausgegeben und abgelehnt. Die Werte, die der DWD sendet
 (skalierte Ganzzahlen, die Markierung `32767` für „kein Wert“, Zeiten in Epoch-ms), liegen
 weit unter 2^53 und bleiben unverändert.
 

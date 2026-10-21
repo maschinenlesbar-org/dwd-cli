@@ -244,7 +244,10 @@ the type actually returned, rather than being fed to `JSON.parse`.
 (`12345678901234567890`, `9007199254740992.5`), one out of a double's range becomes
 `Infinity` (`1e400`, printed as `null`), a tiny non-zero one becomes `0` (`1e-400`). A
 `2xx` answer holding such a number is a `DwdParseError` (exit `7`), `Unexpected response
-from <path>: the number <N> cannot be represented exactly.`, never a changed value. The
+from <path>: the number <N> cannot be represented exactly.`, never a changed value. Past 2^53
+the check asks whether the number prints as written: `1E23` or `1.7976931348623157E308`, a
+double a server printed in its shortest form, prints the same and passes;
+`12345678901234567890` prints as `12345678901234567000` and is refused. The
 values DWD sends (scaled integers, the `32767` "no value" marker, epoch-ms times) are far
 below 2^53 and pass unchanged.
 
