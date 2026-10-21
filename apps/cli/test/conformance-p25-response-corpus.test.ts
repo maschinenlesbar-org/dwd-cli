@@ -9,10 +9,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 // ---- adapter (per repo) -------------------------------------------------------------
-/** `parity` as in P24 (map the repo's own helper to that shape if it differs); `rawResponse(body, contentType)`. */
-import { kitParity, rawResponse } from "./helpers.js";
+/** `parity` as in P24 (dwd's `kitParity`: its own `parity`, the library's error named by its class); `rawResponse(body, contentType)`. */
+import { kitParity as parity, rawResponse } from "./helpers.js";
 import { DwdClient as Client } from "@maschinenlesbar.org/dwd-client/internal/client";
-import type { HttpRequest, HttpResponse, Transport } from "@maschinenlesbar.org/dwd-client/internal/http";
 /** CLI argv for a call whose answer carries a number, and the same call in the library. */
 const argv = ["--compact", "station-overview", "--id", "10865"];
 const lib = (client: Client): Promise<unknown> => client.weather.stationOverview(["10865"]);
@@ -24,16 +23,8 @@ const fromCli = (out: string): unknown => (JSON.parse(out) as Overview)["10865"]
 const fromLib = (value: unknown): unknown => (value as Overview)["10865"].forecast1.temperature[0];
 /** The log program, as in `ERROR [<bin>.api]`. */
 const BIN = "dwd";
-/**
- * dwd exits 7 for a malformed answer (a DwdParseError: bad JSON, the wrong shape, an inexact
- * number), where the kit's body expects the generic 1; exit 7 means nothing else here, so it is
- * read as the kit's 1.
- */
+/** The exit code of a malformed answer in this repo: dwd exits 7 for a DwdParseError (README, exit codes). */
 const PARSE_EXIT = 7;
-async function parity(args: string[], call: (transport: Transport) => unknown, responder: (req: HttpRequest) => HttpResponse) {
-  const o = await kitParity(args, call, responder);
-  return { ...o, cli: { ...o.cli, code: o.cli.code === PARSE_EXIT ? 1 : o.cli.code } };
-}
 // --------------------------------------------------------------------------------------
 
 const INEXACT = [
@@ -52,7 +43,7 @@ const EXACT: Array<[string, number]> = [
 test("P25: a number the answer can't carry exactly is an error, never a changed value", async () => {
   for (const literal of INEXACT) {
     const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(body(literal), "application/json"));
-    assert.equal(o.cli.code, 1, `${literal}: CLI exit ${o.cli.code}, out ${o.cli.out}`);
+    assert.equal(o.cli.code, PARSE_EXIT, `${literal}: CLI exit ${o.cli.code}, out ${o.cli.out}`);
     assert.equal(o.cli.out, "", literal);
     assert.match(o.cli.err, new RegExp(`^ERROR \\[${BIN}\\.api\\] .*the number ${literal.replace(/[.+]/g, "\\$&")} cannot be represented exactly`), literal);
     assert.equal(o.lib.ok, false, `${literal}: the library resolved`);
@@ -73,7 +64,7 @@ test("P25: a number a double carries is printed as the same value", async () => 
 test("P25: an empty answer is an error, never 'nothing found'", async () => {
   for (const raw of ["", "  \n\t"]) {
     const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(raw, "application/json"));
-    assert.equal(o.cli.code, 1, JSON.stringify(raw));
+    assert.equal(o.cli.code, PARSE_EXIT, JSON.stringify(raw));
     assert.equal(o.cli.out, "", JSON.stringify(raw));
     assert.match(o.cli.err, new RegExp(`^ERROR \\[${BIN}\\.api\\] `), JSON.stringify(raw));
     assert.equal(o.lib.ok, false, JSON.stringify(raw));
