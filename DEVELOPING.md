@@ -369,12 +369,14 @@ none is given; a leading byte-order mark is dropped); an unknown charset is a
 but holds a number `JSON.parse` cannot carry exactly — past 2^53 one that prints as a
 different number, in any written form (`12345678901234567890`, which prints as
 `12345678901234567000`, `…890.0`, `9007199254740993e0`, `9007199254740992.5`), out of a
-double's range (`1e400`) or non-zero and too small (`1e-400`, which becomes 0) — raises
+double's range (`1e400`), non-zero and too small (`1e-400`, which becomes 0), or a subnormal
+(below 2.2250738585072014e-308) that does not print as written (`3e-324`, which becomes
+`5e-324`) — raises
 `DwdParseError` `Unexpected response from <path>: the number <N> cannot be represented
 exactly.` rather than returning a changed value (`firstInexactNumber`, a linear scan of the
-text after `JSON.parse` that skips strings). Below 2^53 a decimal fraction keeps a double's
-precision, as JSON means it. Past 2^53 the check compares the number as written with the
-number as printed (`String(value)`), not with the double's exact binary value: a double a
+text after `JSON.parse` that skips strings). Below 2^53 and above the subnormal range a
+decimal fraction keeps a double's precision, as JSON means it. Past 2^53 and below the normal
+range the check compares the number as written with the number as printed (`String(value)`), not with the double's exact binary value: a double a
 server printed in its shortest form (`1E23`, `1.7976931348623157E308`) reads back as the same
 double, prints as the same number and passes. The station data's missing-value marker `32767` and the
 epoch-ms times are far below 2^53: the marker handling after the parse is unchanged.

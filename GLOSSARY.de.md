@@ -250,9 +250,12 @@ dem tatsächlich gelieferten Typ gemeldet, statt an `JSON.parse` übergeben zu w
 **Zahlenprüfung (number check).** `JSON.parse` ändert manche Zahlen stillschweigend:
 eine jenseits von 2^53 wird gerundet (`12345678901234567890`, `9007199254740992.5`), eine
 außerhalb des Bereichs eines Doubles wird zu `Infinity` (`1e400`, ausgegeben als `null`),
-eine winzige von null verschiedene zu `0` (`1e-400`). Eine `2xx`-Antwort mit einer solchen
+eine winzige von null verschiedene zu `0` (`1e-400`), und eine im subnormalen Bereich
+(unter 2.2250738585072014e-308) verliert Stellen (`3e-324` wird zu `5e-324`). Eine
+`2xx`-Antwort mit einer solchen
 Zahl ist ein `DwdParseError` (Exit `7`), `Unexpected response from <path>: the number <N>
-cannot be represented exactly.`, nie ein veränderter Wert. Jenseits von 2^53 fragt die
+cannot be represented exactly.`, nie ein veränderter Wert. Jenseits von 2^53 und unterhalb
+des normalen Bereichs fragt die
 Prüfung, ob die Zahl so ausgegeben wird, wie sie geschrieben stand: `1E23` oder
 `1.7976931348623157E308`, ein Double, das ein Server in seiner kürzesten Form geschrieben hat,
 wird gleich ausgegeben und geht durch; `12345678901234567890` wird als `12345678901234567000`
