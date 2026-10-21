@@ -389,7 +389,11 @@ silently: bytes that are not valid in the charset, and lone surrogates written a
 engine option `onWarning` is told once per answer, naming the request: `GET <url>: 2 characters
 of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with
 U+FFFD.` The CLI logs it as a `WARN` record of `dwd.api`. One bad character never sinks a
-whole answer. An empty body (or one of
+whole answer. A body too large to become one string (512 MB and more, possible only with
+`maxResponseBytes: 0` or `--max-response-bytes 0`) is a `DwdParseError`, `GET <url>: the answer
+is too large to read as text (N bytes; the longest string is 536870888 characters).`, not a
+plain `Error` ("Unexpected error" in the CLI); an error status with such a body keeps its
+`DwdApiError`, without the body. An empty body (or one of
 whitespace only) is `GET <url>: empty response body.`, never "nothing found". A body that does
 not parse raises `DwdParseError` `GET <url>: the answer is not valid JSON: <the parser's
 reason>`. A body that parses
