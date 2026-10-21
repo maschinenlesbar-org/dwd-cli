@@ -272,7 +272,7 @@ Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `ap
 Antworten der API: ein Fehlerstatus, die Hinweise auf eine unbekannte Station und einen
 veralteten Feed und eine fehlerhafte Antwort — ungültiges JSON, die falsche Form oder der
 falsche Inhaltstyp), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (ein
-Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden
+Schreibfehler auf stdout, eine Antwort, die zu tief verschachtelt oder zu groß zum Ausgeben ist). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden
 maskiert.
 
 ---

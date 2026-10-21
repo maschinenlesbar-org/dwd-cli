@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
+import { OutputError } from "./shared.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   DwdApiError,
@@ -269,6 +270,11 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // charset) is the API's answer as much as an error status is.
       log.error("api", err.message);
       return EXIT.parse;
+    }
+    if (err instanceof OutputError) {
+      // The answer arrived but could not be printed (too deep, too large).
+      log.error("output", err.message);
+      return EXIT.generic;
     }
     if (err instanceof DwdError) {
       log.error("cli", err.message);

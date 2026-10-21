@@ -261,7 +261,7 @@ below 2^53 and pass unchanged.
 commander's messages, unexpected errors), `api` (the API's answers: an error status, the
 unknown-station and stale-feed notes, and a malformed answer — bad JSON, the wrong shape or
 content type), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write
-to stdout). A record is always one line; control characters in it are escaped.
+to stdout, an answer too deeply nested or too large to print). A record is always one line; control characters in it are escaped.
 
 ---
 

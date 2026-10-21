@@ -400,10 +400,14 @@ actual type (`GET <url>: expected a JSON answer, got Content-Type "text/html".`)
 being fed to `JSON.parse`.
 
 **JSON rendering.** The CLI prints the answer pretty (two spaces) or with `--compact` on one
-line (`renderJson` in `shared.ts`). An answer nested too deeply to pretty-print is an ERROR
-record of `dwd.cli` that suggests `--compact` (exit 1), never a stack trace. `--compact` takes
+line (`renderJson` in `shared.ts`). An answer that can't be printed is an `OutputError`, an
+ERROR record of `dwd.output` (exit 1) that names the cause, never a stack trace: "nested too
+deeply" (the stack overflowed) or "too large (more than 536870888 characters of JSON)" (V8's
+longest string, `Invalid string length`). "; try --compact" is added only when the compact form
+of that very answer prints (`compactPrints`, probed, not assumed from the Node version). `--compact` takes
 V8's fast path (`JSON.stringify(value)`), the only one that prints very deep nesting on Node 26,
-unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`): the
+unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`, an
+iterative walk without an allocation per value): the
 fast path aborts the process on Node 26 on a ~250 MB string from `JSON.parse`, so such an
 answer goes through the gap path with an empty gap, which prints the same text. The printed
 JSON is terminal-safe: `escapeControlChars` writes what `JSON.stringify` leaves raw although a
@@ -521,7 +525,8 @@ breaks (`sanitizeServerText` strips only the other controls); the record escapes
 areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the
 API's answers: HTTP errors, the unknown-station note, the stale-feed note, and a malformed
 answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection: network errors, the cleartext
-warning) and `output` (a failed write to stdout). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
+warning) and `output` (a failed write to stdout, an answer too deeply nested or too large to
+print). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`
 counts, a second one being itself a usage error (`forbidRepeatedOptions`: every single-value

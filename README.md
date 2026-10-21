@@ -210,6 +210,9 @@ dwd --compact warnings nowcast | jq -c '.warnings[]'
 `--compact` (and every global option) works **before or after** the command —
 both `dwd --compact warnings nowcast` and `dwd warnings nowcast --compact` do the
 same thing.
+An answer nested too deeply or too large to print is refused with an `ERROR` record of
+`dwd.output` (exit `1`) that names the cause; it suggests `--compact` only where `--compact`
+prints that answer.
 
 **Exit codes** make the CLI easy to use in scripts:
 
