@@ -509,3 +509,29 @@ test("a subcommand's value option does not swallow the program's --log-format, i
   assert.ok(cli.err.length > 0 && cli.err.every((line) => line.startsWith("{")), cli.err.join("\n"));
   assert.match((JSON.parse(cli.err[0] ?? "") as Record<string, unknown>)["msg"] as string, /--lang <lang>' argument missing/);
 });
+
+test("a single-value option given twice is a usage error, never 'the last one wins'", async () => {
+  // commander keeps the last value silently: `--timeout 1000 --timeout 0` switched the timeout off.
+  for (const argv of [
+    ["--timeout", "1000", "--timeout", "0", "crowd"],
+    ["--timeout=1000", "crowd", "--timeout", "1000"],
+    ["--base-url", "https://app-prod-ws.warnwetter.de", "--base-url", "https://app-prod-ws.warnwetter.de", "station-overview", "--id", "10865"],
+    ["--static-base-url", "https://s.example", "--static-base-url=https://s.example", "crowd"],
+    ["--log-format", "jsonl", "--log-format", "text", "crowd"],
+    ["--user-agent", "a", "--user-agent", "b", "crowd"],
+    ["--max-retries", "1", "--max-retries", "2", "crowd"],
+    ["--max-response-bytes", "1", "--max-response-bytes", "2", "crowd"],
+    ["warnings", "nowcast", "--lang", "de", "--lang", "en"],
+  ]) {
+    const cli = makeCli(() => jsonResponse({ time: 1, warnings: [], meldungen: [] }));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, `${argv.join(" ")} sent a request`);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dwd\.cli\] .*--[a-z-]+ may be given only once\./m, argv.join(" "));
+  }
+  // Flags may repeat, and --id is repeatable: each value adds to the list.
+  const flags = makeCli(() => jsonResponse({ meldungen: [] }));
+  assert.equal(await run(["--compact", "--compact", "crowd"], flags.deps), 0);
+  const ids = makeCli(() => jsonResponse({ "10865": {}, "01766": {} }));
+  assert.equal(await run(["station-overview", "--id", "10865", "--id", "01766", "--decode", "--decode"], ids.deps), 0);
+  assert.equal(new URL(ids.mt.last().url).searchParams.get("stationIds"), "10865,01766");
+});

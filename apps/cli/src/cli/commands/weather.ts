@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
 import { logOf, type CliDeps } from "../io.js";
-import { action, addHelpCommand, renderJson, helpOrUnknownCommand } from "../shared.js";
+import { action, addHelpCommand, renderJson, helpOrUnknownCommand, repeatable } from "../shared.js";
 import { LangValues, type Lang } from "@maschinenlesbar.org/dwd-client/internal/enums";
 import { decodeStationOverview, missingStationIds, staleFeedProblem } from "@maschinenlesbar.org/dwd-client/internal/client";
 import type { ActionContext } from "../shared.js";
@@ -50,7 +50,13 @@ export function registerWeatherCommands(program: Command, deps: CliDeps): void {
   program
     .command("station-overview")
     .description("Forecasts/observations for one or more DWD station ids")
-    .requiredOption("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)", collectStationId)
+    .addOption(
+      repeatable(
+        new Option("--id <stationId>", "DWD station id (repeatable; a comma- or space-separated list works too) (required)")
+          .argParser(collectStationId)
+          .makeOptionMandatory(),
+      ),
+    )
     .option(
       "--decode",
       "print the scaled integers in real units (°C, %, hPa, km/h, °, mm, minutes of sun) instead of tenths",

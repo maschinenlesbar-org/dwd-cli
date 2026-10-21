@@ -189,6 +189,9 @@ Global options may be given **before or after** the command — both
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dwd.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-h, --help` | Display help for a command |
 
+A single-value option given twice (`--timeout 1000 --timeout 0`) is a usage error
+(`--timeout may be given only once.`, exit `2`, nothing sent); only `--id` is repeatable.
+
 A base URL on plain `http:` to a remote host (not `localhost`, `127.0.0.0/8` or `::1`) gets one
 warning on stderr, a `WARN` record of `dwd.http` (`… sent unencrypted to <host> (http:, not https:)`), before the command's
 request; stdout and the exit code are unchanged. Only the base URL the command uses is checked.

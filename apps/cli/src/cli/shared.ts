@@ -1,7 +1,7 @@
 // Shared helpers used across CLI command groups: option parsers, the global
 // option resolver, and the JSON/raw result renderers.
 
-import type { Command } from "commander";
+import type { Command, Option } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_STATIC_BASE_URL, type DwdClientOptions } from "@maschinenlesbar.org/dwd-client/internal/client";
@@ -134,6 +134,46 @@ export function addHelpCommand(parent: Command): void {
       }
       (target as Command).help();
     });
+}
+
+/** The options declared with {@link repeatable}. */
+const REPEATABLE = new WeakSet<Option>();
+
+/**
+ * Declare `option` repeatable: each value adds to a list, so {@link forbidRepeatedOptions}
+ * leaves it alone. The commander way is an array default (`collect, []`), which a mandatory
+ * option can't have: commander only reports a missing mandatory option whose value is
+ * undefined. `--id` is the one such option here.
+ */
+export function repeatable(option: Option): Option {
+  REPEATABLE.add(option);
+  return option;
+}
+
+/**
+ * Make giving a single-value option twice a usage error, on `command` and every subcommand:
+ * commander keeps the last value silently, so `--timeout 1000 --timeout 0` switched the timeout
+ * off and `--lang de --lang en` fetched the English feed, with nothing telling the user a value
+ * was dropped. The message is `--x may be given only once.` (exit 2, before any request).
+ * Flags without a value are left alone, and so is a repeatable option, declared the commander
+ * way with an array default (`.option("--tag <t>", …, collect, [])`) or with
+ * {@link repeatable} (`--id`): each value adds to the list. Call it once on a freshly built
+ * program: the check counts per Option object.
+ */
+export function forbidRepeatedOptions(command: Command): void {
+  for (const option of command.options) {
+    if ((!option.required && !option.optional) || option.variadic || Array.isArray(option.defaultValue)) continue;
+    if (REPEATABLE.has(option)) continue;
+    const parse = option.parseArg;
+    let given = false;
+    const guarded = (value: string, previous: unknown): unknown => {
+      if (given) throw new InvalidArgumentError(`${option.long ?? option.short} may be given only once.`);
+      given = true;
+      return parse === undefined ? value : parse(value, previous);
+    };
+    option.parseArg = guarded as typeof option.parseArg;
+  }
+  for (const child of command.commands) forbidRepeatedOptions(child);
 }
 
 export interface GlobalOptions {

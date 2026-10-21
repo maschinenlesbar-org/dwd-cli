@@ -270,6 +270,11 @@ These apply to every command and may be given **before or after** it:
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits longer if the server's `Retry-After` asks (up to 30 s; a longer one is not retried, and the error names the requested wait) — never shorter. Each retry logs one WARN record of `dwd.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
+An option that takes a single value may be given **once**: a second one (`--timeout 1000
+--timeout 0`, `--lang de --lang en`) is a usage error (`--timeout may be given only once.`,
+exit `2`, nothing sent), never "the last one wins". Only `--id` is repeatable; flags such as
+`--compact` may repeat.
+
 > An option that takes a value consumes the **next token** as that value, so give
 > a value-taking option its value explicitly: `--user-agent "my-tool" --compact`,
 > not `--user-agent --compact` (which would treat the literal `--compact` as the

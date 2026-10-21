@@ -154,7 +154,8 @@ export function logFormatProblem(value: string): string | undefined {
  * The `--log-format` in `argv`, read before commander parses it: commander's own
  * usage errors are logged too, and they happen while parsing. A missing or unknown
  * value gives the default here; commander then reports an unknown one. The last
- * `--log-format` counts, as in commander (dwd's options may be repeated). This scan is
+ * `--log-format` counts: a second one is a usage error (`forbidRepeatedOptions`), logged
+ * in the last one's format. This scan is
  * only for the records of a parse error: once commander has parsed argv, its value is
  * the format (`run()`), so `--user-agent --log-format=jsonl` (a User-Agent) logs text.
  * `valueOptions` names the program's options that take a value (`--user-agent`): the

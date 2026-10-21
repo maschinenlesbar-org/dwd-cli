@@ -10,7 +10,7 @@ import { defaultIO } from "./io.js";
 import { DwdClient, DEFAULT_STATIC_BASE_URL, STATIC_VERSION, WS_VERSION } from "@maschinenlesbar.org/dwd-client/internal/client";
 import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/dwd-client/internal/http";
 import { MAX_RETRIES } from "@maschinenlesbar.org/dwd-client/internal/engine";
-import { addHelpCommand, parseServiceBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, helpOrUnknownCommand } from "./shared.js";
+import { addHelpCommand, forbidRepeatedOptions, parseServiceBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
 
@@ -105,6 +105,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     });
 
   registerWeatherCommands(program, deps);
+  // A single-value option given twice is a usage error; --id is repeatable.
+  forbidRepeatedOptions(program);
   addHelpCommand(program);
   // Let a stray token through the root's arity check so the action above can
   // report it as an unknown command rather than "too many arguments". Set after
