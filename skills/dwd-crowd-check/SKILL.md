@@ -102,8 +102,9 @@ Count per category instead of assuming what is rare.
 ## Step 4 — (Optional) cross-check against official warnings
 
 If the user wants ground-truth-vs-official ("is the warning real?"), also fetch
-`dwd --compact warnings nowcast` (and/or `gemeinde`) and compare: a DWD `GEWITTER`/level-2
-warning over an area where crowd reports show `BLITZE`/`HAGEL` corroborates it; a warning
+`dwd --compact warnings nowcast` (and/or `gemeinde`) and compare: a DWD `GEWITTER` warning
+(name DWD's own stage, which is the feed's `level` minus 1: `level` 2 is "DWD level 1 of 4")
+over an area where crowd reports show `BLITZE`/`HAGEL` corroborates it; a warning
 with **no** matching crowd reports nearby means it hasn't materialised on the ground yet
 (or no one's reporting). State which it is — don't assert weather the data doesn't show.
 
@@ -117,7 +118,7 @@ Crowd reports near Mainz (last 1 h) — 14 reports
   🧊 HAGEL       2×  HAGEL_2CM, 1 with photo, closed hail cover
   💨 WIND        1×  WIND_STARK
 
-  vs DWD: matches the active GEWITTER (level 2) warning over the area — confirmed on the ground.
+  vs DWD: matches the active GEWITTER (DWD level 1 of 4) warning over the area — confirmed on the ground.
 ```
 
 Rules:

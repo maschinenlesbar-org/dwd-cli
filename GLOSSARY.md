@@ -74,6 +74,15 @@ warnings — imminent severe weather. Static-bucket feed. Client:
 warnings, i.e. warnings resolved to the German *Gemeinde* (municipality). Static
 feed. Client: `client.warnings.gemeinde(lang)`. CLI: `warnings gemeinde`.
 
+**Warning `level`.** The severity number on each warning item (nowcast, Gemeinde, coast):
+higher is worse, so it ranks warnings correctly, but it is **not DWD's warning level**: it is
+DWD's level + 1. DWD warns in four stages — 1 Wetterwarnung (yellow), 2 markante
+Wetterwarnung (orange), 3 Unwetterwarnung (red), 4 extreme Unwetterwarnung (purple) — and on
+2026-10-21 every Gemeinde warning with `level` 2 said "(level 1 of 4)" in its English
+`descriptionText`, every one with `level` 3 "(level 2 of 4)". State DWD's stage (from that text,
+or `level − 1`), never the raw number as "level N". The CLI and the library pass `level` on
+unchanged.
+
 **Coast warnings (`warnings_coast.json`).** Coastal weather warnings, with
 `warnings` keyed by coastal zone (and inland-lake / *Binnensee* areas). Unlike
 the nowcast and Gemeinde items, coast items carry no `regions` geometry and no

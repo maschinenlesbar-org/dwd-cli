@@ -76,6 +76,15 @@ Client: `client.warnings.nowcast(lang)`. CLI: `warnings nowcast`.
 Gemeindeebene, also Warnungen, die auf die einzelne *Gemeinde* aufgelöst sind.
 Statischer Feed. Client: `client.warnings.gemeinde(lang)`. CLI: `warnings gemeinde`.
 
+**Warnstufe `level`.** Die Schwerezahl jeder Warnung (Nowcast, Gemeinde, Küste): höher ist
+schlimmer, nach ihr lassen sich Warnungen also richtig ordnen, aber sie ist **nicht die
+Warnstufe des DWD**, sondern die DWD-Stufe + 1. Der DWD warnt in vier Stufen – 1
+Wetterwarnung (gelb), 2 markante Wetterwarnung (orange), 3 Unwetterwarnung (rot), 4 extreme
+Unwetterwarnung (violett) –, und am 2026-10-21 nannte jede Gemeindewarnung mit `level` 2 in
+ihrem englischen `descriptionText` „(level 1 of 4)“, jede mit `level` 3 „(level 2 of 4)“.
+Anzugeben ist die DWD-Stufe (aus diesem Text oder `level − 1`), nie die rohe Zahl als
+„Stufe N“. CLI und Bibliothek geben `level` unverändert weiter.
+
 **Küstenwarnungen (`warnings_coast.json`).** Wetterwarnungen für die Küste, wobei
 `warnings` nach Küstenzone (und nach *Binnensee*-Gebieten) geschlüsselt ist.
 Anders als die Nowcast- und Gemeindewarnungen haben die Küstenwarnungen keine

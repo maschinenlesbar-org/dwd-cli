@@ -6,8 +6,9 @@ description: >
   warnings in Germany right now?", "is there a storm/thunderstorm warning?",
   "what severe weather is DWD warning about?", "weather alerts for the coast",
   or wants a quick read on current official warnings. Merges the nowcast,
-  Gemeinde (municipality) and coast feeds, ranks by DWD severity level, and
-  reports plain-language headlines instead of three raw JSON envelopes.
+  Gemeinde (municipality) and coast feeds, ranks by severity, states DWD's own
+  warning level (1 of 4 to 4 of 4), and reports plain-language headlines instead
+  of three raw JSON envelopes.
 compatibility: >
   Requires the `dwd` CLI (npm package @maschinenlesbar.org/dwd-cli) on PATH,
   installed by the user; the skill never installs it. Uses jq for JSON
@@ -66,7 +67,7 @@ The warning items carry (checked live on 2026-09-15 — note what **coast** item
 | Field | Meaning |
 |---|---|
 | `event` | The phenomenon, e.g. `GEWITTER`, `BÖEN`, `LEICHTER SCHNEEFALL` (uppercase in gemeinde/coast; lower/sentence case in nowcast, e.g. `starkes Gewitter`). The headline noun. |
-| `level` | DWD **severity level** — higher = worse. The primary ranking key (see Step 3). |
+| `level` | The feed's **severity number** — higher = worse, the primary ranking key (see Step 3). **It is not DWD's warning level**: it is DWD's level **+ 1**. Checked live on 2026-10-21 in all 18 Gemeinde warnings, twice: `level` 2 = DWD level 1 of 4 (Wetterwarnung), `level` 3 = DWD level 2 of 4 (markante Wetterwarnung). The English texts say it: `descriptionText` ends "(level 1 of 4)". Never print the raw `level` as "level N" (see Step 4). |
 | `type` | DWD warning *kind* code (0 = thunderstorm group, 1 = wind, 3 = snow/frost, …). Secondary; don't over-interpret. |
 | `start` / `end` | **Unix epoch in milliseconds** (nowcast/gemeinde). Divide by 1000 for a normal timestamp; an item whose `end` is in the past is stale — drop it. **Coast items have no `start`/`end`.** |
 | `headLine` | German one-line headline on gemeinde, e.g. `Amtliche WARNUNG vor GEWITTER`. **Nowcast's `headLine` is just the product name `NowCastMIX`** (and absent in `--lang en`) — use `event` there. **Coast uses lowercase `headline`** — check both keys. |
@@ -80,7 +81,8 @@ The warning items carry (checked live on 2026-09-15 — note what **coast** item
 1. **Drop stale items**: `end` (ms) earlier than now. Coast items have no `end` — keep them.
 2. **Split advance info from active**: `isVorabinfo === true` → "advance info", listed after
    real warnings.
-3. **Rank active warnings by `level` descending** (most severe first). Within equal level,
+3. **Rank active warnings by `level` descending** (most severe first; the order is right even
+   though the number is DWD's level + 1). Within equal level,
    order by soonest `start`, then by feed: coast and nowcast (short-fuse) above gemeinde.
 4. **De-duplicate**: the same storm often appears as multiple nowcast entries with
    near-identical `event`/`level`/`start`/`end` (the `warnId` shares a prefix before the
@@ -94,20 +96,30 @@ Lead with a verdict line carrying totals across all feeds, then the ranked list:
 ```
 Germany — ⚠ 6 active DWD warnings (4 thunderstorm, 1 snow, 1 coastal gale)
 
-  ⚠⚠ GEWITTER (level 2)  until 18:35  — einzelne Gewitter, Böen bis 60 km/h
+  ⚠⚠ STURMBÖEN (DWD level 2 of 4, markant)  until 18:35  — Sturmböen bis 75 km/h
        Advice: Aufenthalt im Freien vermeiden; lose Gegenstände sichern
-  ⚠⚠ BÖEN (level 2, coast zones 501000006, 501000007) — Gewitterböen 7 Bft W–SW
-  ⚠  LEICHTER SCHNEEFALL (level 2)  above 2000 m
+  ⚠  GEWITTER (DWD level 1 of 4)  until 18:35  — einzelne Gewitter, Böen bis 60 km/h
+  ⚠  BÖEN (DWD level 1 of 4, coast zones 501000006, 501000007) — Gewitterböen 7 Bft W–SW
+  ⚠  LEICHTER SCHNEEFALL (DWD level 1 of 4)  above 2000 m
   ℹ  1 advance info (Vorabinformation) — listed for awareness
 ```
+
+**DWD's level, not the feed's number.** DWD warns in four stages: 1 Wetterwarnung (yellow),
+2 markante Wetterwarnung (orange), 3 Unwetterwarnung (red), 4 extreme Unwetterwarnung
+(purple). State that stage, never the raw `level`: "level 3" reads as an Unwetter to anyone
+who knows the scale, while the feed's 3 is DWD's markant stage 2. Take the stage from the
+text where it is stated (the English feeds, `--lang en`: "(level 2 of 4)" in
+`descriptionText`); otherwise it is `level − 1`. A `level` of 1 or lower is none of the four
+stages (seen for no warning so far): show it as a notice, not as a warning level.
 
 Rules:
 - **Lead with the count and the worst level.** If everything is empty, say plainly "No
   active DWD warnings right now" — that's a complete, useful answer, unless a feed has
   `staleFeed: true`: then name that feed and its age instead of calling it calm.
-- Per warning show: `event`, `level`, the human end time when there is one (convert
-  `end`/1000; coast has none — don't invent one), and a short body from `descriptionText`.
-  Add `instruction` for level ≥ 2 when it isn't empty.
+- Per warning show: `event`, DWD's level ("DWD level 2 of 4", from the text or `level − 1`),
+  the human end time when there is one (convert `end`/1000; coast has none — don't invent
+  one), and a short body from `descriptionText`.
+  Add `instruction` for DWD level 2 and up (feed `level` ≥ 3) when it isn't empty.
 - Cap thunderstorm noise — nowcast routinely emits several near-identical Gewitter entries;
   collapse and count them, don't list each.
 - For coast, label the **zone id** (the object key) since there's no place name.
