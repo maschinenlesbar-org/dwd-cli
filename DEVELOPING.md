@@ -421,7 +421,10 @@ JSON is terminal-safe: `escapeControlChars` writes what `JSON.stringify` leaves 
 terminal acts on it — DEL, the C1 range U+0080–U+009F and the bidi controls (`isBidiControl`,
 exported by the library: U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069) — as `\uXXXX`
 escapes, so a right-to-left override in a warning text prints as `\u202e` and can't reorder
-the line on screen. The result parses to the same value.
+the line on screen. The result parses to the same value. It measures the escaped length first (past V8's longest
+string the answer is "too large to print (N characters once its control characters are
+escaped)", an `OutputError`) and builds the text in 64 Ki chunks, so an answer full of DEL
+characters prints within memory.
 
 ## Testing
 

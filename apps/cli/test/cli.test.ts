@@ -597,3 +597,27 @@ test("a single-value option given twice is a usage error, never 'the last one wi
   assert.equal(await run(["station-overview", "--id", "10865", "--id", "01766", "--decode", "--decode"], ids.deps), 0);
   assert.equal(new URL(ids.mt.last().url).searchParams.get("stationIds"), "10865,01766");
 });
+
+test("terminal controls are escaped in chunks: the same text as one pass, across chunk edges (D7)", () => {
+  const DEL = String.fromCharCode(0x7f);
+  const C1 = String.fromCharCode(0x9b);
+  const RLO = String.fromCharCode(0x202e);
+  // Controls right before, at and after the 64 Ki edges, and a run of them.
+  const text = ["a".repeat(65535), DEL, C1, "b".repeat(65534), RLO, DEL.repeat(70000), "ü\u{1f600}", C1].join("");
+  const { deps, out } = makeCli(() => jsonResponse({}));
+  renderJson(deps, { compact: true }, { text });
+  const expected = JSON.stringify({ text }).replace(/[\u007f-\u009f؜‎‏‪-‮⁦-⁩]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  assert.equal(out[0], expected);
+  assert.deepEqual(JSON.parse(out[0]!), { text });
+});
+
+test("an answer that escaped would pass V8's longest string is an output error naming its size (D7)", (t) => {
+  // Stood in for: a real one needs ~90 MB of DEL characters (P27 runs that in a process).
+  const { deps } = makeCli(() => jsonResponse({}));
+  const DEL = String.fromCharCode(0x7f);
+  t.mock.method(JSON, "stringify", () => `"${DEL.repeat(108_000_000)}"`);
+  assert.throws(() => renderJson(deps, { compact: true }, {}), (err: Error) =>
+    err.constructor.name === "OutputError" &&
+    err.message === "The answer is too large to print (648000002 characters once its control characters are escaped).");
+});
