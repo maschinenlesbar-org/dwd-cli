@@ -71,8 +71,17 @@ new DwdClient({
   maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
+  bigIntegerKeys: new Set(["_version_"]), // members whose numbers may pass 2^53: delivered as strings
 });
 ```
+
+**Exact answers.** A number a double can't carry exactly is a `DwdParseError`, never a changed
+value (see "Decoding" below). A member named in `bigIntegerKeys` (a set or list of non-empty
+member names, copied; default none, and the DWD API needs none: its numbers are scaled integers
+and epoch-ms times far below 2^53) is the one exception: its number value is delivered as its
+exact literal, as written, as a JSON string (`"1858054135406919680"`, `"5"`), whatever its size,
+so its type is stable. The engine does both in one linear scan of the text before `JSON.parse`
+(`scanNumbers`, which quotes the declared values in place; no reviver).
 
 Every option is optional and typed `?: T | undefined`: an option given as `undefined`
 means its default, as an omitted one does, so `{ baseUrl: process.env.DWD_BASE_URL }`
@@ -373,8 +382,8 @@ double's range (`1e400`), non-zero and too small (`1e-400`, which becomes 0), or
 (below 2.2250738585072014e-308) that does not print as written (`3e-324`, which becomes
 `5e-324`) — raises
 `DwdParseError` `Unexpected response from <path>: the number <N> cannot be represented
-exactly.` rather than returning a changed value (`firstInexactNumber`, a linear scan of the
-text after `JSON.parse` that skips strings). Below 2^53 and above the subnormal range a
+exactly.` rather than returning a changed value (`scanNumbers`, a linear scan of the
+text before `JSON.parse` that skips strings). Below 2^53 and above the subnormal range a
 decimal fraction keeps a double's precision, as JSON means it. Past 2^53 and below the normal
 range the check compares the number as written with the number as printed (`String(value)`), not with the double's exact binary value: a double a
 server printed in its shortest form (`1E23`, `1.7976931348623157E308`) reads back as the same

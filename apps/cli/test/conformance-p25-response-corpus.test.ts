@@ -25,6 +25,17 @@ const fromLib = (value: unknown): unknown => (value as Overview)["10865"].foreca
 const BIN = "dwd";
 /** The exit code of a malformed answer in this repo: dwd exits 7 for a DwdParseError (README, exit codes). */
 const PARSE_EXIT = 7;
+/**
+ * The member names the repo's client declares as big integers (its `bigIntegerKeys`), usually
+ * none. `bigBody(key, literal)` is a 2xx body for the call above with that member set to `literal`
+ * where the client reads it; `bigFromCli`/`bigFromLib` read it back. dwd declares none: its
+ * numbers are scaled integers and epoch-ms times far below 2^53. The member sits next to the
+ * station, where the client passes it through unchanged.
+ */
+const BIG_INTEGER_KEYS: readonly string[] = [];
+const bigBody = (key: string, literal: string): string => `{"10865":{"forecast1":{"temperature":[97]}},${JSON.stringify(key)}:${literal}}`;
+const bigFromCli = (out: string, key: string): unknown => (JSON.parse(out) as Record<string, unknown>)[key];
+const bigFromLib = (value: unknown, key: string): unknown => (value as Record<string, unknown>)[key];
 // --------------------------------------------------------------------------------------
 
 const INEXACT = [
@@ -73,4 +84,21 @@ test("P25: an empty answer is an error, never 'nothing found'", async () => {
     assert.match(o.cli.err, new RegExp(`^ERROR \\[${BIN}\\.api\\] `), JSON.stringify(raw));
     assert.equal(o.lib.ok, false, JSON.stringify(raw));
   }
+});
+
+test("P25: a declared big-integer member is its exact literal as a string; an undeclared one is refused", async () => {
+  for (const key of BIG_INTEGER_KEYS) {
+    for (const literal of ["1858054135406919680", "5", "-12345678901234567890", "0"]) {
+      const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(bigBody(key, literal), "application/json"));
+      assert.equal(o.cli.code, 0, `${key} ${literal}: ${o.cli.err}`);
+      assert.equal(bigFromCli(o.cli.out, key), literal, `${key} ${literal}`);
+      assert.equal(o.lib.ok, true, `${key} ${literal}`);
+      assert.equal(bigFromLib(o.lib.value, key), literal, `${key} ${literal}`);
+    }
+  }
+  // Nothing else is declared by accident: Solr's `_version_` (unless the repo declares it) is refused.
+  const undeclared = ["_version_", "n"].find((key) => !BIG_INTEGER_KEYS.includes(key)) ?? "n";
+  const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(bigBody(undeclared, "1858054135406919680"), "application/json"));
+  assert.equal(o.cli.code, PARSE_EXIT, o.cli.out);
+  assert.equal(o.lib.ok, false);
 });
