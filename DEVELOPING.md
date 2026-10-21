@@ -379,6 +379,14 @@ epoch-ms times are far below 2^53: the marker handling after the parse is unchan
 (e.g. a captive-portal HTML page) is reported as a `DwdParseError` naming the
 actual type, rather than being fed to `JSON.parse`.
 
+**JSON rendering.** The CLI prints the answer pretty (two spaces) or with `--compact` on one
+line (`renderJson` in `shared.ts`). An answer nested too deeply to pretty-print is an ERROR
+record of `dwd.cli` that suggests `--compact` (exit 1), never a stack trace. `--compact` takes
+V8's fast path (`JSON.stringify(value)`), the only one that prints very deep nesting on Node 26,
+unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`): the
+fast path aborts the process on Node 26 on a ~250 MB string from `JSON.parse`, so such an
+answer goes through the gap path with an empty gap, which prints the same text.
+
 ## Testing
 
 ```bash
