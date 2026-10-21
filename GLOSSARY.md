@@ -261,7 +261,7 @@ below 2^53 and pass unchanged.
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, the
 unknown-station and stale-feed notes, and a malformed answer — bad JSON, the wrong shape or
-content type), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed write
+content type), `http` (the connection, the cleartext warning, and one WARN per retry before it waits) and `output` (a failed or cut-short write
 to stdout, an answer too deeply nested or too large to print). A record is always one line; control characters in it are escaped.
 
 **Replaced text.** Bytes of an answer that are not valid in its charset, and half characters

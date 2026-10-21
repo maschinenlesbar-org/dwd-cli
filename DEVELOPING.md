@@ -484,7 +484,11 @@ everything that drives the CLI is in `apps/cli/test/`.
   from the fix round `.reviews/2026-10-21-exploratory/fix-plan.md` P27 big and odd answers (a
   large flat answer and one full of DEL characters print within a small heap, or past V8's
   longest string are one ERROR record of `dwd.output`; a lone surrogate or invalid bytes are
-  replaced with U+FFFD and reported in a WARN of `dwd.api`; it starts the built bin, so 30 s).
+  replaced with U+FFFD and reported in a WARN of `dwd.api`; it starts the built bin, so 30 s),
+  and P26 output integrity: dwd has no `-o`, so its adapter sets `HAS_OUTPUT_OPTION = false` and
+  only the stdout case runs (stdout redirected to a file and cut short under `ulimit -f` exits 1
+  with an ERROR record of `dwd.output`, never 0; `stdoutWriter` in `io.ts` writes every byte to a
+  regular file or reports the failure).
   Their adapters use `kitParity`, `parity` with the library's error named by its class.
 
 ## Continuous integration
@@ -556,7 +560,7 @@ breaks (`sanitizeServerText` strips only the other controls); the record escapes
 areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the
 API's answers: HTTP errors, text replaced with U+FFFD (a WARN), the unknown-station note, the stale-feed note, and a malformed
 answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection: network errors, the cleartext
-warning) and `output` (a failed write to stdout, an answer too deeply nested or too large to
+warning) and `output` (a failed or cut-short write to stdout, an answer too deeply nested or too large to
 print). Code logs through `logOf(deps)` and never writes diagnostics with `io.err`
 directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error: the last `--log-format`
@@ -573,7 +577,9 @@ should there be no `error:` line, so every failed run has an ERROR record. The l
 built with the run's redaction (`withRedactedOutput`),
 which replaces a secret in the message only, before it is escaped: the frame is never
 touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout
-carries data only. A failed write to stdout other than a closed pipe (`handleOutputErrors`,
+carries data only. When stdout is a regular file, `defaultIO.out` writes every byte itself
+(`stdoutWriter`, a loop over `writeSync`): a write cut short (EFBIG, ENOSPC) is emitted as
+stdout's `error` rather than lost with exit 0. A failed write to stdout other than a closed pipe (`handleOutputErrors`,
 in the bin shim, outside `run()`) is an ERROR record of `dwd.output` (`Could not write to
 stdout: …`), in the format argv asks for (`processLogger`). Node's own process warnings
 (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of `dwd.cli` too: the bin shim installs

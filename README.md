@@ -157,7 +157,7 @@ Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `W
 `INFO`) and a topic, the program and the area it comes from (`dwd.cli` for usage
 errors, `dwd.api` for the API's answers, a malformed one included, and the notes about
 them, `dwd.http` for the
-connection, `dwd.output` for a failed write to stdout or an answer too deeply nested or too
+connection, `dwd.output` for a failed or cut-short write to stdout or an answer too deeply nested or too
 large to print). An error about an answer names the request (`GET <url>: the answer is not
 valid JSON: …`). Text in an answer is never changed silently: bytes that are not valid in its
 charset and half characters (lone surrogates) are replaced with U+FFFD, so the output stays
