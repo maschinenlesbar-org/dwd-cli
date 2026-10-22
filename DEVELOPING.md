@@ -309,10 +309,14 @@ auth. The reasons never repeat the value. The CLI also redacts on output: `run.t
 (`credentialsIn`, exported) and replaces it with `***` in everything it prints —
 commander's usage errors, which echo rejected values, and its own messages (unknown
 command) — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as an
-ordinary one. Only a value that starts with a scheme counts (a bare `a:b@c` is a station
+ordinary one. Only a URL with a scheme counts (a bare `a:b@c` is a station
 id, a User-Agent or a typed value as often as a credential), except as the `--base-url`
 or `--static-base-url` value, where a `user:password@host` typed without its scheme is
-still a credential. The log replaces it in each record's *message*, before the record is
+still a credential. A URL is found wherever it starts inside an argument (`urlsWithin`):
+padded, after a dash, after a comma in an `--id` list or inside a phrase; each `://` is found
+with `indexOf` and its scheme by walking back, so the search stays linear in a long argument,
+and at most 64 URLs are read from one argument. Its percent-encoded form with the `@`
+(`bob%3Apw%40`), as the request URL of an error record carries it, is replaced too. The log replaces it in each record's *message*, before the record is
 cut and escaped, and writes to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form. `redactUrl` falls
 back to the same text-based cut (`redactCredentials`, exported) for a value that doesn't
