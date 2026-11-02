@@ -762,3 +762,21 @@ test("an answer longer than V8's longest string is a DwdParseError naming the re
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof DwdApiError && err.status === 500 && err.body === "");
 });
+
+test("a number with a long run of zeros is checked in linear time", () => {
+  // decimalOf trimmed trailing zeros with /0+$/, which tries a match at every zero of a run that
+  // doesn't end the literal: 40 000 zeros took 2.7 s, after the request's deadline was cleared.
+  const zeros = "0".repeat(100_000);
+  for (const literal of [`9007199254740993.${zeros}1`, `1${zeros}1`, `0.${zeros}1e-400`, `-1.${zeros}1e300`]) {
+    const started = performance.now();
+    const { inexact } = scanNumbers(`{"x":${literal}}`);
+    const ms = performance.now() - started;
+    assert.equal(inexact, literal);
+    assert.ok(ms < 1000, `${literal.slice(0, 20)}…: ${Math.round(ms)} ms`);
+  }
+  // The same results as before at the edges: trailing zeros and an exact zero are not inexact.
+  assert.equal(scanNumbers('{"x":9007199254740992.000}').inexact, undefined);
+  assert.equal(scanNumbers('{"x":0.000e5}').inexact, undefined);
+  assert.equal(scanNumbers('{"x":12345678901234567890}').inexact, "12345678901234567890");
+  assert.equal(scanNumbers('{"x":1.0e-400}').inexact, "1.0e-400");
+});
