@@ -183,7 +183,7 @@ export function parseRetryAfter(
  * The CLI's JSON output is escaped separately (`escapeControlChars` in
  * cli/shared.ts): `JSON.stringify` alone leaves DEL and the C1 range raw.
  * `DwdApiError.body` still
- * carries the raw, unsanitised body for library consumers.
+ * carries the unsanitised body (credentials scrubbed) for library consumers.
  *
  * The result is cut at MAX_SERVER_TEXT_LENGTH characters (ending in "…"), never inside a
  * surrogate pair (`cutText`), so a hostile or broken body can't flood stderr or a CI log
@@ -522,6 +522,32 @@ export class RequestEngine {
   }
 
   /**
+   * An error body, already scrubbed as sent, as `DwdApiError.body` keeps it: when it is JSON
+   * with an escape in it, checked decoded too. An escape (`\"`, `\u00e4`, `\/`) hides an echoed
+   * credential from the scrub of the text as sent, while a caller who parses the body sees it.
+   * Such a body is kept as the decoded JSON written again (`JSON.stringify`, one spelling per
+   * character) with the credential scrubbed in that spelling. A body that doesn't parse is text
+   * nobody decodes, and stays as sent; one too deeply nested to write again is left out.
+   */
+  private scrubBody(scrubbed: string): string {
+    if (this.#echoed.length === 0 || !scrubbed.includes("\\")) return scrubbed;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(scrubbed);
+    } catch {
+      return scrubbed;
+    }
+    let rewritten: string;
+    try {
+      rewritten = JSON.stringify(decoded);
+    } catch {
+      return "";
+    }
+    const spelled = this.#echoed.map((form) => JSON.stringify(form).slice(1, -1));
+    return spelled.some((form) => rewritten.includes(form)) ? redactSecrets(rewritten, spelled) : scrubbed;
+  }
+
+  /**
    * A transport failure as the `cause` of the error the engine raises: the original when its
    * text carries no credentials, otherwise a copy with them scrubbed (message, `code` and the
    * cause chain kept), so logging the error with its causes can't reveal the base URL's
@@ -855,9 +881,12 @@ export class RequestEngine {
     } catch (cause) {
       // Name the parser's reason (position/token, "Unexpected end of JSON input"):
       // the CLI never prints `cause`, and a truncated or garbled body otherwise all
-      // read the same. It can quote the body, so it is sanitised.
-      const reason = cause instanceof Error ? sanitizeServerText(cause.message) : "";
-      throw new DwdParseError(`${request}: the answer is not valid JSON${reason ? `: ${reason}` : "."}`, { cause });
+      // read the same. It can quote the body, so it is scrubbed of the base URL's credentials
+      // and sanitised, and the cause is the scrubbed copy, as for a transport failure.
+      const reason = cause instanceof Error ? sanitizeServerText(this.scrub(cause.message)) : "";
+      throw new DwdParseError(`${request}: the answer is not valid JSON${reason ? `: ${reason}` : "."}`, {
+        cause: this.scrubCause(cause),
+      });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value. The station data's "no value" marker (32767) and the epoch-ms times are
@@ -899,14 +928,15 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
-    // `detail` came from the response body; strip control characters so a hostile
+    // `detail` came from the response body, decoded: scrubbed again (a JSON escape hid the
+    // credential from the scrub above), then stripped of control characters so a hostile
     // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    if (detail !== undefined) detail = sanitizeServerText(this.scrub(detail));
     if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
     // Name the target of a redirect that was not followed.
     const location =
       status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
-    return new DwdApiError({ status, url, method, body: text, detail, location });
+    return new DwdApiError({ status, url, method, body: this.scrubBody(text), detail, location });
   }
 }
 

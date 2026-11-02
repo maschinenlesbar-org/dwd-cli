@@ -258,7 +258,13 @@ the base URL's password: the engine keeps the base URL in a real `#private` fiel
 URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
 percent-decoded), and the forms a server echoes it back in (the `Basic` value, the decoded
 `user:password`, the password alone from 4 characters: `echoedCredentialForms`), are
-scrubbed from error bodies and details, transport error text and the `cause` chain. The
+scrubbed from error bodies and details, transport error text and the `cause` chain. Server
+text is scrubbed decoded too: an error `detail` after `JSON.parse` and a parse error's reason
+(V8 quotes a short body), since a JSON escape (`\u002B`, `\/`, `\u0064`) hides a credential
+from the scrub of the body as sent; and `err.body`, which stays the body as sent unless a
+credential hides behind an escape in it: then it is the decoded JSON written again
+(`JSON.stringify`) and scrubbed. So `err.message`, `err.detail`, `err.body` and `err.cause`
+are clean for library callers too. The
 CLI replaces the same forms: the `Basic` value and the pair on stdout and stderr, the
 password alone on stderr only, since it may well occur in the data.
 The CLI maps a `DwdValidationError` to the usage exit code `2` (an ERROR record of `dwd.cli`

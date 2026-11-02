@@ -780,3 +780,89 @@ test("a number with a long run of zeros is checked in linear time", () => {
   assert.equal(scanNumbers('{"x":12345678901234567890}').inexact, "12345678901234567890");
   assert.equal(scanNumbers('{"x":1.0e-400}').inexact, "1.0e-400");
 });
+
+test("a credential a server echoes with JSON escapes is scrubbed from the message, the detail and the body", async () => {
+  // Scrubbed only as sent, before JSON.parse decoded `\u002B`, `\/` or `\u0064`: the decoded
+  // detail carried the credential into DwdApiError.message and .detail.
+  const errorFor = async (baseUrl: string, status: number, body: string): Promise<DwdApiError> => {
+    const e = new RequestEngine({ baseUrl, maxRetries: 0, transport: async () => rawResponse(body, "application/json", status) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof DwdApiError, String(err));
+    return err;
+  };
+  const basic = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+  const cases: [string, string, string, string[]][] = [
+    ["http://u:du~~y-pass-1234@mirror.example", "du~~y-pass-1234", `{"message":"rejected Authorization: Basic ${basic("u:du~~y-pass-1234").replace("+", "\\u002B")}"}`, [basic("u:du~~y-pass-1234")]],
+    ["http://u:dummy-pa%3F%3F-1234@mirror.example", "dummy-pa??-1234", `{"message":"rejected Authorization: Basic ${basic("u:dummy-pa??-1234").replace("/", "\\/")}"}`, [basic("u:dummy-pa??-1234")]],
+    ["http://u:dummy-pass-1234@mirror.example", "dummy-pass-1234", '{"detail":"bad login u:\\u0064ummy-pass-1234"}', ["u:dummy-pass-1234"]],
+    ["http://u:dummy-pass-1234@mirror.example", "dummy-pass-1234", '{"message":"wrong password \\u0064ummy-pass-1234"}', ["dummy-pass-1234"]],
+  ];
+  assert.ok(basic("u:du~~y-pass-1234").includes("+") && basic("u:dummy-pa??-1234").includes("/"));
+  for (const [baseUrl, password, body, forms] of cases) {
+    for (const status of [401, 403, 500]) {
+      const err = await errorFor(baseUrl, status, body);
+      for (const text of [err.message, err.detail ?? "", err.body, JSON.stringify(JSON.parse(err.body))]) {
+        for (const form of [...forms, password]) assert.ok(!text.includes(form), `${body}: ${text}`);
+      }
+      assert.match(err.detail ?? "", /\*\*\*/, body);
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof DwdApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("a parse error names the parser's reason and keeps its cause, the base URL's credential scrubbed from both", async () => {
+  // V8 quotes a short body in its reason: `Unexpected token 'u', "u:dummy-pass-1234" is not valid JSON`.
+  const e = new RequestEngine({
+    baseUrl: "http://u:dummy-pass-1234@mirror.example",
+    maxRetries: 0,
+    transport: async () => rawResponse("u:dummy-pass-1234", "application/json"),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof DwdParseError, String(err));
+  assert.match(err.message, /: the answer is not valid JSON: Unexpected token/);
+  const chain: string[] = [];
+  for (let at: unknown = err; at instanceof Error; at = at.cause) chain.push(at.message, at.stack ?? "");
+  assert.ok(err.cause instanceof Error && err.cause.name === "SyntaxError", String(err.cause));
+  for (const text of chain) assert.ok(!text.includes("dummy-pass-1234"), text);
+  // Without credentials the parser's error is kept as it is.
+  const plain = await new RequestEngine({ transport: async () => rawResponse("nope", "application/json") })
+    .getJson("/x")
+    .catch((caught: unknown) => caught);
+  assert.ok(plain instanceof DwdParseError && plain.cause instanceof SyntaxError, String(plain));
+});

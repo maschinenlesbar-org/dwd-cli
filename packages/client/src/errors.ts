@@ -192,6 +192,11 @@ export class DwdApiError extends DwdError {
   readonly detail: string | undefined;
   readonly url: string;
   readonly method: string;
+  /**
+   * The body as the server sent it, the base URL's credentials scrubbed. A JSON body that spells
+   * one with escapes (`\"`, `\u00e4`, `\/`) is kept as its decoded JSON written again, scrubbed;
+   * one too deeply nested to write again is left out ("").
+   */
   readonly body: string;
   /**
    * For a 3xx that was not followed (not a followed status: 300, 304, 305, ...), the
