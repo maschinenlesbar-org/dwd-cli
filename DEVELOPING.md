@@ -533,6 +533,15 @@ everything that drives the CLI is in `apps/cli/test/`.
   with an ERROR record of `dwd.output`, never 0; `stdoutWriter` in `io.ts` writes every byte to a
   regular file or reports the failure).
   Their adapters use `kitParity`, `parity` with the library's error named by its class.
+  From the security audit `.reviews/2026-10-27-security-audit/`: P28 hostile error answers (a
+  number with a long run of zeros and server text bound for a message are handled in linear time
+  and within memory; the base URL's credentials are scrubbed from decoded error text and from a
+  redirect's `Location`; dwd quotes no value of a 2xx answer, so that case is skipped, and a 302
+  answered forever ends at the redirect limit, `Too many redirects`), P29 base-URL credentials (a
+  token userinfo scrubbed, a backslash or a repaired scheme refused, requests to the parsed host,
+  the stdout redaction linear), P30 output links (dwd has no `-o`: `HAS_OUTPUT_OPTION = false`,
+  every case skipped) and P31 the release pipeline (release.yml's three jobs, the SBOM tool locked
+  in `tools/sbom/`). P28's bin runs start a process (30 s).
 
 ## Continuous integration
 
