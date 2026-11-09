@@ -262,7 +262,9 @@ the base URL's password: the engine keeps the base URL in a real `#private` fiel
 (so `console.log(client)`, `util.inspect` and `JSON.stringify` don't reveal it), every
 URL in a message goes through `redactUrl`, and the base URL's userinfo (raw and
 percent-decoded), and the forms a server echoes it back in (the `Basic` value, the decoded
-`user:password`, the password alone from 4 characters: `echoedCredentialForms`), are
+`user:password`, the password alone from 4 characters: `echoedCredentialForms`; a userinfo
+without a password, `https://TOKEN@mirror/`, is a token: its Basic value of `TOKEN:`, `TOKEN:` and
+the token itself), are
 scrubbed from error bodies and details, transport error text and the `cause` chain. Server
 text is scrubbed decoded too: an error `detail` after `JSON.parse` and a parse error's reason
 (V8 quotes a short body), since a JSON escape (`\u002B`, `\/`, `\u0064`) hides a credential

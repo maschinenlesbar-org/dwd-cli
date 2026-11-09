@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers } from "../src/engine.js";
-import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, cutText, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/http.js";
 
@@ -1070,4 +1070,15 @@ test("a credential echoed in a redirect's Location never names the request in a 
     assert.equal(retries.length, 1);
     assert.ok(!leaks(retries[0] ?? ""), `${location}: ${retries[0]}`);
   }
+});
+
+test("echoedCredentialForms treats a userinfo without a password as a token (Basic `TOKEN:`)", () => {
+  const basic = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+  assert.deepEqual(echoedCredentialForms("alice:s3cret"), [basic("alice:s3cret"), "alice:s3cret", "s3cret"]);
+  assert.deepEqual(echoedCredentialForms("T0ken"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T0ken:"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T%C3%B6k"), [basic("Tök:"), "Tök:"]); // short: not alone
+  assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
+  assert.deepEqual(echoedCredentialForms(""), []);
+  assert.deepEqual(echoedCredentialForms(":"), []);
 });
