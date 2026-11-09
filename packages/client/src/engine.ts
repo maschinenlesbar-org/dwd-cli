@@ -264,6 +264,19 @@ export function isBidiControl(code: number): boolean {
   );
 }
 
+/**
+ * `form` and its spelling in a URL (`encodeURIComponent`): a server that puts a credential into
+ * a URL, a redirect's Location, percent-encodes it. A form that has no such spelling (a lone
+ * surrogate) is kept as it is.
+ */
+function urlSpellings(form: string): string[] {
+  try {
+    return [form, encodeURIComponent(form)];
+  } catch {
+    return [form];
+  }
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -472,8 +485,8 @@ export class RequestEngine {
   readonly #credentials: string[];
   /**
    * The forms a server echoes that userinfo back in (the Basic value, the decoded
-   * `user:password`, the password alone), longest first, so a password never leaves half
-   * of the `user:password` around it.
+   * `user:password`, the password alone), each also percent-encoded as in a URL (a redirect's
+   * Location), longest first, so a password never leaves half of the `user:password` around it.
    */
   readonly #echoed: string[];
   private readonly transport: Transport;
@@ -502,9 +515,9 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.#echoed = credentialsIn(this.#baseUrl)
-      .flatMap(echoedCredentialForms)
-      .sort((a, b) => b.length - a.length);
+    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
+      (a, b) => b.length - a.length,
+    );
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -537,15 +550,19 @@ export class RequestEngine {
     }
   }
 
-  /** Tell `onRetry` about a retry, then wait. A throwing callback never breaks the request. */
-  private async backOff(attempt: number, delayMs: number, url: string, status?: number): Promise<void> {
+  /**
+   * Tell `onRetry` about a retry (`shown`: the URL as messages name it, userinfo redacted and,
+   * after a redirect, the credentials echoed in it scrubbed), then wait. A throwing callback
+   * never breaks the request.
+   */
+  private async backOff(attempt: number, delayMs: number, shown: string, status?: number): Promise<void> {
     try {
       this.onRetry?.({
         retry: attempt,
         maxRetries: this.maxRetries,
         delayMs,
         ...(status !== undefined ? { status } : {}),
-        url: redactUrl(url),
+        url: shown,
       });
     } catch {
       // a logging hook is no reason to fail the request
@@ -722,6 +739,11 @@ export class RequestEngine {
     if (authorization !== undefined) headers["Authorization"] = authorization;
     /** Why a redirect dropped the base URL's credentials, for a 401/403 message. */
     let dropped: string | undefined;
+    // The URL as messages name it: after a redirect, the Location as the server sent it with the
+    // credentials scrubbed, then resolved (`redirectTarget`). Resolving first would percent-encode
+    // an echoed password in a new spelling (`'` as `%27` in a query) no scrub matches. The
+    // request itself goes to the Location as sent.
+    let shown = redactUrl(url);
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
     // after a reset may be applied twice. The client itself sends GETs only.
@@ -746,7 +768,7 @@ export class RequestEngine {
         // retried — a slow upstream should not be asked again at once.
         if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
           attempt += 1;
-          await this.backOff(attempt, this.retryDelayMs * attempt, url);
+          await this.backOff(attempt, this.retryDelayMs * attempt, shown);
           continue;
         }
         // The default transport rejects with DwdNetworkError only; an injected one may
@@ -756,7 +778,8 @@ export class RequestEngine {
         if (cause instanceof DwdError && !(cause instanceof DwdNetworkError)) throw cause;
         const reason = cause instanceof Error ? cause.message : String(cause);
         throw new DwdNetworkError(
-          `${method} ${redactUrl(url)} failed: ${cleanServerText(this.scrub(reason))}`,
+          // A transport's text names the URL it was given; the message names the one shown.
+          `${method} ${shown} failed: ${cleanServerText(this.scrub(reason.split(url).join(shown)))}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -769,13 +792,13 @@ export class RequestEngine {
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
         throw new DwdNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+          `${method} ${shown} failed: the transport returned an invalid response (${invalid}).`,
         );
       }
       const finalUrl = (response as { url?: unknown }).url;
       if (typeof finalUrl === "string" && finalUrl !== "" && originOf(finalUrl) !== originOf(url)) {
         throw new DwdNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
+          `${method} ${shown} failed: the transport followed a redirect to another origin ` +
             `(${cleanServerText(redactUrl(this.scrub(finalUrl)))}); a transport must not follow redirects ` +
             `(HttpRequest.redirect is "manual").`,
         );
@@ -788,7 +811,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new DwdNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
+        throw new DwdNetworkError(`${method} ${shown} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
       const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
@@ -800,7 +823,7 @@ export class RequestEngine {
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
           const backoff = this.retryDelayMs * attempt;
-          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), url, status);
+          await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), shown, status);
           continue;
         }
       }
@@ -811,7 +834,7 @@ export class RequestEngine {
       if (FOLLOWED_REDIRECTS.has(status) && locationHeader) {
         if (redirects >= this.maxRedirects) {
           throw new DwdNetworkError(
-            `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${redactUrl(url)}`,
+            `Too many redirects (exceeded maxRedirects=${this.maxRedirects}) for ${method} ${shown}`,
           );
         }
         const location = locationHeader;
@@ -824,7 +847,7 @@ export class RequestEngine {
             target = new URL(location, url);
           } catch {
             throw new DwdNetworkError(
-              `Invalid redirect Location "${cleanServerText(this.scrub(location))}" for ${method} ${redactUrl(url)}`,
+              `Invalid redirect Location "${cleanServerText(this.scrub(location))}" for ${method} ${shown}`,
             );
           }
           // Enforce the http(s) scheme allowlist on the redirect target here in
@@ -834,7 +857,7 @@ export class RequestEngine {
           // redirect.
           if (target.protocol !== "http:" && target.protocol !== "https:") {
             throw new DwdNetworkError(
-              `Refusing to follow redirect to unsupported protocol "${target.protocol}" for ${method} ${redactUrl(url)}`,
+              `Refusing to follow redirect to unsupported protocol "${cleanServerText(this.scrub(target.protocol))}" for ${method} ${shown}`,
             );
           }
           // Userinfo in a Location is not used: credentials come from the base URL only,
@@ -854,10 +877,11 @@ export class RequestEngine {
                 dropped =
                   from.protocol === "http:" && target.protocol === "https:" && from.hostname === target.hostname
                     ? "the server redirected http→https, which dropped the base URL's credentials; use an https base URL"
-                    : `the redirect to ${target.origin} dropped the base URL's credentials (they are sent to their own origin only)`;
+                    : `the redirect to ${cleanServerText(this.scrub(target.origin))} dropped the base URL's credentials (they are sent to their own origin only)`;
               }
             }
           }
+          shown = redirectTarget(shown, location, (text) => this.scrub(text)) ?? shown;
           url = target.toString();
           redirects += 1;
           continue;
@@ -868,7 +892,7 @@ export class RequestEngine {
       if (status < 200 || status >= 300) {
         throw this.toApiError(
           method,
-          url,
+          shown,
           status,
           body,
           locationHeader,
@@ -974,9 +998,11 @@ export class RequestEngine {
     // endpoint cannot inject terminal escape sequences via the stderr error message.
     if (detail !== undefined) detail = cleanServerText(this.scrub(detail));
     if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
-    // Name the target of a redirect that was not followed.
+    // Name the target of a redirect that was not followed (`url` is the request as shown).
     const location =
-      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
+      status >= 300 && status < 400 && locationHeader
+        ? redirectTarget(url, locationHeader, (t) => this.scrub(t))
+        : undefined;
     return new DwdApiError({ status, url, method, body: this.scrubBody(text), detail, location });
   }
 }
@@ -1121,18 +1147,21 @@ function isLowSurrogate(code: number): boolean {
 }
 
 /**
- * The absolute, printable form of a `Location` header: resolved against the request
- * URL, userinfo redacted, control characters stripped (it is server text bound for
- * stderr). An unparseable value is shown sanitised as it came.
+ * The absolute, printable form of a `Location` header: the base URL's credentials scrubbed
+ * (`scrub`) as sent, before resolving percent-encodes what is left of them in a new spelling
+ * (`'` as `%27` in a query); resolved against the request URL, userinfo redacted,
+ * control/bidi characters stripped (it is server text bound for stderr). An unparseable value
+ * is shown sanitised as it came.
  */
-function redirectTarget(requestUrl: string, location: string): string | undefined {
-  let resolved: URL | undefined;
+function redirectTarget(requestUrl: string, location: string, scrub: (text: string) => string): string | undefined {
+  const sent = scrub(location);
+  let target: string;
   try {
-    resolved = new URL(location, requestUrl);
+    target = redactUrl(new URL(sent, requestUrl).href);
   } catch {
-    resolved = undefined;
+    target = sent;
   }
-  const clean = cleanServerText(resolved ? redactUrl(resolved.href) : location);
+  const clean = cleanServerText(target);
   return clean === "" ? undefined : clean;
 }
 

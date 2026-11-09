@@ -1003,3 +1003,71 @@ test("scanNumbers quotes millions of declared members within a small heap", STAR
   const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(out, String(n * 10 + 1));
 });
+
+test("a credential echoed in a redirect's Location never names the request in a message (D2)", async () => {
+  // The engine follows redirects: every message about the request after one named the followed
+  // URL through redactUrl only, which drops the URL's own userinfo but not the base URL's
+  // credentials in its path or query; a Location not followed was resolved before any scrub.
+  const pw = "pä\"s's-W0rd";
+  const base = `https://alice:${encodeURIComponent(pw)}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  const secrets = [pw, `alice:${pw}`, basic];
+  const leaks = (text: string): boolean => {
+    const decoded = text.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+    return secrets.some((secret) => decoded.includes(secret));
+  };
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(pw)}`,
+    `https://elsewhere.example/login?pw=${pw}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${pw}`)}/x`,
+    `https://elsewhere.example/auth?basic=${basic}`,
+    `/relative/${pw}`,
+  ];
+  for (const location of locations) {
+    // A loop, a 3xx not followed, an error answer, a reset and a 503 after one redirect.
+    const answers: Array<(n: number) => HttpResponse> = [
+      () => ({ status: 302, headers: { location }, body: Buffer.from("") }),
+      () => ({ status: 300, headers: { location }, body: Buffer.from("") }),
+      (n) => (n === 0 ? { status: 302, headers: { location }, body: Buffer.from("") } : jsonResponse({}, 401)),
+      (n) => {
+        if (n === 0) return { status: 302, headers: { location }, body: Buffer.from("") };
+        throw Object.assign(new Error("socket hang up"), { code: "ECONNREFUSED" });
+      },
+    ];
+    for (const answer of answers) {
+      let n = 0;
+      const retries: string[] = [];
+      const e = new RequestEngine({
+        baseUrl: base,
+        maxRetries: 1,
+        sleep: async () => {},
+        onRetry: (event) => retries.push(event.url),
+        transport: async () => answer(n++),
+      });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof Error, String(err));
+      const e2 = err as Error & { url?: string; location?: string };
+      for (const text of [err.message, e2.url ?? "", e2.location ?? ""]) assert.ok(!leaks(text), `${location}: ${text}`);
+    }
+    // onRetry names the request after the redirect as messages do.
+    let n = 0;
+    const retries: string[] = [];
+    await new RequestEngine({
+      baseUrl: base,
+      maxRetries: 1,
+      sleep: async () => {},
+      onRetry: (event) => retries.push(event.url),
+      transport: async () => (n++ === 0 ? { status: 302, headers: { location }, body: Buffer.from("") } : jsonResponse({}, 503)),
+    })
+      .getJson("/x")
+      .catch(() => undefined);
+    assert.equal(retries.length, 1);
+    assert.ok(!leaks(retries[0] ?? ""), `${location}: ${retries[0]}`);
+  }
+});
