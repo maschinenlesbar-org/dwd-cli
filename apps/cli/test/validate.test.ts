@@ -124,6 +124,16 @@ test("baseUrlProblem: the base-URL rules, in order, each with its reason", () =>
   for (const bad of ["https://h.example/?", "https://h.example?x=1", "https://h.example/#"]) {
     assert.equal(baseUrlProblem(bad), "A base URL cannot have a query (?) or fragment (#).", bad);
   }
+  // A backslash ends an http(s) authority for WHATWG, so `https://u:pw@a.example\@b.example`
+  // sends the login to a.example: refused, whatever the readers of the text would make of it.
+  for (const bad of ["https://u:pw@a.example\\@b.example", "https://h.example/a\\b", "https:\\\\h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'A base URL cannot contain a backslash (\\); write "/" instead.', bad);
+  }
+  // The scheme followed by exactly "//" and the host: WHATWG repairs the rest silently.
+  for (const bad of ["http:h.example", "https:/h.example", "http:///h.example", "http:u:s3cret@h.example", "HTTPS:h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'Expected an absolute http(s) URL ("https://" and the host).', bad);
+  }
+  assert.equal(baseUrlProblem("HTTPS://H.example"), undefined);
 });
 
 test("validateBaseUrl strips trailing slashes and throws DwdValidationError naming the option", () => {

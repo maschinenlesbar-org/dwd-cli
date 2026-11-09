@@ -190,8 +190,8 @@ Global options may be given **before or after** the command — both
 | Option | Description |
 | --- | --- |
 | `-V, --version` | Output the version number |
-| `--base-url <url>` | Live web-service base URL, without `/v30` (default `https://app-prod-ws.warnwetter.de`) — used by `station-overview` |
-| `--static-base-url <url>` | Static (S3) bucket base URL, without `/v16` (default `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`) — used by the `warnings` and `crowd` feeds |
+| `--base-url <url>` | Live web-service base URL, without `/v30` (default `https://app-prod-ws.warnwetter.de`) — used by `station-overview`. `http(s)://` and the host; no query, fragment or backslash |
+| `--static-base-url <url>` | Static (S3) bucket base URL, without `/v16` (default `https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de`) — used by the `warnings` and `crowd` feeds. `http(s)://` and the host; no query, fragment or backslash |
 | `--timeout <ms>` | Time limit per request attempt in milliseconds, reading the whole response included (default `30000`; `0` = no timeout; at most `2147483647`). Each retry gets the full limit again |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`; each backs off linearly from 200 ms, or longer if the server's `Retry-After` asks, up to 30 s; each retry logs one WARN record of `dwd.http` before it waits) |

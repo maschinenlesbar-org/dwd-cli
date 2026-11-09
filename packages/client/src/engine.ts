@@ -507,15 +507,22 @@ export class RequestEngine {
     options = options ?? {};
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
-    this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
-    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+    const baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    // Requests go to the base URL as WHATWG parses it, the reading every check of it makes (the
+    // host, the cleartext warning, the Authorization header), not to a text-based reading of the
+    // string: what messages and a transport see names the same host.
+    const href = new URL(baseUrl).href;
+    this.#baseUrl = href.replace(/\/+$/, "");
+    // The userinfo as typed and as WHATWG spells it (it percent-encodes some of its characters).
+    const userinfos = [...new Set([...credentialsIn(baseUrl), ...credentialsIn(href)])];
+    this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];
       } catch {
         return [raw];
       }
     });
-    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
+    this.#echoed = [...new Set(userinfos.flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort(
       (a, b) => b.length - a.length,
     );
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);

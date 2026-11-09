@@ -57,11 +57,16 @@ export const headerValueProblem: Problem<unknown> = (value) => {
 /**
  * A base URL (`baseUrl`, `staticBaseUrl`) must be an absolute `http:`/`https:` URL
  * without a query or fragment, and without whitespace or control characters.
- * `new URL()` trims surrounding whitespace and drops tab/CR/LF silently, so the raw
- * string is checked rather than the parsed one; request paths are appended to the
- * base's path, so a `?` or `#` would swallow them. Userinfo (`user:pw@`) is allowed:
- * the engine sends it as Basic auth, for a proxy or mirror behind a login; a `%` in it
- * must start a valid escape (`%25` for a literal one).
+ * `new URL()` trims surrounding whitespace and drops tab/CR/LF silently, so the URL
+ * requested would not be the one typed: the raw string is checked rather than the parsed
+ * one. Request paths are appended to the base's path, so a `?` or `#` would swallow them.
+ * WHATWG reads a backslash in an http(s) URL as `/`, ending the host where a reader of the
+ * text would not (`https://u:pw@a.example\@b.example` sends the login to a.example), so a
+ * backslash is refused; and it skips any slashes after the scheme, repairing `http:host`,
+ * `http:/host` and `http:///host` into `http://host` silently, so the scheme must be followed
+ * by exactly `//` and the host. Userinfo (`user:pw@`) is allowed: the engine sends it as
+ * Basic auth, for a proxy or mirror behind a login; a `%` in it must start a valid escape
+ * (`%25` for a literal one). The reasons never repeat the value.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -78,6 +83,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return `Unsupported scheme "${cutForMessage(url.protocol)}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the base URL has to agree where.
+  if (value.includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   // The userinfo is percent-decoded for the Authorization header; a "%" that isn't an
   // escape fails there ("URI malformed") at request time, as a network error. Reject it here.
   for (const part of [url.username, url.password]) {
@@ -87,6 +95,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed.
+  if (!/^https?:\/\/[^/]/i.test(value)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 };
 

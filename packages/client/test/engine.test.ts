@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers } from "../src/engine.js";
-import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, credentialsIn, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/http.js";
 
@@ -1081,4 +1081,69 @@ test("echoedCredentialForms treats a userinfo without a password as a token (Bas
   assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
   assert.deepEqual(echoedCredentialForms(""), []);
   assert.deepEqual(echoedCredentialForms(":"), []);
+});
+
+test("credentialsIn ends the authority of a special scheme at a backslash, as WHATWG does", () => {
+  for (const scheme of ["http", "https", "HTTPS", "ws", "wss", "ftp"]) {
+    assert.deepEqual(credentialsIn(`${scheme}://u:p@a.example\\@b.example/x`), ["u:p"], scheme);
+    assert.equal(new URL(`${scheme}://u:p@a.example\\@b.example/x`).password, "p", scheme);
+  }
+  // Another scheme's authority runs on to "/", "?" or "#".
+  assert.deepEqual(credentialsIn("foo://u:p@a.example\\@b.example/x"), ["u:p@a.example\\"]);
+  assert.deepEqual(credentialsIn("https://u:p@a.example/x\\@y"), ["u:p"]);
+});
+
+test("credentialsIn skips the slashes and backslashes WHATWG skips after a special scheme (F3)", () => {
+  // `http:///u:pw@h`, `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG; read
+  // after "://", the userinfo was missed, so a refused --base-url echoed the password in clear.
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+  assert.equal(new URL("foo:///u:p@h.example").password, "");
+});
+
+test("a base URL whose scheme is not followed by // and the host is rejected at construction, never echoing the password (F4)", () => {
+  // WHATWG repairs `http:host`, `http:/host` and `http:///host` silently into `http://host`, so the
+  // host requested is not the one typed: refused, like a backslash.
+  for (const [baseUrl, reason] of [
+    ["http:alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["https:/alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["http:///alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["HTTPS:h.example/v1", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["https:\\\\alice:s3cret@h.example", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () => new RequestEngine({ transport: mt.transport, baseUrl }),
+      (err: unknown) => err instanceof DwdValidationError && err.message === `Invalid baseUrl: ${reason}` && !err.message.includes("s3cret"),
+      baseUrl,
+    );
+    assert.equal(mt.calls.length, 0, baseUrl);
+  }
+  // A spelling the parser keeps as typed stays accepted: an upper-case scheme, an explicit port.
+  for (const baseUrl of ["HTTPS://h.example/v1", "http://alice:pw@h.example:8080"]) {
+    assert.doesNotThrow(() => new RequestEngine({ transport: makeMockTransport(() => jsonResponse({})).transport, baseUrl }), baseUrl);
+  }
+});
+
+test("requests go to the base URL as WHATWG parses it, and the login is scrubbed in both spellings", async () => {
+  // Typed raw; WHATWG percent-encodes `"` and `ä` in the userinfo (`p%22%C3%A4`).
+  const mt = makeMockTransport(() => jsonResponse({ message: 'denied p"äß-pw and p%22%C3%A4%C3%9F-pw' }, 403));
+  const e = new RequestEngine({ baseUrl: 'https://alice:p"äß-pw@API.Example:443/v1/', transport: mt.transport, maxRetries: 0 });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.equal(mt.calls[0]?.url, "https://api.example/v1/x");
+  assert.ok(err instanceof DwdApiError, String(err));
+  assert.ok(!err.message.includes("p\"äß-pw") && !err.message.includes("p%22%C3%A4%C3%9F-pw"), err.message);
 });

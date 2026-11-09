@@ -321,11 +321,19 @@ the transport. Only an omitted `userAgent` selects the default `dwd-cli`.
 rule as the CLI's `--base-url` / `--static-base-url` (`baseUrlProblem`, also exported
 as `validateBaseUrl(raw, name)`): a blank value, surrounding or inner whitespace or
 control characters, an unparseable URL, a scheme other than `http:`/`https:`, a
-query or fragment, or a `%` in the user name or password that doesn't start an escape
-(write a literal `%` as `%25`) throws a `DwdValidationError` ("Invalid baseUrl: …" /
+query or fragment, a backslash (WHATWG reads it as `/` and ends the host there, so
+`https://u:pw@a.example\@b.example` sent the login to a.example while a reader of the text saw
+b.example), a scheme not followed by exactly `//` and the host (`http:host`, `http:/host`,
+`http:///host`, which WHATWG repairs silently into another reading), or a `%` in the user name
+or password that doesn't start an escape (write a literal `%` as `%25`) throws a
+`DwdValidationError` ("Invalid baseUrl: …" /
 "Invalid staticBaseUrl: …") before any request. It is a configuration error, not a
 `DwdNetworkError`. Userinfo (`https://user:pw@proxy/`) is allowed and sent as Basic
-auth. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
+auth. The engine keeps the base URL as WHATWG parses it (`new URL(…).href`: host lower-cased, a
+default port dropped), the reading every check makes, and scrubs its userinfo in both spellings,
+as typed and as the parser percent-encodes it. `credentialsIn` reads a userinfo as WHATWG does:
+after the slashes and backslashes a special scheme skips (`http:///u:pw@h`, `https:\\u:pw@h`),
+up to a backslash too. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
 (`redactionFor`, `withRedactedOutput`) takes the exact userinfo of every URL argument
 (`credentialsIn`, exported) and replaces it with `***` in everything it prints —
 commander's usage errors, which echo rejected values, and its own messages (unknown

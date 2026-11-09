@@ -65,6 +65,13 @@ test("parity: a malformed --base-url / baseUrl is rejected by both, as a validat
     ["h.example", /Expected an absolute http\(s\) URL\./],
     ["not a url", /A base URL cannot contain whitespace or control characters\./],
     ["", /Expected an absolute http\(s\) URL\./],
+    // A backslash ends an http(s) authority for WHATWG (F), and a scheme not followed by exactly
+    // "//" is repaired by it silently (F3/F4): refused, never echoing the password.
+    ["https://user:s3cret@h.example\\@evil.example", /A base URL cannot contain a backslash \(\\\); write "\/" instead\./],
+    ["https:\\\\user:s3cret@h.example", /A base URL cannot contain a backslash/],
+    ["http:user:s3cret@h.example", /Expected an absolute http\(s\) URL \("https:\/\/" and the host\)\./],
+    ["http:///user:s3cret@h.example", /Expected an absolute http\(s\) URL \("https:\/\/" and the host\)\./],
+    ["http:///user:s3cret@h.example/?q=1", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
   ] as const) {
     const r = await parity(
       ["--compact", "--base-url", bad, "station-overview", "--id", "10865"],
@@ -73,6 +80,7 @@ test("parity: a malformed --base-url / baseUrl is rejected by both, as a validat
     );
     assertBothReject(r, message);
     assert.ok(!r.lib.ok && r.lib.error instanceof Error && r.lib.error.message.startsWith("Invalid baseUrl: "));
+    assert.ok(!r.cli.err.includes("s3cret") && !(r.lib.error as Error).message.includes("s3cret"), r.cli.err);
   }
 });
 
@@ -82,6 +90,8 @@ test("parity: a malformed --static-base-url / staticBaseUrl is rejected by both,
     ["https://s3.example/bucket?", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
     ["ftp://s3.example", /Unsupported scheme "ftp:"\. Expected an http\(s\) URL\./],
     ["", /Expected an absolute http\(s\) URL\./],
+    ["https://s3.example\\bucket", /A base URL cannot contain a backslash/],
+    ["https:/s3.example/bucket", /Expected an absolute http\(s\) URL \("https:\/\/" and the host\)\./],
   ] as const) {
     const r = await parity(
       ["--compact", "--static-base-url", bad, "crowd"],
