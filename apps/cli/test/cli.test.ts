@@ -742,3 +742,27 @@ test("the URL search of the redaction is linear: a 1 MB argument without :// is 
     assert.ok(took < 1000, `${big.length} characters took ${Math.round(took)} ms`);
   }
 });
+
+test("a base URL typed without its scheme never names its user name or password as a scheme (F5)", async () => {
+  // `T0kenS3cret:@h` parses as a URL whose scheme is the token, lower-cased: the refusal named it
+  // (`Unsupported scheme "t0kens3cret:"`), which no exact-string redaction matches.
+  for (const [flag, baseUrl, secret] of [
+    ["--base-url", "T0kenS3cret:@h.example", "t0kens3cret"],
+    ["--base-url", "alice:s3cret-pw@h.example", "s3cret-pw"],
+    ["--static-base-url", "Alice:s3cret-pw@h.example/x", "s3cret-pw"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    const argv = flag === "--base-url" ? ["station-overview", "--id", "10865"] : ["crowd"];
+    assert.equal(await run([flag, baseUrl, ...argv], cli.deps), 2, baseUrl);
+    assert.equal(cli.mt.calls.length, 0, baseUrl);
+    const text = [...cli.out, ...cli.err].join("\n");
+    assert.ok(!text.toLowerCase().includes(secret), text);
+    assert.match(text, /Expected an absolute http\(s\) URL/, baseUrl);
+    const option = flag === "--base-url" ? { baseUrl } : { staticBaseUrl: baseUrl };
+    assert.throws(
+      () => new DwdClient(option),
+      (err: unknown) => err instanceof Error && !err.message.toLowerCase().includes(secret) && /Expected an absolute http\(s\) URL/.test(err.message),
+      baseUrl,
+    );
+  }
+});

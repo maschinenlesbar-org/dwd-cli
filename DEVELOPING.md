@@ -333,7 +333,9 @@ auth. The engine keeps the base URL as WHATWG parses it (`new URL(…).href`: ho
 default port dropped), the reading every check makes, and scrubs its userinfo in both spellings,
 as typed and as the parser percent-encodes it. `credentialsIn` reads a userinfo as WHATWG does:
 after the slashes and backslashes a special scheme skips (`http:///u:pw@h`, `https:\\u:pw@h`),
-up to a backslash too. The reasons never repeat the value. The CLI also redacts on output: `run.ts`
+up to a backslash too. The reasons never repeat the value, nor a part of it: a scheme is
+named (`Unsupported scheme "ftp:"`) only when the value spells `<scheme>://`, since a scheme-less
+`user:password@host` parses with the user name, lower-cased, as its scheme. The CLI also redacts on output: `run.ts`
 (`redactionFor`, `withRedactedOutput`) takes the exact userinfo of every URL argument
 (`credentialsIn`, exported) and replaces it with `***` in everything it prints —
 commander's usage errors, which echo rejected values, and its own messages (unknown
