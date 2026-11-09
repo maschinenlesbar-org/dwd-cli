@@ -315,7 +315,10 @@ auth. The reasons never repeat the value. The CLI also redacts on output: `run.t
 (`credentialsIn`, exported) and replaces it with `***` in everything it prints —
 commander's usage errors, which echo rejected values, and its own messages (unknown
 command) — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as an
-ordinary one. Only a URL with a scheme counts (a bare `a:b@c` is a station
+ordinary one. Behind the exact strings, the userinfo of every URL in what it prints is replaced
+by `***` too (`redactUrlUserinfo`, client, `errors.ts`), in one linear pass: a URL glued onto the
+one before it (`https://host://u:p@h`) included, and an answer of `a.a.a.…`, on which the scheme
+regex it replaces took seconds, costs milliseconds. Only a URL with a scheme counts (a bare `a:b@c` is a station
 id, a User-Agent or a typed value as often as a credential), except as the `--base-url`
 or `--static-base-url` value, where a `user:password@host` typed without its scheme is
 still a credential. A URL is found wherever it starts inside an argument (`urlsWithin`):
