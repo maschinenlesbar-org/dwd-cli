@@ -19,6 +19,7 @@ import {
   redactCredentials,
   redactSecrets,
   redactUrl,
+  TextBuilder,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
@@ -174,30 +175,70 @@ export function parseRetryAfter(
 }
 
 /**
- * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
- * string that originates in an attacker-controlled response — the error `detail`,
- * a redirect `Location` and the echoed Content-Type. `JSON.parse` decodes a backslash-u001b escape in an error
- * body into a real ESC byte, so without this a hostile or MITM'd endpoint (or a
- * redirect target — redirects are followed here) could drive ANSI/OSC escape
- * sequences into the user's terminal when the message is printed to stderr.
- * The CLI's JSON output is escaped separately (`escapeControlChars` in
- * cli/shared.ts): `JSON.stringify` alone leaves DEL and the C1 range raw.
- * `DwdApiError.body` still
- * carries the unsanitised body (credentials scrubbed) for library consumers.
- *
- * The result is cut at MAX_SERVER_TEXT_LENGTH characters (ending in "…"), never inside a
- * surrogate pair (`cutText`), so a hostile or broken body can't flood stderr or a CI log
- * with one huge line, and the message stays well-formed.
+ * The most server text (in UTF-16 units) `sanitizeServerText` reads; a longer text is cut first.
+ * Every message keeps far less of it (MAX_SERVER_TEXT_LENGTH, 500 characters), and cleaning all
+ * of a 16 MB error detail, one string node per character, exhausted a small heap.
  */
-function sanitizeServerText(text: string): string {
-  let out = "";
-  for (const ch of text) {
-    const n = ch.codePointAt(0) ?? 0;
-    // strip C0/C1 except tab (0x09) and newline (0x0a), plus DEL (0x7f)
-    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
-    out += ch;
-  }
-  return out.length > MAX_SERVER_TEXT_LENGTH ? `${cutText(out, MAX_SERVER_TEXT_LENGTH)}…` : out;
+const MAX_SERVER_TEXT = 16 * 1024;
+
+/**
+ * A whole terminal escape sequence: a CSI (`ESC [` or the 8-bit U+009B, parameters,
+ * intermediates, final byte), a terminated control string (OSC/DCS/SOS/PM/APC, `ESC ]` …
+ * up to BEL or ST, or their 8-bit forms) or a short `ESC` sequence. Dropping only the
+ * control bytes left the printable rest behind (`ESC ] 0 ; title BEL` became `]0;title`).
+ * An unterminated control string is left to the per-character filter, so it cannot
+ * swallow the rest of the message. A control string's body ends at an ESC or at another
+ * introducer: with the introducers allowed inside it, an unterminated run of them was matched
+ * from each one to the end of the text, quadratic (100 000 × U+009D took 16 s). Written with
+ * escapes, so the source holds no control bytes.
+ */
+const ESCAPE_SEQUENCE =
+  /(?:\u001b\[|\u009b)[\u0030-\u003f]*[\u0020-\u002f]*[\u0040-\u007e]|(?:\u001b[\]PX^_]|[\u0090\u0098\u009d-\u009f])[^\u0007\u001b\u0090\u0098\u009c-\u009f]*(?:\u0007|\u001b\\|\u009c)|\u001b[\u0020-\u002f]*[\u0030-\u007e]/g;
+
+/**
+ * What `sanitizeServerText` drops once the escape sequences are gone: the C0 controls but the
+ * whitespace ones (TAB to CR), DEL, the C1 controls, and every format character (General
+ * Category Cf: bidi controls, zero-width characters, U+00AD, U+FEFF, …).
+ */
+const DROPPED_CHAR = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f\p{Cf}]/gu;
+
+/**
+ * Make a string that originates in an attacker-controlled response — an error `detail`, a
+ * redirect `Location`, an echoed Content-Type or charset, a transport's reason — safe to print
+ * into an error message on stderr:
+ *
+ * - Whole escape sequences (CSI, OSC and other control strings) are dropped first, then any
+ *   remaining C0 and C1 controls and DEL. `JSON.parse` decodes a JSON-escaped ESC (a
+ *   backslash-u-001b sequence) into a real ESC byte; printed raw, a hostile or MITM'd endpoint
+ *   (or a redirect target — redirects are followed here) could drive ANSI/OSC sequences into
+ *   the terminal (display spoofing, title changes).
+ * - Unicode format characters (General Category Cf) are dropped: the bidi controls
+ *   (isBidiControl), so server text cannot reorder the visible message, and the invisible ones
+ *   — zero-width space/joiners, word joiner, soft hyphen, BOM — so two messages that look
+ *   identical are identical.
+ * - Every run of whitespace — newlines, tabs, U+2028/U+2029 included — becomes one space and
+ *   the ends are trimmed, so the text stays on one line and a server cannot forge a line of its own.
+ * - Only the first MAX_SERVER_TEXT (16 384) units are read, and every step is a linear regex
+ *   replace: a hostile error body costs neither seconds nor the heap. A caller that scrubs
+ *   credentials does so first, so a cut never splits one.
+ *
+ * Messages keep at most MAX_SERVER_TEXT_LENGTH characters of the result (`cleanServerText`).
+ * The CLI's JSON output is escaped separately (`escapeControlChars` in cli/shared.ts):
+ * `JSON.stringify` alone leaves DEL and the C1 range raw. `DwdApiError.body` still carries the
+ * unsanitised body (credentials scrubbed) for library consumers.
+ */
+export function sanitizeServerText(text: string): string {
+  return cutText(text, MAX_SERVER_TEXT).replace(ESCAPE_SEQUENCE, "").replace(DROPPED_CHAR, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Server text as a message shows it: `sanitizeServerText`, then cut at MAX_SERVER_TEXT_LENGTH
+ * characters (ending in "…"), never inside a surrogate pair (`cutText`), so a hostile or broken
+ * body can't flood stderr or a CI log with one huge line, and the message stays well-formed.
+ */
+function cleanServerText(text: string): string {
+  const clean = sanitizeServerText(text);
+  return clean.length > MAX_SERVER_TEXT_LENGTH ? `${cutText(clean, MAX_SERVER_TEXT_LENGTH)}…` : clean;
 }
 
 /**
@@ -715,7 +756,7 @@ export class RequestEngine {
         if (cause instanceof DwdError && !(cause instanceof DwdNetworkError)) throw cause;
         const reason = cause instanceof Error ? cause.message : String(cause);
         throw new DwdNetworkError(
-          `${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}`,
+          `${method} ${redactUrl(url)} failed: ${cleanServerText(this.scrub(reason))}`,
           { cause: this.scrubCause(cause) },
         );
       }
@@ -735,7 +776,7 @@ export class RequestEngine {
       if (typeof finalUrl === "string" && finalUrl !== "" && originOf(finalUrl) !== originOf(url)) {
         throw new DwdNetworkError(
           `${method} ${redactUrl(url)} failed: the transport followed a redirect to another origin ` +
-            `(${sanitizeServerText(redactUrl(this.scrub(finalUrl)))}); a transport must not follow redirects ` +
+            `(${cleanServerText(redactUrl(this.scrub(finalUrl)))}); a transport must not follow redirects ` +
             `(HttpRequest.redirect is "manual").`,
         );
       }
@@ -783,7 +824,7 @@ export class RequestEngine {
             target = new URL(location, url);
           } catch {
             throw new DwdNetworkError(
-              `Invalid redirect Location "${sanitizeServerText(this.scrub(location))}" for ${method} ${redactUrl(url)}`,
+              `Invalid redirect Location "${cleanServerText(this.scrub(location))}" for ${method} ${redactUrl(url)}`,
             );
           }
           // Enforce the http(s) scheme allowlist on the redirect target here in
@@ -863,7 +904,7 @@ export class RequestEngine {
     // missing/empty Content-Type is treated leniently and still parsed.
     if (res.contentType && !isJsonContentType(res.contentType)) {
       throw new DwdParseError(
-        `${request}: expected a JSON answer, got Content-Type "${sanitizeServerText(mediaType(res.contentType))}".`,
+        `${request}: expected a JSON answer, got Content-Type "${cleanServerText(mediaType(res.contentType))}".`,
       );
     }
     const decoded = decodeBody(res.data, res.contentType, request);
@@ -883,7 +924,7 @@ export class RequestEngine {
       // the CLI never prints `cause`, and a truncated or garbled body otherwise all
       // read the same. It can quote the body, so it is scrubbed of the base URL's credentials
       // and sanitised, and the cause is the scrubbed copy, as for a transport failure.
-      const reason = cause instanceof Error ? sanitizeServerText(this.scrub(cause.message)) : "";
+      const reason = cause instanceof Error ? cleanServerText(this.scrub(cause.message)) : "";
       throw new DwdParseError(`${request}: the answer is not valid JSON${reason ? `: ${reason}` : "."}`, {
         cause: this.scrubCause(cause),
       });
@@ -931,7 +972,7 @@ export class RequestEngine {
     // `detail` came from the response body, decoded: scrubbed again (a JSON escape hid the
     // credential from the scrub above), then stripped of control characters so a hostile
     // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = sanitizeServerText(this.scrub(detail));
+    if (detail !== undefined) detail = cleanServerText(this.scrub(detail));
     if (hint !== undefined) detail = detail === undefined ? hint : `${detail}; ${hint}`;
     // Name the target of a redirect that was not followed.
     const location =
@@ -975,7 +1016,7 @@ function decodeBody(body: Buffer, contentType: string, request: string): { text:
   try {
     decoder = new TextDecoder(charset, { fatal: true });
   } catch {
-    throw new DwdParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
+    throw new DwdParseError(`${request}: unsupported response charset "${cutForMessage(cleanServerText(charset))}".`);
   }
   try {
     return { text: decoder.decode(body), replaced: 0 };
@@ -1045,11 +1086,12 @@ function escapeAt(json: string, at: number): number {
  * `\ufffd`, and how many. JSON.parse would make such an escape half a character, which a JSON
  * printer writes back as `\ud800` and `jq` refuses (the whole output with it). A raw lone
  * surrogate cannot occur: TextDecoder never makes one. One linear pass, and only when the text
- * holds a surrogate escape at all; the text is copied only when one is lone.
+ * holds a surrogate escape at all; the text is copied only when one is lone, in a TextBuilder (one
+ * `+=` per repair made a rope node each: 6 million repairs exhausted a 128 MB heap).
  */
 function wellFormedEscapes(json: string): { json: string; replaced: number } {
   if (!SURROGATE_ESCAPE.test(json)) return { json, replaced: 0 };
-  let out = "";
+  const out = new TextBuilder();
   let copied = 0;
   let replaced = 0;
   for (let i = 0; i < json.length; i++) {
@@ -1064,12 +1106,14 @@ function wellFormedEscapes(json: string): { json: string; replaced: number } {
       i += 11;
       continue;
     }
-    out += json.slice(copied, i) + "\\ufffd";
+    out.push(json.slice(copied, i), "\\ufffd");
     copied = i + 6;
     replaced++;
     i += 5;
   }
-  return replaced === 0 ? { json, replaced } : { json: out + json.slice(copied), replaced };
+  if (replaced === 0) return { json, replaced };
+  out.push(json.slice(copied));
+  return { json: out.toString(), replaced };
 }
 
 function isLowSurrogate(code: number): boolean {
@@ -1088,7 +1132,7 @@ function redirectTarget(requestUrl: string, location: string): string | undefine
   } catch {
     resolved = undefined;
   }
-  const clean = sanitizeServerText(resolved ? redactUrl(resolved.href) : location).trim();
+  const clean = cleanServerText(resolved ? redactUrl(resolved.href) : location);
   return clean === "" ? undefined : clean;
 }
 
@@ -1168,13 +1212,14 @@ function skipSpace(json: string, i: number): number {
  * - any other number is checked as {@link firstInexactNumber} says, and the first one JSON.parse
  *   cannot carry exactly is reported in `inexact`.
  * Nothing is allocated per value: a member name is compared in place (only a name written with
- * an escape is decoded), and the text is copied only when a declared member is found. No
- * reviver, which would recurse per nesting level and overflow on deep data.
+ * an escape is decoded), and the text is copied only when a declared member is found, in a
+ * TextBuilder (one `+=` per quoted member made a rope node each: 3 million exhausted a 128 MB
+ * heap). No reviver, which would recurse per nesting level and overflow on deep data.
  */
 export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = NO_KEYS): NumberScan {
   const keys = bigIntegerKeys.size === 0 ? undefined : [...bigIntegerKeys];
   let inexact: string | undefined;
-  let out: string | undefined;
+  let out: TextBuilder | undefined;
   let copied = 0;
   for (let i = 0; i < json.length; i++) {
     const c = json.charCodeAt(i);
@@ -1198,7 +1243,8 @@ export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = 
       STRICT_JSON_NUMBER.lastIndex = at;
       const literal = STRICT_JSON_NUMBER.exec(json)?.[0];
       if (literal === undefined) continue;
-      out = (out ?? "") + json.slice(copied, at) + '"' + literal + '"';
+      out ??= new TextBuilder();
+      out.push(json.slice(copied, at), '"', literal, '"');
       copied = at + literal.length;
       i = copied - 1;
     } else if (c === 0x2d || (c >= 0x30 && c <= 0x39)) {
@@ -1213,7 +1259,9 @@ export function scanNumbers(json: string, bigIntegerKeys: ReadonlySet<string> = 
       i += literal.length - 1;
     }
   }
-  return { json: out === undefined ? json : out + json.slice(copied), inexact };
+  if (out === undefined) return { json, inexact };
+  out.push(json.slice(copied));
+  return { json: out.toString(), inexact };
 }
 
 /** A member name written with an escape, decoded; a name JSON.parse can't read matches nothing. */

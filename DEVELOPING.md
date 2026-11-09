@@ -289,9 +289,17 @@ documented range (`0` = off for the timeout and the size cap); anything else —
 negative, fractional, `NaN`, oversized or non-number value — makes the constructor
 throw a `DwdValidationError` naming the option; so does a `transport` or `sleep` that
 isn't a function. Server text in a message (an error `detail`, a redirect target, an
-echoed Content-Type, a transport's reason) is cut at 500 characters
-(`MAX_SERVER_TEXT_LENGTH`), never inside a surrogate pair (`cutText`), so the message stays
-well-formed; `DwdApiError.body` keeps all of it. A value an own message quotes from the
+echoed Content-Type or charset, a transport's reason) goes through `sanitizeServerText`
+(engine): it reads at most the first 16 384 characters, drops whole terminal escape sequences
+(CSI, OSC and the other control strings, not just their control bytes), then the remaining C0
+and C1 controls, DEL and every Unicode format character (bidi controls, zero-width characters,
+the soft hyphen), and folds every run of whitespace, line breaks included, into one space, each
+step one linear regex replace (a hostile 16 MB detail costs neither seconds nor the heap). The
+message keeps 500 characters of the result (`MAX_SERVER_TEXT_LENGTH`), never cut inside a
+surrogate pair (`cutText`), so it stays well-formed; `DwdApiError.body` keeps all of it. The
+engine's own rewrites of an answer (the lone-surrogate repair, the quoting of declared big
+integers) collect their pieces in a `TextBuilder` (`errors.ts`), joined in batches, so millions
+of repairs stay within a small heap. A value an own message quotes from the
 user's input is cut too: a rejected `lang` or station id (quoted visibly by `quoteValue`), a
 base URL's scheme and the base URL the `/v30`/`/v16` hint suggests at `MAX_QUOTED_LENGTH` (200,
 `cutForMessage`, in `errors.ts`), so `err.message` stays bounded for a library caller.
@@ -570,8 +578,9 @@ forge another one or steer the terminal. Before that a lone surrogate (half a ch
 which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`), and a message
 longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a code point and ends
 in `… (N more characters)` (a long id list in the unknown-station note, a request URL with
-thousands of ids). The library's error messages keep a server's line
-breaks (`sanitizeServerText` strips only the other controls); the record escapes them. The
+thousands of ids). The library's error messages hold a server's text on one line already
+(`sanitizeServerText` folds its line breaks into spaces); the record escapes whatever else
+reaches it. The
 areas are `cli` (usage errors, commander's messages, unexpected errors), `api` (the
 API's answers: HTTP errors, text replaced with U+FFFD (a WARN), the unknown-station note, the stale-feed note, and a malformed
 answer, a `DwdParseError`: bad JSON, the wrong shape or content type, an unknown charset), `http` (the connection: network errors, the cleartext
