@@ -213,7 +213,9 @@ apps/cli/src/cli/
   uses `node:http`/`node:https` and transparently decompresses gzip, deflate (both zlib-wrapped and raw
   DEFLATE) and brotli bodies; decoding runs asynchronously (off the event loop) and the decompressed
   output is bounded by `maxResponseBytes` so a small compressed body cannot expand into an
-  out-of-memory "decompression bomb". Tests inject a mock.
+  out-of-memory "decompression bomb". It joins the body's chunks as they arrive (at most 1024 or
+  64 KiB wait unjoined), so its memory follows the bytes received, not the number of chunks a
+  server sends (a Buffer per one-byte chunk held ~210 bytes of heap each). Tests inject a mock.
 - The client runs two `RequestEngine` instances (live + static host) sharing the same options/transport,
   so the two-host topology is invisible to callers. Redirects are followed up to `maxRedirects`; the
   base URL's credentials go along to the same origin only: if a redirect crosses to a different
@@ -522,7 +524,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   number the answer can't carry exactly, and an empty answer, are a parse error, never a changed
   value, and every answer error names the request; its adapter sets dwd's parse exit `7`), and
   from the fix round `.reviews/2026-10-21-exploratory/fix-plan.md` P27 big and odd answers (a
-  large flat answer and one full of DEL characters print within a small heap, or past V8's
+  large flat answer, one full of DEL characters and one in two million one-byte chunks print
+  within a small heap, or past V8's
   longest string are one ERROR record of `dwd.output`; a lone surrogate or invalid bytes are
   replaced with U+FFFD and reported in a WARN of `dwd.api`; it starts the built bin, so 30 s),
   and P26 output integrity: dwd has no `-o`, so its adapter sets `HAS_OUTPUT_OPTION = false` and
