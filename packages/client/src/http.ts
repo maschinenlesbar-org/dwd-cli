@@ -14,7 +14,7 @@ import http from "node:http";
 import https from "node:https";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
-import { DwdNetworkError, redactUrl, credentialsIn, redactCredentials } from "./errors.js";
+import { DwdNetworkError, redactUrl, credentialsIn, redactCredentials, typedUrlCredentials } from "./errors.js";
 
 // Async (libuv thread-pool) variants of the zlib calls. Decoding runs off the
 // main thread so a large warning feed does not block the event loop — important
@@ -148,10 +148,11 @@ function toNetworkError(err: unknown): DwdNetworkError {
 
 /**
  * `url` for a message, its userinfo redacted; one typed without its scheme (`user:pw@host`,
- * `TOKEN:@host`) is read as if it had one, since `redactUrl` finds a userinfo only after a scheme.
+ * `TOKEN:@host`) or with a mistyped one (`http//user:pw@host`) is read as a URL all the same
+ * (`typedUrlCredentials`), since `redactUrl` finds a userinfo only after a scheme.
  */
 function shownUrl(url: string): string {
-  return credentialsIn(url).length > 0 ? redactUrl(url) : redactCredentials(url, credentialsIn(`http://${url}`));
+  return credentialsIn(url).length > 0 ? redactUrl(url) : redactCredentials(url, typedUrlCredentials(url));
 }
 
 /**

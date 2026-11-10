@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { MAX_RETRY_AFTER_MS, RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers } from "../src/engine.js";
-import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, credentialsIn, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
+import { DwdApiError, DwdNetworkError, DwdParseError, DwdValidationError, credentialsIn, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed, typedUrlCredentials } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/http.js";
 
@@ -1146,4 +1146,26 @@ test("requests go to the base URL as WHATWG parses it, and the login is scrubbed
   assert.equal(mt.calls[0]?.url, "https://api.example/v1/x");
   assert.ok(err instanceof DwdApiError, String(err));
   assert.ok(!err.message.includes("p\"äß-pw") && !err.message.includes("p%22%C3%A4%C3%9F-pw"), err.message);
+});
+
+test("typedUrlCredentials reads a value meant as a URL whatever its scheme: missing, special without //, mistyped (F7)", () => {
+  for (const [value, userinfo] of [
+    ["https://alice:pw@h.example/x", "alice:pw"],
+    ["http:///alice:pw@h.example", "alice:pw"],
+    ["alice:pw@h.example/x", "alice:pw"],
+    ["my_user:pw@h.example", "my_user:pw"],
+    ["T0ken:@h.example", "T0ken:"],
+    ["http//alice:pw@h.example", "alice:pw"],
+    ["https//alice:pw@h.example/v1", "alice:pw"],
+    ["http/alice:pw@h.example", "alice:pw"],
+    ["htp:/alice:pw@h.example", "alice:pw"],
+    ["http\\\\alice:pw@h.example", "alice:pw"],
+    ["http//alice:p/w@h.example", "alice:p/w"],
+  ] as const) {
+    assert.deepEqual(typedUrlCredentials(value), [userinfo], value);
+  }
+  // No "@" after the slashes, or a scheme spelled with "//" and no userinfo: none.
+  for (const value of ["", "h.example/x", "http//h.example/x", "@h.example/x", "http//@h.example", "https://h.example/a@b"]) {
+    assert.deepEqual(typedUrlCredentials(value), [], value);
+  }
 });
