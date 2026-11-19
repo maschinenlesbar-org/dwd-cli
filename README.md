@@ -34,6 +34,50 @@ Check it works:
 dwd --help
 ```
 
+### Docker
+
+From 0.9.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install:
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/maschinenlesbar-org/dwd-cli:latest warnings gemeinde
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… dwd-cli:latest dwd warnings gemeinde` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory.
+The CLI needs at least 12 processes and threads (`--pids-limit 12`): below that it refuses with
+an error, and with 4 or fewer Node.js itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/dwd-cli/releases) give:
+`…/dwd-cli:0.9.0@sha256:<digest>`. Each image carries signed build provenance; check it
+with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/dwd-cli:latest \
+  --repo maschinenlesbar-org/dwd-cli
+```
+
+### MCP server
+
+From 0.9.0 the same data is also an [MCP](https://modelcontextprotocol.io/) server for AI agents,
+`@maschinenlesbar.org/dwd-mcp` (command `dwd-mcp`, image
+`ghcr.io/maschinenlesbar-org/dwd-mcp`): six read-only tools, among them a ranked warning
+briefing (for Germany or a place), the warning areas as GeoJSON, a station forecast and the crowd
+reports near a place, on stdio or Streamable HTTP. Setup for Claude Code, Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/dwd-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/dwd-mcp
+claude mcp add dwd -- dwd-mcp
+```
+
 ## Quickstart
 
 No setup needed. Your first command — current nationwide short-term warnings:
