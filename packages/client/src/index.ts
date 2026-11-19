@@ -60,5 +60,40 @@ export {
   redactCredentials,
 } from "./errors.js";
 
+export {
+  berlinTime,
+  checkCrowdReports,
+  containsPoint,
+  CROWD_CATEGORIES,
+  distanceKm,
+  DWD_LEVELS,
+  dwdLevelOf,
+  FORECAST_UNITS,
+  getStationForecast,
+  getWarningAreas,
+  getWarningBriefing,
+  regionGeometry,
+  WARNING_FEEDS,
+} from "./operations.js";
+export type {
+  AreaGeometry,
+  BriefedWarning,
+  CrowdCheck,
+  CrowdCheckInput,
+  CrowdReport,
+  FeedState,
+  ForecastDay,
+  ForecastHour,
+  StationForecast,
+  StationForecastInput,
+  StationForecasts,
+  WarningArea,
+  WarningAreas,
+  WarningAreasInput,
+  WarningBriefing,
+  WarningBriefingInput,
+  WarningFeedName,
+} from "./operations.js";
+
 export * from "./enums.js";
 export * from "./types.js";
