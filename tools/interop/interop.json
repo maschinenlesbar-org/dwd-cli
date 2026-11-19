@@ -1,0 +1,281 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the mock upstream's answer per path (under --base-url http://127.0.0.1:<port>, a mirror of both DWD hosts: the web service's /v30 and the bucket's /v16; recorded answers, cut down, the crowd reports made up), how many tools the server lists, and the calls to make with what each must answer.",
+  "answers": {
+    "/v30/stationOverviewExtended": {
+      "10865": {
+        "forecast1": {
+          "stationId": "10865",
+          "start": 1795042800000,
+          "timeStep": 3600000,
+          "temperature": [
+            84,
+            85,
+            81,
+            75,
+            78,
+            73,
+            73,
+            76,
+            78,
+            83,
+            79,
+            82,
+            80,
+            84,
+            88,
+            90,
+            90,
+            87,
+            87,
+            89,
+            88,
+            88,
+            89,
+            88
+          ],
+          "windSpeed": null,
+          "windDirection": null,
+          "windGust": null,
+          "precipitationTotal": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "sunshine": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "dewPoint2m": [
+            15,
+            14,
+            13,
+            12,
+            12,
+            12
+          ],
+          "surfacePressure": [
+            10206,
+            10202,
+            10199,
+            10193,
+            10188,
+            10183
+          ],
+          "humidity": [
+            797,
+            820,
+            831,
+            855,
+            873,
+            898
+          ],
+          "isDay": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "cloudCoverTotal": [],
+          "temperatureStd": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            11,
+            11,
+            10,
+            11,
+            10,
+            11,
+            12,
+            11
+          ],
+          "icon": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ],
+          "icon1h": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ],
+          "precipitationProbablity": null,
+          "precipitationProbablityIndex": null
+        },
+        "forecast2": null,
+        "forecastStart": null,
+        "days": [
+          {
+            "stationId": null,
+            "dayDate": "2026-11-19",
+            "temperatureMin": 73,
+            "temperatureMax": 90,
+            "precipitation": 18,
+            "windSpeed": 167,
+            "windGust": 555,
+            "windDirection": 2340,
+            "sunshine": 120,
+            "sunrise": 1795069597000,
+            "sunset": 1795102306000,
+            "moonrise": 1795092614000,
+            "moonset": 1795136965000,
+            "moonriseOnThisDay": 1795092614000,
+            "moonsetOnThisDay": null,
+            "sunriseOnThisDay": 1795069597000,
+            "sunsetOnThisDay": 1795102306000,
+            "moonPhase": 2,
+            "icon": 7,
+            "icon1": null,
+            "icon2": null
+          }
+        ],
+        "threeHourSummaries": null,
+        "warnings": []
+      }
+    },
+    "/v16/warnings_coast.json": {
+      "time": 1795099220219,
+      "warnings": {
+        "501000001": [
+          {
+            "warnId": "2.49.0.0.276.0.DWD.PVW.1795064820000.c03e5803-d828-46e2-9b69-a611e52a0fbd.MUL",
+            "type": 1,
+            "level": 2,
+            "bn": false,
+            "event": "BÖEN",
+            "description": "Böen von 7 Beaufort aus Nordost bis Ost.",
+            "headline": "Amtliche Warnung des Seewetterdienstes Hamburg vor BÖEN",
+            "instruction": "",
+            "instructionHtml": "",
+            "descriptionText": "Böen von 7 Beaufort aus Nordost bis Ost."
+          }
+        ],
+        "501000002": [
+          {
+            "warnId": "2.49.0.0.276.0.DWD.PVW.1795064820000.c03e5803-d828-46e2-9b69-a611e52a0fbd.MUL",
+            "type": 1,
+            "level": 2,
+            "bn": false,
+            "event": "BÖEN",
+            "description": "Böen von 7 Beaufort aus Nordost bis Ost.",
+            "headline": "Amtliche Warnung des Seewetterdienstes Hamburg vor BÖEN",
+            "instruction": "",
+            "instructionHtml": "",
+            "descriptionText": "Böen von 7 Beaufort aus Nordost bis Ost."
+          }
+        ]
+      },
+      "vorabInformation": {}
+    },
+    "/v16/crowd_meldungen_overview_v2.json": {
+      "start": 1795056244802,
+      "end": 1795099444802,
+      "windowsSizeHours": 1,
+      "highestSeverities": [
+        {
+          "category": "REGEN",
+          "auspraegung": "REGEN_STARK"
+        }
+      ],
+      "meldungen": [
+        {
+          "meldungId": 1,
+          "timestamp": 1795098844802,
+          "lat": "50.000",
+          "lon": "8.270",
+          "place": "Mainz",
+          "category": "REGEN",
+          "auspraegung": "REGEN_STARK",
+          "zusatzAttribute": [],
+          "likeCount": 2
+        },
+        {
+          "meldungId": 2,
+          "timestamp": 1795098544802,
+          "lat": "50.000",
+          "lon": "8.270",
+          "place": "Mainz",
+          "category": "BEWOELKUNG",
+          "auspraegung": "BEWOELKUNG_BEDECKT",
+          "zusatzAttribute": [],
+          "likeCount": 0
+        }
+      ]
+    }
+  },
+  "tools": 6,
+  "calls": [
+    {
+      "name": "getStationForecast",
+      "arguments": {
+        "stationIds": [
+          "10865"
+        ],
+        "hours": 2
+      },
+      "expect": {
+        "status": "ok",
+        "stations.0.stationId": "10865"
+      }
+    },
+    {
+      "name": "getWarningBriefing",
+      "arguments": {
+        "feeds": [
+          "coast"
+        ]
+      },
+      "expect": {
+        "status": "ok",
+        "warnings.0.dwdLevel": 1,
+        "warnings.0.zones.1": "501000002"
+      }
+    },
+    {
+      "name": "checkCrowdReports",
+      "arguments": {
+        "place": "Mainz"
+      },
+      "expect": {
+        "status": "ok",
+        "matched": 1,
+        "byCategory.0.category": "REGEN"
+      }
+    },
+    {
+      "name": "getStationForecast",
+      "arguments": {
+        "stationIds": []
+      },
+      "error": true
+    }
+  ]
+}

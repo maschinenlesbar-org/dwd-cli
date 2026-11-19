@@ -1,0 +1,121 @@
+// This server's tools against a mock of the DWD API, with the skills' traps as cases: DWD's level,
+// never the feed's number; calm is empty and a stale feed is named; the warning areas as GeoJSON,
+// a page at a time; a forecast from the current hour with the end-aligned series and an unknown
+// station as missing; crowd reports without what points to a person, an ambiguous place reported;
+// the static feeds' source on the bucket, not the web service. The rules every server follows are
+// the conformance tests (M1–M10).
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { Client, staticBase } from "../src/mcp/api.js";
+import { listTools } from "../src/mcp/server.js";
+import { connect } from "./harness.js";
+import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS } from "./helpers.js";
+
+const HOUR = 3_600_000;
+/** The fixtures' feeds with the real clock: the tools read Date.now(). */
+const shift = Date.now() - NOW;
+const at = <T extends Record<string, unknown>>(feed: T): T => JSON.parse(JSON.stringify(feed), (key, value) => (["time", "start", "end", "timestamp"].includes(key) && typeof value === "number" ? value + shift : value));
+
+test("six tools: the four use cases first, then the two generic ones", () => {
+  assert.deepEqual(listTools().map((t) => t.name), ["getWarningBriefing", "getWarningAreas", "getStationForecast", "checkCrowdReports", "getWarningFeed", "getStationOverview"]);
+});
+
+test("getWarningBriefing: DWD's level and stage, never the feed's number; its source the bucket's feeds", async () => {
+  const connection = await connect({ transport: dwdApi({ gemeinde: at(gemeinde()), nowcast: at(nowcast()), coast: at(coast()) }) });
+  const result = await connection.call("getWarningBriefing", {});
+  const answer = result.structuredContent as Record<string, unknown>;
+  assert.equal(answer["status"], "ok", result.content[0]?.text);
+  const [first] = answer["warnings"] as { event: string; dwdLevel: number; stage: string }[];
+  assert.deepEqual([first?.event, first?.dwdLevel, first?.stage], ["ORKANARTIGE BÖEN", 3, "Unwetterwarnung (red)"]);
+  assert.equal(answer["source"], "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16/{warnings_nowcast,gemeinde_warnings_v2,warnings_coast}.json");
+  assert.match(String(answer["licence"]), /Datenbasis: Deutscher Wetterdienst/);
+  await connection.close();
+});
+
+test("getWarningBriefing: calm is empty with the reason; a stale feed is named, not called calm", async () => {
+  const connection = await connect({ transport: dwdApi({ nowcast: { time: Date.now() - 3 * HOUR, warnings: [], binnenSee: null } }) });
+  const answer = (await connection.call("getWarningBriefing", { feeds: ["nowcast"] })).structuredContent as Record<string, unknown>;
+  assert.equal(answer["status"], "empty");
+  assert.match(String(answer["reason"]), /over an hour ago, so newer warnings may be missing/);
+  assert.match(String(answer["source"]), /\/v16\/warnings_nowcast\.json$/);
+  await connection.close();
+});
+
+test("getWarningAreas: a FeatureCollection a page at a time, most severe first, with where the next page starts", async () => {
+  const connection = await connect({ transport: dwdApi({ gemeinde: at(gemeinde()), nowcast: at(nowcast()) }) });
+  const answer = (await connection.call("getWarningAreas", { limit: 2 })).structuredContent as Record<string, unknown>;
+  assert.equal(answer["type"], "FeatureCollection");
+  const features = answer["features"] as { type: string; geometry: { type: string }; properties: { event: string } }[];
+  assert.equal(features.length, 2);
+  assert.equal(features[0]?.properties.event, "ORKANARTIGE BÖEN");
+  assert.equal(features[0]?.geometry.type, "Polygon");
+  assert.equal(answer["total"], 6, "two nowcast areas, four Gemeinde areas (the frost has expired)");
+  assert.equal(answer["nextOffset"], 2);
+  await connection.close();
+});
+
+test("getStationForecast: from the current hour in German local time; an unknown station is missing; its source the web service", async () => {
+  const connection = await connect({ transport: dwdApi() });
+  const answer = (await connection.call("getStationForecast", { stationIds: ["10865", "99999"], hours: 2 })).structuredContent as Record<string, unknown>;
+  assert.equal(answer["status"], "ok");
+  assert.deepEqual(answer["missing"], ["99999"]);
+  assert.equal(answer["source"], "https://app-prod-ws.warnwetter.de/v30/stationOverviewExtended?stationIds=10865,99999");
+  const none = (await connection.call("getStationForecast", { stationIds: ["99999"] })).structuredContent as Record<string, unknown>;
+  assert.equal(none["status"], "empty");
+  assert.match(String(none["reason"]), /no data for station id 99999/);
+  await connection.close();
+});
+
+test("checkCrowdReports: counts per category, no exact positions or photo links; an ambiguous place is reported", async () => {
+  const connection = await connect({ transport: dwdApi({ crowd: at(crowd(REPORTS)) }) });
+  const result = await connection.call("checkCrowdReports", { place: "Mainz" });
+  const answer = result.structuredContent as Record<string, unknown>;
+  assert.equal(answer["status"], "ok", result.content[0]?.text);
+  assert.equal(answer["matched"], 3);
+  assert.doesNotMatch(result.content[0]?.text ?? "", /example\.test|49\.992|imageUrl/);
+  assert.match(String(answer["source"]), /app-prod-static\.warnwetter\.de\/v16\/crowd_meldungen_overview_v2\.json$/);
+  const ambiguous = (await connection.call("checkCrowdReports", { place: "Neustadt" })).structuredContent as Record<string, unknown>;
+  assert.equal(ambiguous["status"], "ambiguous");
+  assert.equal((ambiguous["candidates"] as unknown[]).length, 2);
+  await connection.close();
+});
+
+test("getWarningFeed: the feed as sent without the areas, coast warnings with their zone, the lakes apart", async () => {
+  const connection = await connect({ transport: dwdApi({ gemeinde: at(gemeinde()), coast: at(coast()) }) });
+  const feed = (await connection.call("getWarningFeed", { feed: "gemeinde", limit: 2 })).structuredContent as Record<string, unknown>;
+  const warnings = feed["warnings"] as Record<string, unknown>[];
+  assert.equal(warnings.length, 2);
+  assert.equal(warnings[0]?.["regions"], undefined);
+  assert.equal(warnings[0]?.["regionCount"], 1);
+  assert.equal(feed["total"], 5);
+  assert.equal(feed["nextOffset"], 2);
+  assert.deepEqual((feed["lakes"] as { lake: string }[]).map((l) => l.lake), ["208438000", "208439000"]);
+  const zones = (await connection.call("getWarningFeed", { feed: "coast" })).structuredContent as Record<string, unknown>;
+  assert.deepEqual((zones["warnings"] as { zone: string }[]).map((w) => w.zone), ["501000001", "501000002"]);
+  await connection.close();
+});
+
+test("getStationOverview: decoded to real units; an unknown id is empty with the reason", async () => {
+  const connection = await connect({ transport: dwdApi() });
+  const answer = (await connection.call("getStationOverview", { stationId: "10865" })).structuredContent as Record<string, unknown>;
+  const station = answer["station"] as { forecast1: { temperature: (number | null)[] } };
+  assert.deepEqual(station.forecast1.temperature.slice(14, 17), [6.4, null, 6.6]);
+  const none = (await connection.call("getStationOverview", { stationId: "99999" })).structuredContent as Record<string, unknown>;
+  assert.equal(none["status"], "empty");
+  await connection.close();
+});
+
+test("--base-url names a mirror of both hosts: the bucket's files are read from it too, and the sources say so", async () => {
+  const api = dwdApi();
+  const mirrored = new Client({ baseUrl: "http://mirror.test:8080/", transport: api.transport });
+  await mirrored.crowd();
+  await mirrored.weather.stationOverview(["10865"]);
+  assert.deepEqual(api.calls.map((r) => r.url), ["http://mirror.test:8080/v16/crowd_meldungen_overview_v2.json", "http://mirror.test:8080/v30/stationOverviewExtended?stationIds=10865"]);
+  assert.equal(staticBase("http://mirror.test:8080/"), "http://mirror.test:8080");
+  assert.equal(staticBase("https://app-prod-ws.warnwetter.de"), "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de");
+  const connection = await connect({ transport: dwdApi(), config: { baseUrl: "http://mirror.test:8080" } });
+  const answer = (await connection.call("checkCrowdReports", {})).structuredContent as Record<string, unknown>;
+  assert.equal(answer["source"], "http://mirror.test:8080/v16/crowd_meldungen_overview_v2.json");
+  await connection.close();
+});
