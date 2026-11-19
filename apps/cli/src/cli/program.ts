@@ -13,6 +13,7 @@ import { MAX_RETRIES } from "@maschinenlesbar.org/dwd-client/internal/engine";
 import { addHelpCommand, forbidRepeatedOptions, parseServiceBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, helpOrUnknownCommand } from "./shared.js";
 import { registerWeatherCommands } from "./commands/weather.js";
 import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
+import { readContainerLimits } from "./limits.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -36,6 +37,8 @@ export const VERSION = readVersion();
 export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new DwdClient(options),
+  // In a container: the memory and pids limits (cgroup), for action()'s checks.
+  limits: () => readContainerLimits(),
 };
 
 /** commander value-parser for `--log-format`. */
