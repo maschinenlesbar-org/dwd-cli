@@ -1,0 +1,173 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock's answer to that request (by path, under --base-url http://mock:8080; a recorded station overview, cut down), and a string the printed answer contains.",
+  "bin": "dwd",
+  "command": [
+    "station-overview",
+    "--id",
+    "10865"
+  ],
+  "networkErrorExit": 6,
+  "answers": {
+    "/v30/stationOverviewExtended": {
+      "10865": {
+        "forecast1": {
+          "stationId": "10865",
+          "start": 1795042800000,
+          "timeStep": 3600000,
+          "temperature": [
+            84,
+            85,
+            81,
+            75,
+            78,
+            73,
+            73,
+            76,
+            78,
+            83,
+            79,
+            82,
+            80,
+            84,
+            88,
+            90,
+            90,
+            87,
+            87,
+            89,
+            88,
+            88,
+            89,
+            88
+          ],
+          "windSpeed": null,
+          "windDirection": null,
+          "windGust": null,
+          "precipitationTotal": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "sunshine": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "dewPoint2m": [
+            15,
+            14,
+            13,
+            12,
+            12,
+            12
+          ],
+          "surfacePressure": [
+            10206,
+            10202,
+            10199,
+            10193,
+            10188,
+            10183
+          ],
+          "humidity": [
+            797,
+            820,
+            831,
+            855,
+            873,
+            898
+          ],
+          "isDay": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "cloudCoverTotal": [],
+          "temperatureStd": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            11,
+            11,
+            10,
+            11,
+            10,
+            11,
+            12,
+            11
+          ],
+          "icon": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ],
+          "icon1h": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ],
+          "precipitationProbablity": null,
+          "precipitationProbablityIndex": null
+        },
+        "forecast2": null,
+        "forecastStart": null,
+        "days": [
+          {
+            "stationId": null,
+            "dayDate": "2026-11-19",
+            "temperatureMin": 73,
+            "temperatureMax": 90,
+            "precipitation": 18,
+            "windSpeed": 167,
+            "windGust": 555,
+            "windDirection": 2340,
+            "sunshine": 120,
+            "sunrise": 1795069597000,
+            "sunset": 1795102306000,
+            "moonrise": 1795092614000,
+            "moonset": 1795136965000,
+            "moonriseOnThisDay": 1795092614000,
+            "moonsetOnThisDay": null,
+            "sunriseOnThisDay": 1795069597000,
+            "sunsetOnThisDay": 1795102306000,
+            "moonPhase": 2,
+            "icon": 7,
+            "icon1": null,
+            "icon2": null
+          }
+        ],
+        "threeHourSummaries": null,
+        "warnings": []
+      }
+    }
+  },
+  "expectStdout": "\"stationId\": \"10865\""
+}
