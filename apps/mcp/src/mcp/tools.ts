@@ -112,14 +112,14 @@ export const TOOLS: readonly ToolDefinition[] = [
       RULES,
     ].join("\n\n"),
     inputSchema: input({
-      feeds: { type: "array", items: { type: "string", enum: ["nowcast", "gemeinde", "coast"] }, minItems: 1, maxItems: 3, description: "The feeds to read (default all three)." },
+      feeds: { type: "array", items: { type: "string", enum: ["nowcast", "gemeinde", "coast"] }, minItems: 1, maxItems: 3, description: "The feeds to read (default all three; with lat/lon nowcast and gemeinde)." },
       lang,
       lat,
       lon,
       limit: { type: "integer", minimum: 1, maximum: 100, description: "The most warnings listed, most severe first (default 25); the rest are counted in more." },
     }),
     outputSchema: output({ verdict: str_, active: int, worstDwdLevel: int, byEvent: obj, warnings: arr, advance: arr, more: int, feeds: arr }),
-    source: (args, base) => feedSource(base, (list(args, "feeds") as WarningFeedName[] | undefined) ?? ["nowcast", "gemeinde", "coast"], str(args, "lang")),
+    source: (args, base) => feedSource(base, (list(args, "feeds") as WarningFeedName[] | undefined) ?? (num(args, "lat") === undefined ? ["nowcast", "gemeinde", "coast"] : ["nowcast", "gemeinde"]), str(args, "lang")),
     async run(args, context) {
       return {
         ...(await getWarningBriefing(context.client, {

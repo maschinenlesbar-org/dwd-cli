@@ -23,7 +23,7 @@ test("briefing: DWD's level is the feed's level minus 1, named, never the feed's
   assert.equal(first?.dwdLevel, 3, "feed level 4 is DWD's Unwetterwarnung, level 3 of 4");
   assert.equal(first?.stage, "Unwetterwarnung (red)");
   assert.equal(answer.worstDwdLevel, 3);
-  assert.match(answer.verdict, /the worst DWD level 3 of 4 \(Unwetterwarnung/);
+  assert.match(answer.verdict, /^5 active DWD warning\(s\) in Germany, the worst DWD level 3 of 4, Unwetterwarnung \(red\); 1 advance information\.$/);
   assert.doesNotMatch(answer.verdict, /level 4/);
   const levels = answer.warnings.map((w) => w.feedLevel ?? 0);
   assert.deepEqual(levels, [...levels].sort((a, b) => b - a));
@@ -83,8 +83,11 @@ test("briefing: calm is empty with a plain reason; a stale feed is named instead
   assert.equal(stale.feeds[0]?.stale, true);
 });
 
-test("briefing at a point: only the warnings whose area contains it; coast and lake warnings left out with a note", async () => {
-  const answer = await getWarningBriefing(client().client, { lat: MUNICH[0], lon: MUNICH[1], now: NOW });
+test("briefing at a point: only the warnings whose area contains it; coast and lake warnings left out with a note, the coast feed not read", async () => {
+  const { api, client: c } = client();
+  const answer = await getWarningBriefing(c, { lat: MUNICH[0], lon: MUNICH[1], now: NOW });
+  assert.deepEqual(answer.searched.feeds, ["nowcast", "gemeinde"]);
+  assert.ok(!api.calls.some((r) => r.url.includes("coast")), "the coast feed has no areas: not read");
   assert.deepEqual(answer.warnings.map((w) => w.event).sort(), ["STURMBÖEN", "Starkregen"]);
   assert.equal(answer.warnings.find((w) => w.event === "STURMBÖEN")?.count, 1, "the Berlin area is not here");
   assert.ok(answer.notes.some((n) => /coast or inland-lake/.test(n)));

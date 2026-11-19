@@ -156,7 +156,7 @@ export function dwdLevelOf(warning: JsonObject): number | undefined {
 
 /** The input of {@link getWarningBriefing}. */
 export interface WarningBriefingInput {
-  /** The feeds to read (default all three). */
+  /** The feeds to read (default all three; with a point nowcast and Gemeinde, the coast feed has no areas). */
   feeds?: readonly WarningFeedName[] | undefined;
   /** de (default) or en: in en the feeds translate event and texts, and state DWD's level. */
   lang?: Lang | undefined;
@@ -285,9 +285,9 @@ const FEED_RANK: Record<string, number> = { coast: 0, nowcast: 0, gemeinde: 1, l
  * Gemeinde warnings whose area contains it (coast and lake warnings have no area).
  */
 export async function getWarningBriefing(client: DwdClient, input: WarningBriefingInput = {}): Promise<WarningBriefing> {
-  const feeds = feedList(input.feeds);
-  const lang = assertLang(input.lang ?? "de");
   const point = pointOf(input);
+  const feeds = feedList(input.feeds ?? (point === undefined ? undefined : ["nowcast", "gemeinde"]));
+  const lang = assertLang(input.lang ?? "de");
   const limit = assertValid("limit", input.limit ?? 25, within(1, 100, true));
   const now = input.now ?? Date.now();
   const searched = { feeds, lang, ...(point === undefined ? {} : { lat: point[0], lon: point[1] }) };
@@ -375,7 +375,7 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
   const verdict =
     (active.length === 0
       ? `No active DWD warnings ${where}; ${advance.length} advance information.`
-      : `${active.length} active DWD warning(s) ${where}${worst > 0 ? `, the worst DWD level ${worst} of 4 (${DWD_LEVELS[worst]})` : ""}${advance.length > 0 ? `; ${advance.length} advance information` : ""}.`) +
+      : `${active.length} active DWD warning(s) ${where}${worst > 0 ? `, the worst DWD level ${worst} of 4, ${DWD_LEVELS[worst]}` : ""}${advance.length > 0 ? `; ${advance.length} advance information` : ""}.`) +
     (stale.length > 0 ? ` Note: ${staleText}.` : "");
   return { status: "ok", verdict, ...common };
 }
