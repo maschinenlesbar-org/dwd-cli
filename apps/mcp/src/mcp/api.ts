@@ -31,9 +31,21 @@ export function apiBase(baseUrl: string | undefined): string {
   return strip(baseUrl ?? DEFAULT_BASE_URL);
 }
 
-/** The bucket's base for an API base: the mirror itself, or the default bucket for the default service. */
+/** `url` as WHATWG reads it (host lower-cased, a default port dropped), without trailing slashes; the text itself when it doesn't parse. */
+const canonical = (url: string): string => {
+  try {
+    return strip(new URL(url).href);
+  } catch {
+    return strip(url);
+  }
+};
+
+/**
+ * The bucket's base for an API base: the mirror itself, or the default bucket for the default
+ * service, however it is spelled (`https://APP-PROD-WS.warnwetter.de:443/` is the default too).
+ */
 export function staticBase(base: string): string {
-  return strip(base) === strip(DEFAULT_BASE_URL) ? strip(DEFAULT_STATIC_BASE_URL) : strip(base);
+  return canonical(base) === canonical(DEFAULT_BASE_URL) ? strip(DEFAULT_STATIC_BASE_URL) : strip(base);
 }
 
 /** The URL of a file in the bucket (`warnings_nowcast.json`), for a result's `source`. */

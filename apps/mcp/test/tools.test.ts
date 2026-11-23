@@ -119,3 +119,12 @@ test("--base-url names a mirror of both hosts: the bucket's files are read from 
   assert.equal(answer["source"], "http://mirror.test:8080/v16/crowd_meldungen_overview_v2.json");
   await connection.close();
 });
+
+test("--base-url naming the default web service in another spelling is the default: the bucket stays the default bucket", () => {
+  const bucket = "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de";
+  for (const spelling of ["https://APP-PROD-WS.warnwetter.de", "https://app-prod-ws.warnwetter.de:443", "https://App-Prod-Ws.Warnwetter.De:443/", "https://app-prod-ws.warnwetter.de/"]) {
+    assert.equal(staticBase(spelling), bucket, spelling);
+  }
+  assert.equal(staticBase("https://app-prod-ws.warnwetter.de:8443"), "https://app-prod-ws.warnwetter.de:8443", "another port is another server: a mirror");
+  assert.equal(staticBase("https://app-prod-ws.warnwetter.de/mirror"), "https://app-prod-ws.warnwetter.de/mirror");
+});

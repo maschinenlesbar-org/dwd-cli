@@ -98,8 +98,8 @@ where the reason is).
 --allowed-origins <list>   HTTP: browser origins allowed to call, exactly (https://app.example.org); none by default
 --auth-token-file <path>   HTTP: a file with the bearer token every request must send (mode 600, 32+ characters)
 --base-url <url>           API base URL (default https://app-prod-ws.warnwetter.de): a mirror
-                           of both hosts (its /v30 and /v16 under one base); without it, each
-                           host is its default
+                           of both hosts (its /v30 and /v16 under one base); without it, or
+                           with the default in any spelling, each host is its default
 --timeout <ms>             per upstream request (default 30000)
 --call-timeout <ms>        per tool call, retries included (default 45000)
 --max-result-chars <n>     cap on one tool result's JSON (default 25000)
