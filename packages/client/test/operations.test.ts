@@ -263,6 +263,29 @@ test("crowd: nothing that points to one person: no exact position, time or photo
   assert.deepEqual(hail, { place: "Mainz", category: "HAGEL", variant: "HAGEL_2CM", hour: "14:00–15:00", likes: 4, photo: true, extras: ["HAGEL_GESCHLOSSENE_HAGELDECKE"], area: [50, 8.2] });
 });
 
+test("crowd: a category that isn't one is named as such, with the near ones, never answered as 'nobody reported it'", async () => {
+  const snow = [
+    report({ place: "Oberstdorf", category: "SCHNEEFALL", variant: "SCHNEEFALL_STARK", lat: 47.4, lon: 10.28, minutesAgo: 10 }),
+    report({ place: "Garmisch", category: "SCHNEEDECKE", variant: "SCHNEEDECKE_BIS_10CM", lat: 47.5, lon: 11.1, minutesAgo: 20 }),
+    report({ place: "Kempten", category: "GLAETTE", variant: "GLAETTE_GLATTEIS", lat: 47.72, lon: 10.31, minutesAgo: 30 }),
+  ];
+  const c = client({ crowd: crowd([...REPORTS, ...snow]) }).client;
+  const unknown = await checkCrowdReports(c, { categories: ["Schnee"], now: NOW });
+  assert.equal(unknown.status, "empty");
+  assert.match(unknown.reason ?? "", /^SCHNEE is not a crowd report category \(did you mean SCHNEEFALL or SCHNEEDECKE\?\)\. The categories are .*SCHNEEFALL.*: ask again with one of them\.$/);
+  assert.doesNotMatch(unknown.reason ?? "", /nobody reported/);
+  const umlaut = await checkCrowdReports(c, { categories: ["glätte"], now: NOW });
+  assert.equal(umlaut.status, "ok", "GLÄTTE is GLAETTE");
+  assert.deepEqual(umlaut.searched.categories, ["GLAETTE"]);
+  assert.equal(umlaut.matched, 1);
+  const mixed = await checkCrowdReports(c, { categories: ["SCHNEEFALL", "SNOW"], now: NOW });
+  assert.equal(mixed.status, "ok");
+  assert.equal(mixed.matched, 1);
+  assert.ok(mixed.notes.some((n) => /^SNOW is not a crowd report category; left out\./.test(n)), mixed.notes.join(" | "));
+  const fresh = await checkCrowdReports(client({ crowd: crowd([report({ place: "Kiel", category: "TORNADO", variant: "TORNADO_JA", lat: 54.3, lon: 10.1, minutesAgo: 5 })]) }).client, { categories: ["tornado"], now: NOW });
+  assert.equal(fresh.matched, 1, "a category the feed has is one, even if not yet known here");
+});
+
 test("crowd: near a point within a radius", async () => {
   const answer = await checkCrowdReports(client().client, { lat: 50.0, lon: 8.27, radiusKm: 5, now: NOW });
   assert.equal(answer.matched, 4);

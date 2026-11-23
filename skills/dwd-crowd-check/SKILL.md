@@ -67,7 +67,7 @@ Each `meldungen[]` item:
 |---|---|
 | `lat` / `lon` | Report location — **strings**, `Number()` them. |
 | `place` | Town/place name, e.g. `Mainz`, `Lauingen (Donau)` — the easiest filter handle. |
-| `category` | Phenomenon: `REGEN` (rain), `GEWITTER`/`BLITZE` (storm/lightning), `HAGEL` (hail), `WIND`, `NEBEL` (fog), `GLAETTE` (ice), `BEWOELKUNG` (cloud cover). |
+| `category` | Phenomenon: `REGEN` (rain), `GEWITTER`/`BLITZE` (storm/lightning), `HAGEL` (hail), `WIND`, `NEBEL` (fog), `GLAETTE` (ice), `SCHNEEFALL` (snowfall), `SCHNEEDECKE` (snow cover), `BEWOELKUNG` (cloud cover). There is no `SCHNEE`: a category the feed doesn't have just matches nothing. |
 | `auspraegung` | The intensity variant, e.g. `HAGEL_2CM`, `BLITZE_EXTREM`, `REGEN_EXTREM`, `WIND_ORKAN`, `BEWOELKUNG_BEDECKT` — the severity within the category. |
 | `timestamp` | When it was reported — epoch ms. The filter for "right now" (Step 1). |
 | `zusatzAttribute` | Array of extra flags, e.g. `HAGEL_GESCHLOSSENE_HAGELDECKE` (closed hail cover). Often empty `[]` (it was on every report on 2026-09-15). |

@@ -200,7 +200,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     name: "checkCrowdReports",
     title: "DWD crowd weather reports near a place",
     description: [
-      'What people report on the ground in the DWD WarnWetter app (crowd reports: rain, hail, lightning, wind, fog, ice), near a place or a point, optionally against the official warnings. Use it for "melden Leute Hagel in Mainz?", "Gewitter-Meldungen in meiner Nähe", "are people reporting hail near Mainz?", "is the storm warning actually happening on the ground?", "any reports of lightning around Munich?".',
+      'What people report on the ground in the DWD WarnWetter app (crowd reports: rain, hail, lightning, wind, fog, ice, snow), near a place or a point, optionally against the official warnings. Use it for "melden Leute Hagel in Mainz?", "Gewitter-Meldungen in meiner Nähe", "are people reporting hail near Mainz?", "is the storm warning actually happening on the ground?", "any reports of lightning around Munich?".',
       "Give a place name (case, ß/ss and ä/ae, ö/oe, ü/ue don't matter; an exact name wins over partial matches; one matching towns far apart is ambiguous: ask which) or lat/lon with radiusKm, else all of Germany. The last hour before the feed's end by default (sinceMinutes; the feed spans about 12 hours, its windowsSizeHours is not that). Counts per category with variants (HAGEL_2CM, BLITZE_EXTREM), photos and likes (corroboration). Cloud cover (BEWOELKUNG) is left out unless asked for. withWarnings adds the official warnings at the point to say whether a warning is confirmed on the ground. Reports are unverified user submissions; nobody reporting proves nothing. Positions are rounded to 0.1 degrees and times to the hour: keep it that way, name places, not people.",
       RULES,
     ].join("\n\n"),
@@ -209,7 +209,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       lat,
       lon,
       radiusKm: { type: "number", minimum: 1, maximum: 200, description: "With lat/lon: the radius (default 25 km)." },
-      categories: { type: "array", items: { type: "string", minLength: 1, maxLength: 20 }, minItems: 1, maxItems: 10, description: "Only these: REGEN, GEWITTER, BLITZE, HAGEL, WIND, NEBEL, GLAETTE, BEWOELKUNG (default all but BEWOELKUNG)." },
+      categories: { type: "array", items: { type: "string", minLength: 1, maxLength: 20 }, minItems: 1, maxItems: 10, description: "Only these: REGEN, GEWITTER, BLITZE, HAGEL, WIND, NEBEL, GLAETTE, SCHNEEFALL, SCHNEEDECKE, BEWOELKUNG (default all but BEWOELKUNG); one that isn't a category is named, never answered as nobody reporting it." },
       sinceMinutes: { type: "integer", minimum: 5, maximum: 1440, description: "Reports from the last this many minutes before the feed's end (default 60)." },
       withWarnings: { type: "boolean", description: "Also the official warnings at the point (given, or the reports' mean position rounded to 0.1 degrees)." },
     }),

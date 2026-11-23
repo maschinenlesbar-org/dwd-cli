@@ -717,8 +717,17 @@ export async function getStationForecast(client: DwdClient, input: StationForeca
 
 // ---- crowd reports -------------------------------------------------------------------------
 
-/** Crowd report categories seen in the feed (others may come); BEWOELKUNG, cloud cover, is the feed's noise. */
-export const CROWD_CATEGORIES = ["REGEN", "GEWITTER", "BLITZE", "HAGEL", "WIND", "NEBEL", "GLAETTE", "BEWOELKUNG"] as const;
+/** Crowd report categories seen in the feed (others may come: a category the feed has is one too); BEWOELKUNG, cloud cover, is the feed's noise. */
+export const CROWD_CATEGORIES = ["REGEN", "GEWITTER", "BLITZE", "HAGEL", "WIND", "NEBEL", "GLAETTE", "SCHNEEFALL", "SCHNEEDECKE", "BEWOELKUNG"] as const;
+
+/** A category as the feed spells it: trimmed, upper case, ß and the umlauts spelled out (GLÄTTE is GLAETTE). */
+const categoryOf = (value: string): string => value.trim().normalize("NFC").toLocaleUpperCase("de").replace(/[ẞÄÖÜ]/g, (c) => ({ ẞ: "SS", Ä: "AE", Ö: "OE", Ü: "UE" })[c] ?? c);
+
+/** `items` as "A", "A or B", "A, B or C". */
+const orList = (items: readonly string[]): string => (items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`);
+
+/** The categories near `name` (one contains the other): SCHNEE is near SCHNEEFALL and SCHNEEDECKE. */
+const nearCategories = (name: string, known: readonly string[]): string[] => (name.length < 3 ? [] : known.filter((k) => k.includes(name) || name.includes(k)));
 
 /** The input of {@link checkCrowdReports}. */
 export interface CrowdCheckInput {
@@ -729,7 +738,7 @@ export interface CrowdCheckInput {
   lon?: number | undefined;
   /** 1–200 km, default 25. */
   radiusKm?: number | undefined;
-  /** Only these categories, e.g. HAGEL, BLITZE (default every category but BEWOELKUNG, cloud cover, the feed's noise). */
+  /** Only these categories, e.g. HAGEL, BLITZE (default every category but BEWOELKUNG, cloud cover, the feed's noise); case and umlauts don't matter (Glätte is GLAETTE). One that is neither in CROWD_CATEGORIES nor in the feed is named in the reason or a note, never answered as "nobody reported it". */
   categories?: readonly string[] | undefined;
   /** Reports from the last this many minutes before the feed's end (5–1440, default 60). */
   sinceMinutes?: number | undefined;
@@ -809,7 +818,7 @@ export async function checkCrowdReports(client: DwdClient, input: CrowdCheckInpu
   const categories = input.categories === undefined
     ? undefined
     : assertValid("categories", input.categories, (v) => (Array.isArray(v) && v.length > 0 && v.every((c) => typeof c === "string" && c.trim() !== "") ? undefined : "expected one or more categories."))
-        .map((c) => c.trim().toUpperCase());
+        .map(categoryOf);
   const sinceMinutes = assertValid("sinceMinutes", input.sinceMinutes ?? 60, within(5, 1440, true));
   const now = input.now ?? Date.now();
   const searched = {
@@ -838,6 +847,18 @@ export async function checkCrowdReports(client: DwdClient, input: CrowdCheckInpu
     notes,
   };
   const empty = { matched: 0, byCategory: [], places: [], reports: [] };
+  // A category is one DWD's app knows or one the feed has; any other matches nothing, which is not
+  // "nobody reported it": say so, with the near ones.
+  const known = [...new Set([...CROWD_CATEGORIES, ...reports.map((r) => r["category"]).filter((c): c is string => typeof c === "string")])];
+  const unknown = (categories ?? []).filter((c) => !known.includes(c));
+  const unknownText = unknown.map((c) => {
+    const near = nearCategories(c, known);
+    return `${c} is not a crowd report category${near.length === 0 ? "" : ` (did you mean ${orList(near)}?)`}`;
+  });
+  if (categories !== undefined && unknown.length === categories.length) {
+    return { status: "empty", ...base, ...empty, reason: `${unknownText.join("; ")}. The categories are ${known.join(", ")}: ask again with one of them.` };
+  }
+  for (const line of unknownText) notes.push(`${line}; left out.`);
   if (place !== undefined) {
     const name = fold(place);
     const exact = selected.filter((r) => typeof r["place"] === "string" && fold(r["place"]) === name);
