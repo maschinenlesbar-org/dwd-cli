@@ -733,7 +733,7 @@ export interface CrowdCheckInput {
   categories?: readonly string[] | undefined;
   /** Reports from the last this many minutes before the feed's end (5–1440, default 60). */
   sinceMinutes?: number | undefined;
-  /** Also the official warnings at the point (given, or the matching reports' mean position). */
+  /** Also the official warnings at the point (given, or the matching reports' mean position, rounded to 0.1°). */
   withWarnings?: boolean | undefined;
   /** The clock, epoch ms (default now), for the warnings' expiry and the feeds' age. */
   now?: number | undefined;
@@ -823,7 +823,8 @@ export async function checkCrowdReports(client: DwdClient, input: CrowdCheckInpu
   const feed: CrowdOverview = await client.crowd();
   const reports = feed.meldungen.filter(isObject);
   const times = reports.map((r) => num(r["timestamp"])).filter((t): t is number => t !== undefined);
-  const end = num(feed.end) ?? (times.length > 0 ? Math.max(...times) : now);
+  // Without the feed's end, the window ends at the hour after the newest report: never that report's minute.
+  const end = num(feed.end) ?? (times.length > 0 ? Math.ceil(Math.max(...times) / 3_600_000) * 3_600_000 : now);
   const start = num(feed.start);
   const since = end - sinceMinutes * 60_000;
   const window = start === undefined ? undefined : { start: berlinTime(start), end: berlinTime(end), hours: Math.round(((end - start) / 3_600_000) * 10) / 10 };
@@ -871,10 +872,12 @@ export async function checkCrowdReports(client: DwdClient, input: CrowdCheckInpu
   });
   let officialWarnings: WarningBriefing | undefined;
   if (input.withWarnings === true) {
-    const at = point ?? mean(selected.map(positionOf).filter((p): p is [number, number] => p !== undefined));
+    // The reports' mean, rounded to 0.1° like every report's position: with one report it is that person's.
+    const centre = mean(selected.map(positionOf).filter((p): p is [number, number] => p !== undefined));
+    const at = point ?? (centre === undefined ? undefined : ([round01(centre[0]), round01(centre[1])] as [number, number]));
     if (at === undefined) notes.push("No point for the official warnings: give lat/lon, or a place with reports.");
     else {
-      if (point === undefined) notes.push(`Official warnings at the matching reports' mean position (${round01(at[0])}, ${round01(at[1])}).`);
+      if (point === undefined) notes.push(`Official warnings at the matching reports' mean position (${at[0]}, ${at[1]}), rounded to 0.1 degrees.`);
       officialWarnings = await getWarningBriefing(client, { feeds: ["nowcast", "gemeinde"], lat: at[0], lon: at[1], now });
     }
   }

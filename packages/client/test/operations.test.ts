@@ -284,6 +284,23 @@ test("crowd with official warnings: at the reports' mean position, from the nowc
   assert.ok(!api.calls.some((r) => r.url.includes("coast")), "the coast feed has no areas: not read");
 });
 
+test("crowd with official warnings: one report's position never leaves rounded to less than 0.1 degrees, in the lookup or its verdict", async () => {
+  const lone = { ...report({ place: "Kleinkleckersdorf", category: "REGEN", variant: "REGEN_STARK", lat: 50, lon: 9, minutesAgo: 5 }), lat: "50.12345", lon: "8.98765" };
+  const answer = await checkCrowdReports(client({ crowd: crowd([lone]) }).client, { place: "Kleinkleckersdorf", withWarnings: true, now: NOW });
+  assert.deepEqual([answer.officialWarnings?.searched.lat, answer.officialWarnings?.searched.lon], [50.1, 9]);
+  assert.equal(answer.officialWarnings?.verdict, "No active DWD warnings at 50.1, 9 right now.");
+  assert.doesNotMatch(JSON.stringify(answer), /50\.12|8\.98|8\.99/);
+});
+
+test("crowd: a feed without end ends its window at the hour after the newest report, never at that report's minute", async () => {
+  const { end: _end, ...open } = crowd([report({ place: "Mainz", category: "REGEN", variant: "REGEN_STARK", lat: 50, lon: 8.2, minutesAgo: 17 })]);
+  const answer = await checkCrowdReports(client({ crowd: open }).client, { place: "Mainz", now: NOW });
+  assert.equal(answer.matched, 1);
+  assert.equal(answer.since, "2026-11-19T14:00+01:00", "the report came at 14:43; the window ends at 15:00");
+  const none = await checkCrowdReports(client({ crowd: open }).client, { place: "Mainz", categories: ["HAGEL"], now: NOW });
+  assert.match(none.reason ?? "", /\(to 2026-11-19T15:00\+01:00\)/);
+});
+
 test("berlinTime: local time with the offset of the day (CET, CEST)", () => {
   assert.equal(berlinTime(MIDNIGHT), "2026-11-19T00:00+01:00");
   assert.equal(berlinTime(Date.UTC(2026, 6, 1, 10, 0)), "2026-07-01T12:00+02:00");

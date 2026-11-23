@@ -211,7 +211,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       radiusKm: { type: "number", minimum: 1, maximum: 200, description: "With lat/lon: the radius (default 25 km)." },
       categories: { type: "array", items: { type: "string", minLength: 1, maxLength: 20 }, minItems: 1, maxItems: 10, description: "Only these: REGEN, GEWITTER, BLITZE, HAGEL, WIND, NEBEL, GLAETTE, BEWOELKUNG (default all but BEWOELKUNG)." },
       sinceMinutes: { type: "integer", minimum: 5, maximum: 1440, description: "Reports from the last this many minutes before the feed's end (default 60)." },
-      withWarnings: { type: "boolean", description: "Also the official warnings at the point (given, or the reports' mean position)." },
+      withWarnings: { type: "boolean", description: "Also the official warnings at the point (given, or the reports' mean position rounded to 0.1 degrees)." },
     }),
     outputSchema: output({ window: obj, since: str_, matched: int, byCategory: arr, places: arr, reports: arr, highestSeverities: {}, officialWarnings: obj, candidates: arr }),
     source: (_args, base, answer) =>
