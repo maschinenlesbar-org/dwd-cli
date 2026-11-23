@@ -11,7 +11,7 @@ import { Client, staticBase } from "../src/mcp/api.js";
 import { parseConfig } from "../src/mcp/config.js";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS } from "./helpers.js";
+import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS, station } from "./helpers.js";
 
 const HOUR = 3_600_000;
 /** The fixtures' feeds with the real clock: the tools read Date.now(). */
@@ -180,5 +180,32 @@ test("a page past the end is empty and says where the entries are, never an ok w
   assert.equal(feed["reason"], "offset 100 is past the end: the 5 warnings are at offsets 0 to 4.");
   const last = (await connection.call("getWarningFeed", { feed: "gemeinde", offset: 4 })).structuredContent as Record<string, unknown>;
   assert.equal(last["status"], "ok");
+  await connection.close();
+});
+
+test("getStationForecast over the size cap keeps the stations in the order asked and pages on: the ones left out can be had", async () => {
+  const ids = ["10865", "10147", "10384", "10637", "10513"];
+  const stations = Object.assign({}, ...ids.map((id) => station(id)));
+  const whole = await connect({ transport: dwdApi({ stations }) });
+  const full = (await whole.call("getStationForecast", { stationIds: ids, hours: 72, days: 10 })).structuredContent as Record<string, unknown>;
+  await whole.close();
+  const listed = full["stations"] as { stationId: string }[];
+  assert.deepEqual(listed.map((s) => s.stationId), ids, "the order asked, not the ids' order");
+  const one = JSON.stringify(listed[0]).length;
+  const cap = JSON.stringify(full).length - 2.5 * one;
+  const connection = await connect({ transport: dwdApi({ stations }), config: { maxResultChars: Math.round(cap) } });
+  const seen: string[] = [];
+  let offset = 0;
+  for (let call = 0; call < 5 && offset < ids.length; call++) {
+    const page = (await connection.call("getStationForecast", { stationIds: ids, hours: 72, days: 10, offset })).structuredContent as Record<string, unknown>;
+    assert.equal(page["status"], "ok");
+    seen.push(...(page["stations"] as { stationId: string }[]).map((s) => s.stationId));
+    if (page["nextOffset"] === undefined) break;
+    assert.equal(page["truncated"], true);
+    offset = page["nextOffset"] as number;
+  }
+  assert.deepEqual(seen, ids, "every station asked for, over the pages, in order");
+  const past = (await connection.call("getStationForecast", { stationIds: ids, offset: 4 })).structuredContent as Record<string, unknown>;
+  assert.deepEqual((past["stations"] as { stationId: string }[]).map((s) => s.stationId), ["10513"]);
   await connection.close();
 });

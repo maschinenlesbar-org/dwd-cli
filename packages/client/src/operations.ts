@@ -14,7 +14,7 @@
 import { decodeStationOverview, missingStationIds, staleFeedProblem, type DwdClient } from "./client.js";
 import type { Lang } from "./enums.js";
 import type { CoastWarningsFeed, CrowdOverview, JsonObject, JsonValue, StationOverview, WarningsFeed } from "./types.js";
-import { assertLang, assertValid, type Problem } from "./validate.js";
+import { assertLang, assertValid, normalizeStationIds, type Problem } from "./validate.js";
 
 // ---- shared ---------------------------------------------------------------------------------
 
@@ -706,6 +706,7 @@ function forecastOf(stationId: string, station: JsonObject, now: number, hours: 
  * summed from the series, since the API's daily `sunshine` is often 0 on sunny days. A value the
  * API marks missing (32767) is null, never 0 or 3276.7; a series the station lacks is named in
  * `notProvided`. An unknown id is in `missing` (the API answers it with nothing, not an error).
+ * The stations come in the order asked, each once.
  */
 export async function getStationForecast(client: DwdClient, input: StationForecastInput): Promise<StationForecasts> {
   const ids = assertValid("stationIds", input.stationIds, (value) => (Array.isArray(value) && value.length >= 1 && value.length <= 5 ? undefined : "expected 1 to 5 station ids."));
@@ -716,9 +717,11 @@ export async function getStationForecast(client: DwdClient, input: StationForeca
   const missing = missingStationIds(ids, overview);
   const decoded = decodeStationOverview(overview);
   const notes: string[] = [];
-  const stations = Object.entries(decoded)
-    .filter(([id, station]) => isObject(station) && !missing.includes(id))
-    .map(([id, station]) => forecastOf(id, station, now, hours, days, notes));
+  // In the order asked (the answer's keys come in the ids' numeric order), each id once.
+  const asked = [...new Set(normalizeStationIds(ids).map(String))];
+  const stations = asked
+    .filter((id) => isObject(decoded[id]) && !missing.includes(id))
+    .map((id) => forecastOf(id, decoded[id] as JsonObject, now, hours, days, notes));
   const searched = { stationIds: ids.map((id) => id.trim()) };
   if (stations.length === 0) {
     return {

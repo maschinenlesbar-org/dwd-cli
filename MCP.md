@@ -71,7 +71,7 @@ For scripts and shared configs, pin a release and its digest from the
 |---|---|
 | `getWarningBriefing` | The active warnings of the nowcast, Gemeinde and coast feeds in one list, most severe first, each with DWD's own level (1 to 4: Wetterwarnung to extreme Unwetterwarnung; the feeds' number is that + 1); for a place (lat/lon), only the warnings whose area contains it. Identical warnings over several areas counted once; a warning that begins later marked (`startsLater`) and counted (`startingLater`); advance information apart; a stale feed named. |
 | `getWarningAreas` | The warning areas as a GeoJSON FeatureCollection, one feature per area, most severe first, a page at a time. |
-| `getStationForecast` | A DWD station's forecast in real units, hour by hour from now and day by day (sunshine summed from the series), with the station's warnings; an unknown station id is named as missing. |
+| `getStationForecast` | A DWD station's forecast in real units, hour by hour from now and day by day (sunshine summed from the series), with the station's warnings; an unknown station id is named as missing. Stations in the order asked; over the size cap the last ones move to the next page (`offset`). |
 | `checkCrowdReports` | Crowd reports of the WarnWetter app near a place or a point, per category, with photos and likes as corroboration, optionally against the official warnings there; a place name matching towns far apart is reported as ambiguous. Positions rounded to about 10 km, times to the hour. |
 | `getWarningFeed` | One warning feed as DWD sends it, without the areas, a page at a time. |
 | `getStationOverview` | One station's overview as the web service sends it, decoded to real units. |

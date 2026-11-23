@@ -179,7 +179,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "DWD station forecast",
     description: [
       'The forecast of a DWD weather station in real units: hour by hour from now and day by day. Use it for "Wetter morgen in München", "regnet es heute in Hamburg?", "Vorhersage für Station 10865", "what\'s the forecast for Munich?", "will it rain tomorrow in Berlin?", "compare the forecast for two cities".',
-      `It takes DWD station ids (up to 5), not city names. ${STATIONS} For another place ask the user for the id or the nearest of these; a wrong id silently has no data and is listed in missing. Hours: temperature, humidity, dew point, pressure at the hour; precipitation (mm) and sunshine (minutes) over the hour from it; null is no value, never 0; series the station lacks are in notProvided (often wind: take it from days). Days: min/max, rain, wind, sunrise/sunset, sunshineMinutes summed from the forecast (today: only what's still to come). The station's own warnings come with dwdLevel. Times are German local time.`,
+      `It takes DWD station ids (up to 5), not city names. ${STATIONS} For another place ask the user for the id or the nearest of these; a wrong id silently has no data and is listed in missing. Hours: temperature, humidity, dew point, pressure at the hour; precipitation (mm) and sunshine (minutes) over the hour from it; null is no value, never 0; series the station lacks are in notProvided (often wind: take it from days). Days: min/max, rain, wind, sunrise/sunset, sunshineMinutes summed from the forecast (today: only what's still to come). The station's own warnings come with dwdLevel. Times are German local time. Stations come in the order asked; over the size cap the last ones are left out: ask again with offset nextOffset.`,
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -187,13 +187,20 @@ export const TOOLS: readonly ToolDefinition[] = [
         stationIds: { type: "array", items: { type: "string", minLength: 1, maxLength: 10 }, minItems: 1, maxItems: 5, description: 'DWD station ids, e.g. ["10865"] or ["10865", "10147"] to compare.' },
         hours: { type: "integer", minimum: 1, maximum: 72, description: "Hours listed from the current hour (default 24). The hourly series ends at 23:00 the day after tomorrow, so later in the day fewer come back; notes says so, days covers the rest." },
         days: { type: "integer", minimum: 1, maximum: 10, description: "Days listed from today (default 4)." },
+        offset: { type: "integer", minimum: 0, maximum: 4, description: "The first of the stations found to list (default 0): nextOffset of an answer cut by the size cap, with the same stationIds." },
       },
       ["stationIds"],
     ),
-    outputSchema: output({ units: obj, stations: arr, missing: arr }),
+    outputSchema: output({ units: obj, stations: arr, missing: arr, nextOffset: int }),
     source: (args, base) => stationSource(base, list(args, "stationIds") ?? []),
+    paged: (args) => ({ list: "stations", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
-      return { ...(await getStationForecast(context.client, { stationIds: list(args, "stationIds") ?? [], hours: num(args, "hours"), days: num(args, "days") })) };
+      const answer = await getStationForecast(context.client, { stationIds: list(args, "stationIds") ?? [], hours: num(args, "hours"), days: num(args, "days") });
+      const from = num(args, "offset") ?? 0;
+      if (from === 0) return { ...answer };
+      const total = answer.stations.length;
+      if (total > 0 && from >= total) return { ...answer, status: "empty", reason: pastTheEnd(from, total, "stations found"), stations: [] };
+      return { ...answer, stations: answer.stations.slice(from) };
     },
   },
   {
