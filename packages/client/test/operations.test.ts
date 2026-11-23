@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { DwdClient } from "../src/client.js";
 import { DwdValidationError } from "../src/errors.js";
 import { berlinTime, checkCrowdReports, containsPoint, dwdLevelOf, getStationForecast, getWarningAreas, getWarningBriefing, regionGeometry } from "../src/operations.js";
-import { BROCKEN, crowd, dwdApi, MIDNIGHT, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
+import type { JsonObject } from "../src/types.js";
+import { BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
 
 const HOUR = 3_600_000;
 const client = (spec: Parameters<typeof dwdApi>[0] = {}) => {
@@ -58,6 +59,18 @@ test("briefing: a coast warning under several zones is one entry with its zone i
   assert.equal(coastal?.headline, "Amtliche Warnung des Seewetterdienstes Hamburg vor BÖEN", "coast spells it headline");
   const lake = answer.warnings.find((w) => w.feed === "lakes");
   assert.deepEqual(lake?.zones, ["208438000", "208439000"]);
+});
+
+test("briefing: a warning that begins later is told apart from those in force now, in the entry, a count and the verdict", async () => {
+  const feed = gemeinde();
+  const later = { ...(feed["warnings"] as JsonObject[])[0], warnId: "gw-later", event: "FROST", level: 2, headLine: "Amtliche WARNUNG vor FROST", descriptionText: "Leichter Frost.", start: NOW + 5 * HOUR, end: NOW + 15 * HOUR };
+  const answer = await getWarningBriefing(client({ gemeinde: { ...feed, warnings: [...(feed["warnings"] as JsonObject[]), later] } }).client, { feeds: ["gemeinde"], now: NOW });
+  assert.equal(answer.startingLater, 1);
+  assert.equal(answer.warnings.find((w) => w.event === "FROST")?.startsLater, true);
+  assert.equal(answer.warnings.find((w) => w.event === "STURMBÖEN")?.startsLater, undefined);
+  assert.match(answer.verdict, /^4 active DWD warning\(s\) in Germany \(1 of them begins later, not yet in force\), the worst DWD level 3 of 4/);
+  const now = await getWarningBriefing(client().client, { feeds: ["gemeinde"], now: NOW });
+  assert.equal(now.startingLater, undefined, "none begins later: no count");
 });
 
 test("briefing: the instruction only from DWD level 2 up, and never an empty one", async () => {

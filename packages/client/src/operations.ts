@@ -189,6 +189,8 @@ export interface BriefedWarning {
   count: number;
   /** Coastal zone or lake ids (coast and lake warnings have no area and no end). */
   zones?: string[];
+  /** True when the warning begins after now: issued, not yet in force. */
+  startsLater?: true;
 }
 
 /** A feed's age and whether it is stale. */
@@ -205,8 +207,10 @@ export interface WarningBriefing {
   searched: { feeds: WarningFeedName[]; lang: Lang; lat?: number; lon?: number };
   /** One line: the count and the worst level, or why there is nothing. */
   verdict: string;
-  /** Active warnings (identical ones counted once). */
+  /** Active warnings (identical ones counted once): in force now, or issued for later. */
   active: number;
+  /** How many of them begin later (not yet in force); absent when none does. */
+  startingLater?: number;
   /** The worst DWD level among them. */
   worstDwdLevel?: number;
   /** Active warnings per event. */
@@ -338,6 +342,7 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
         ...(instruction === undefined ? {} : { instruction }),
         count: 1,
         ...(zone === undefined ? {} : { zones: [zone] }),
+        ...(start !== undefined && start > now ? { startsLater: true as const } : {}),
       };
       groups.set(key, { entry, advance, rank: [-(feedLevel ?? 0), start ?? now, FEED_RANK[from] ?? 3] });
     }
@@ -357,9 +362,11 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
   const shown = active.slice(0, limit);
   const shownAdvance = advance.slice(0, Math.max(0, limit - shown.length));
   const more = active.length + advance.length - shown.length - shownAdvance.length;
+  const later = active.filter((w) => w.startsLater === true).length;
   const common = {
     searched,
     active: active.length,
+    ...(later > 0 ? { startingLater: later } : {}),
     ...(worst > 0 ? { worstDwdLevel: worst } : {}),
     byEvent,
     warnings: shown,
@@ -375,7 +382,7 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
   const verdict =
     (active.length === 0
       ? `No active DWD warnings ${where}; ${advance.length} advance information.`
-      : `${active.length} active DWD warning(s) ${where}${worst > 0 ? `, the worst DWD level ${worst} of 4, ${DWD_LEVELS[worst]}` : ""}${advance.length > 0 ? `; ${advance.length} advance information` : ""}.`) +
+      : `${active.length} active DWD warning(s) ${where}${later > 0 ? ` (${later} of them ${later === 1 ? "begins" : "begin"} later, not yet in force)` : ""}${worst > 0 ? `, the worst DWD level ${worst} of 4, ${DWD_LEVELS[worst]}` : ""}${advance.length > 0 ? `; ${advance.length} advance information` : ""}.`) +
     (stale.length > 0 ? ` Note: ${staleText}.` : "");
   return { status: "ok", verdict, ...common };
 }
