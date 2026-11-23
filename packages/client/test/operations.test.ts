@@ -96,16 +96,40 @@ test("briefing: calm is empty with a plain reason; a stale feed is named instead
   assert.equal(stale.feeds[0]?.stale, true);
 });
 
-test("briefing at a point: only the warnings whose area contains it; coast and lake warnings left out with a note, the coast feed not read", async () => {
+test("briefing at a point: only the warnings whose area contains it; coast and lake warnings, which have no area, apart in unlocated", async () => {
   const { api, client: c } = client();
   const answer = await getWarningBriefing(c, { lat: MUNICH[0], lon: MUNICH[1], now: NOW });
-  assert.deepEqual(answer.searched.feeds, ["nowcast", "gemeinde"]);
-  assert.ok(!api.calls.some((r) => r.url.includes("coast")), "the coast feed has no areas: not read");
+  assert.deepEqual(answer.searched.feeds, ["nowcast", "gemeinde", "coast"]);
+  assert.ok(api.calls.some((r) => r.url.includes("coast")), "the coast feed is read: the point may be at sea");
   assert.deepEqual(answer.warnings.map((w) => w.event).sort(), ["STURMBÖEN", "Starkregen"]);
   assert.equal(answer.warnings.find((w) => w.event === "STURMBÖEN")?.count, 1, "the Berlin area is not here");
-  assert.ok(answer.notes.some((n) => /coast or inland-lake/.test(n)));
+  assert.deepEqual(answer.unlocated?.map((w) => [w.feed, w.event]), [["lakes", "STURM"], ["coast", "BÖEN"]], "most severe first");
+  assert.ok(answer.notes.some((n) => /2 coast or inland-lake warning\(s\) have no area/.test(n)));
   const brocken = await getWarningBriefing(client().client, { feeds: ["gemeinde"], lat: BROCKEN[0], lon: BROCKEN[1], now: NOW });
   assert.deepEqual(brocken.warnings.map((w) => w.event), ["ORKANARTIGE BÖEN"]);
+});
+
+test("briefing at sea: no area contains the point, but the coast warnings are there: never a flat 'no warnings'", async () => {
+  const answer = await getWarningBriefing(client().client, { lat: 54.3, lon: 7.5, now: NOW });
+  assert.equal(answer.status, "ok");
+  assert.deepEqual(answer.warnings, []);
+  assert.equal(answer.verdict, "No DWD warning area contains 54.3, 7.5, but 2 coast or inland-lake warning(s) are active, which have no area: if the point is at sea or on a lake, they may apply (unlocated, with their zone ids).");
+  const coastOnly = await getWarningBriefing(client().client, { feeds: ["coast"], lat: 54.3, lon: 7.5, now: NOW });
+  assert.equal(coastOnly.status, "ok");
+  assert.deepEqual(coastOnly.unlocated?.map((w) => w.zones), [["501000001", "501000002"]]);
+  const calm = await getWarningBriefing(client({ coast: { time: NOW - 60_000, warnings: {}, vorabInformation: {} }, gemeinde: { time: NOW - 60_000, warnings: [], binnenSee: {} } }).client, { lat: 54.3, lon: 7.5, now: NOW });
+  assert.equal(calm.status, "empty");
+  assert.equal(calm.verdict, "No active DWD warnings at 54.3, 7.5 right now.");
+});
+
+test("briefing at a point outside Germany and its coastal waters: said to be outside, no request made", async () => {
+  const { api, client: c } = client();
+  for (const [lat, lon] of [[90, 180], [40.4, -3.7], [59.3, 18.1]] as const) {
+    const answer = await getWarningBriefing(c, { lat, lon, now: NOW });
+    assert.equal(answer.status, "empty");
+    assert.match(answer.verdict, new RegExp(`^${lat}, ${lon} lies outside the area DWD warns for \\(Germany and its coastal waters`));
+  }
+  assert.equal(api.calls.length, 0);
 });
 
 test("briefing: a point needs both coordinates; a bad feed or limit is refused before any request", async () => {
@@ -344,7 +368,7 @@ test("crowd with official warnings: one report's position never leaves rounded t
   const lone = { ...report({ place: "Kleinkleckersdorf", category: "REGEN", variant: "REGEN_STARK", lat: 50, lon: 9, minutesAgo: 5 }), lat: "50.12345", lon: "8.98765" };
   const answer = await checkCrowdReports(client({ crowd: crowd([lone]) }).client, { place: "Kleinkleckersdorf", withWarnings: true, now: NOW });
   assert.deepEqual([answer.officialWarnings?.searched.lat, answer.officialWarnings?.searched.lon], [50.1, 9]);
-  assert.equal(answer.officialWarnings?.verdict, "No active DWD warnings at 50.1, 9 right now.");
+  assert.match(answer.officialWarnings?.verdict ?? "", /^No DWD warning area contains 50\.1, 9,/);
   assert.doesNotMatch(JSON.stringify(answer), /50\.12|8\.98|8\.99/);
 });
 

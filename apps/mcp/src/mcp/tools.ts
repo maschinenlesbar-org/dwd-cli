@@ -118,18 +118,18 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "DWD weather warnings, ranked",
     description: [
       'The official weather warnings of the Deutscher Wetterdienst now, merged from the nowcast, Gemeinde and coast feeds and ranked by severity. Use it for "gibt es Unwetterwarnungen?", "Wetterwarnungen für München", "Sturmwarnung an der Küste?", "any weather warnings in Germany right now?", "is there a storm warning for Hamburg?", "what severe weather is DWD warning about?".',
-      "For a place give lat/lon: only the nowcast and Gemeinde warnings whose area contains it (coast and lake warnings have no area). Each warning has dwdLevel 1-4 and its stage name: say \"DWD level 2 of 4 (markant)\", never the feed's own number (feedLevel = dwdLevel + 1). Identical warnings over several areas are one entry with count; coast and inland-lake warnings carry their zone ids and no end. Expired warnings are dropped; one issued for later has startsLater (startingLater counts them): leave those out of what is in force now; advance information (Vorabinformation) is listed apart, never as a warning. Nowcast warnings are short-fuse (thunderstorms, heavy rain). Empty means calm, unless feeds says one is stale (published over an hour ago): then say newer warnings may be missing. instruction (safety advice) comes with DWD level 2 and up.",
+      "For a place give lat/lon: only the nowcast and Gemeinde warnings whose area contains it; coast and lake warnings have no area and come in unlocated with their zone ids (they apply at sea or on that lake: never call a point at sea calm while one is out); a point outside Germany and its coastal waters is said to be. Each warning has dwdLevel 1-4 and its stage name: say \"DWD level 2 of 4 (markant)\", never the feed's own number (feedLevel = dwdLevel + 1). Identical warnings over several areas are one entry with count; coast and inland-lake warnings carry their zone ids and no end. Expired warnings are dropped; one issued for later has startsLater (startingLater counts them): leave those out of what is in force now; advance information (Vorabinformation) is listed apart, never as a warning. Nowcast warnings are short-fuse (thunderstorms, heavy rain). Empty means calm, unless feeds says one is stale (published over an hour ago): then say newer warnings may be missing. instruction (safety advice) comes with DWD level 2 and up.",
       RULES,
     ].join("\n\n"),
     inputSchema: input({
-      feeds: { type: "array", items: { type: "string", enum: ["nowcast", "gemeinde", "coast"] }, minItems: 1, maxItems: 3, description: "The feeds to read (default all three; with lat/lon nowcast and gemeinde)." },
+      feeds: { type: "array", items: { type: "string", enum: ["nowcast", "gemeinde", "coast"] }, minItems: 1, maxItems: 3, description: "The feeds to read (default all three)." },
       lang,
       lat,
       lon,
       limit: { type: "integer", minimum: 1, maximum: 100, description: "The most warnings listed, most severe first (default 25); the rest are counted in more." },
     }),
-    outputSchema: output({ verdict: str_, active: int, startingLater: int, worstDwdLevel: int, byEvent: obj, warnings: arr, advance: arr, more: int, feeds: arr }),
-    source: (args, base) => feedSource(base, (list(args, "feeds") as WarningFeedName[] | undefined) ?? (num(args, "lat") === undefined ? ["nowcast", "gemeinde", "coast"] : ["nowcast", "gemeinde"]), str(args, "lang")),
+    outputSchema: output({ verdict: str_, active: int, startingLater: int, worstDwdLevel: int, byEvent: obj, warnings: arr, advance: arr, more: int, unlocated: arr, feeds: arr }),
+    source: (args, base) => feedSource(base, (list(args, "feeds") as WarningFeedName[] | undefined) ?? ["nowcast", "gemeinde", "coast"], str(args, "lang")),
     async run(args, context) {
       return {
         ...(await getWarningBriefing(context.client, {

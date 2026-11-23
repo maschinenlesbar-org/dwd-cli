@@ -156,11 +156,11 @@ export function dwdLevelOf(warning: JsonObject): number | undefined {
 
 /** The input of {@link getWarningBriefing}. */
 export interface WarningBriefingInput {
-  /** The feeds to read (default all three; with a point nowcast and Gemeinde, the coast feed has no areas). */
+  /** The feeds to read (default all three). */
   feeds?: readonly WarningFeedName[] | undefined;
   /** de (default) or en: in en the feeds translate event and texts, and state DWD's level. */
   lang?: Lang | undefined;
-  /** Only the warnings whose area contains this point (nowcast and Gemeinde; coast and lake warnings have no area). */
+  /** Only the warnings whose area contains this point (nowcast and Gemeinde); coast and lake warnings have no area and come apart, in `unlocated`. */
   lat?: number | undefined;
   lon?: number | undefined;
   /** At most this many warnings listed, most severe first (1–100, default 25); the rest are counted. */
@@ -220,6 +220,11 @@ export interface WarningBriefing {
   advance: BriefedWarning[];
   /** Entries left out past `limit`. */
   more?: number;
+  /**
+   * With a point: the active coast and inland-lake warnings, which have no area to test the point
+   * against (their zone ids name the sea area or lake); they apply when the point is at sea or on a lake.
+   */
+  unlocated?: BriefedWarning[];
   feeds: FeedState[];
   reason?: string;
   notes: string[];
@@ -279,6 +284,12 @@ const covers = (item: JsonObject, point: [number, number]): boolean =>
 const FEED_RANK: Record<string, number> = { coast: 0, nowcast: 0, gemeinde: 1, lakes: 2 };
 
 /**
+ * The area DWD warns for, as a box: Germany (47.2–55.1° N, 5.8–15.1° E) and its coastal waters
+ * (the German Bight and the western Baltic). A point outside it has no DWD warning, whatever the feeds say.
+ */
+export const DWD_WARNING_AREA = Object.freeze({ south: 47, north: 56, west: 3, east: 15.5 });
+
+/**
  * The official warnings of the nowcast, Gemeinde and coast feeds in one ranked list: expired items
  * dropped, advance information (`isVorabinfo`) apart, identical warnings (same feed, event, level,
  * time and text: one warning over several areas, a nowcast repeated) one entry with a count and,
@@ -286,29 +297,36 @@ const FEED_RANK: Record<string, number> = { coast: 0, nowcast: 0, gemeinde: 1, l
  * coast and nowcast (short-fuse) before Gemeinde. Each states DWD's level (1–4) and its name, never
  * the feed's number as "level N". A stale feed (published more than an hour ago) is named, and an
  * empty answer with a stale feed says so instead of "calm". With a point, only the nowcast and
- * Gemeinde warnings whose area contains it (coast and lake warnings have no area).
+ * Gemeinde warnings whose area contains it; the coast and lake warnings, which have no area, come
+ * apart in `unlocated` (they apply at sea or on the lake), so a point at sea never reads as calm
+ * while a coast warning is out. A point outside {@link DWD_WARNING_AREA} is said to be outside,
+ * without a request.
  */
 export async function getWarningBriefing(client: DwdClient, input: WarningBriefingInput = {}): Promise<WarningBriefing> {
   const point = pointOf(input);
-  const feeds = feedList(input.feeds ?? (point === undefined ? undefined : ["nowcast", "gemeinde"]));
+  const feeds = feedList(input.feeds);
   const lang = assertLang(input.lang ?? "de");
   const limit = assertValid("limit", input.limit ?? 25, within(1, 100, true));
   const now = input.now ?? Date.now();
   const searched = { feeds, lang, ...(point === undefined ? {} : { lat: point[0], lon: point[1] }) };
   const notes: string[] = [];
   const states: FeedState[] = [];
-  const groups = new Map<string, { entry: BriefedWarning; advance: boolean; rank: [number, number, number] }>();
-  let unmappable = 0;
+  const groups = new Map<string, { entry: BriefedWarning; advance: boolean; unlocated: boolean; rank: [number, number, number] }>();
+  if (point !== undefined) {
+    const box = DWD_WARNING_AREA;
+    if (point[0] < box.south || point[0] > box.north || point[1] < box.west || point[1] > box.east) {
+      const reason = `${point[0]}, ${point[1]} lies outside the area DWD warns for (Germany and its coastal waters, about ${box.south}–${box.north}° N, ${box.west}–${box.east}° E): DWD issues no warnings there; the national weather service of that place does.`;
+      return { status: "empty", verdict: reason, reason, searched, active: 0, byEvent: {}, warnings: [], advance: [], feeds: [], notes };
+    }
+  }
   for (const [feed, body] of await readFeeds(client, feeds, lang)) {
     const problem = staleFeedProblem(body.time, now);
     states.push({ feed, published: berlinTime(body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) });
     for (const { feed: from, item, zone } of itemsOf(feed, body)) {
       if (expired(item, now)) continue;
-      if (point !== undefined && (from === "coast" || from === "lakes")) {
-        unmappable++;
-        continue;
-      }
-      if (point !== undefined && !covers(item, point)) continue;
+      // At a point, a coast or lake warning (no area) can't be tested against it: it goes apart.
+      const unlocated = point !== undefined && (from === "coast" || from === "lakes");
+      if (point !== undefined && !unlocated && !covers(item, point)) continue;
       const dwdLevel = dwdLevelOf(item);
       const event = text(item["event"]) ?? "(no event)";
       const start = num(item["start"]);
@@ -344,18 +362,20 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
         ...(zone === undefined ? {} : { zones: [zone] }),
         ...(start !== undefined && start > now ? { startsLater: true as const } : {}),
       };
-      groups.set(key, { entry, advance, rank: [-(feedLevel ?? 0), start ?? now, FEED_RANK[from] ?? 3] });
+      groups.set(key, { entry, advance, unlocated, rank: [-(feedLevel ?? 0), start ?? now, FEED_RANK[from] ?? 3] });
     }
   }
   const ranked = [...groups.values()].sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.rank[2] - b.rank[2]);
-  const active = ranked.filter((g) => !g.advance).map((g) => g.entry);
-  const advance = ranked.filter((g) => g.advance).map((g) => g.entry);
+  const located = ranked.filter((g) => !g.unlocated);
+  const unlocated = ranked.filter((g) => g.unlocated && !g.advance).map((g) => g.entry);
+  const active = located.filter((g) => !g.advance).map((g) => g.entry);
+  const advance = located.filter((g) => g.advance).map((g) => g.entry);
   const byEvent: Record<string, number> = {};
   for (const w of active) byEvent[w.event] = (byEvent[w.event] ?? 0) + 1;
   const levels = active.map((w) => w.dwdLevel ?? 0);
   const worst = levels.length === 0 ? 0 : Math.max(...levels);
   const stale = states.filter((s) => s.stale);
-  if (point !== undefined && unmappable > 0) notes.push(`${unmappable} coast or inland-lake warning(s) left out: they have no area to test the point against.`);
+  if (unlocated.length > 0) notes.push(`${unlocated.length} coast or inland-lake warning(s) have no area to test the point against: they are in unlocated, with the zone ids of their sea area or lake, and apply if the point is at sea or on that lake.`);
   if (lang === "de") notes.push("DWD's level is the feed's level minus 1; the English feeds (lang en) state it in the text.");
   const where = point === undefined ? "in Germany" : `at ${point[0]}, ${point[1]}`;
   const staleText = stale.map((s) => `the ${s.feed} feed was published at ${s.published}, over an hour ago, so newer warnings may be missing`).join("; ");
@@ -372,9 +392,14 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
     warnings: shown,
     advance: shownAdvance,
     ...(more > 0 ? { more } : {}),
+    ...(point === undefined ? {} : { unlocated }),
     feeds: states,
     notes,
   };
+  if (active.length === 0 && advance.length === 0 && unlocated.length > 0) {
+    const verdict = `No DWD warning area contains ${point?.[0]}, ${point?.[1]}, but ${unlocated.length} coast or inland-lake warning(s) are active, which have no area: if the point is at sea or on a lake, they may apply (unlocated, with their zone ids).${stale.length > 0 ? ` Note: ${staleText}.` : ""}`;
+    return { status: "ok", verdict, ...common };
+  }
   if (active.length === 0 && advance.length === 0) {
     const reason = stale.length > 0 ? `No active DWD warnings ${where} in the feeds read, but ${staleText}.` : `No active DWD warnings ${where} right now.`;
     return { status: "empty", verdict: reason, reason, ...common };
