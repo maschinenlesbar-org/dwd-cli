@@ -3,10 +3,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DwdClient } from "../src/client.js";
-import { DwdValidationError } from "../src/errors.js";
+import { DwdParseError, DwdValidationError } from "../src/errors.js";
 import { berlinTime, checkCrowdReports, containsPoint, dwdLevelOf, getStationForecast, getWarningAreas, getWarningBriefing, regionGeometry } from "../src/operations.js";
 import type { JsonObject } from "../src/types.js";
-import { BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, station, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
+import { BERLIN, BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, station, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
 
 const HOUR = 3_600_000;
 const client = (spec: Parameters<typeof dwdApi>[0] = {}) => {
@@ -104,7 +104,7 @@ test("briefing at a point: only the warnings whose area contains it; coast and l
   assert.deepEqual(answer.warnings.map((w) => w.event).sort(), ["STURMBÖEN", "Starkregen"]);
   assert.equal(answer.warnings.find((w) => w.event === "STURMBÖEN")?.count, 1, "the Berlin area is not here");
   assert.deepEqual(answer.unlocated?.map((w) => [w.feed, w.event]), [["lakes", "STURM"], ["coast", "BÖEN"]], "most severe first");
-  assert.ok(answer.notes.some((n) => /2 coast or inland-lake warning\(s\) have no area/.test(n)));
+  assert.ok(answer.notes.some((n) => /^2 coast or inland-lake warning\(s\) .*have no area/.test(n)));
   const brocken = await getWarningBriefing(client().client, { feeds: ["gemeinde"], lat: BROCKEN[0], lon: BROCKEN[1], now: NOW });
   assert.deepEqual(brocken.warnings.map((w) => w.event), ["ORKANARTIGE BÖEN"]);
 });
@@ -138,6 +138,37 @@ test("briefing: a point needs both coordinates; a bad feed or limit is refused b
   await assert.rejects(getWarningBriefing(c, { feeds: ["weather" as never] }), DwdValidationError);
   await assert.rejects(getWarningBriefing(c, { limit: 0 }), DwdValidationError);
   assert.equal(api.calls.length, 0);
+});
+
+test("briefing and map: a feed whose warnings lost their level or areas (a renamed field) is an error, never calm", async () => {
+  const feed = gemeinde();
+  const renamed = (feed["warnings"] as JsonObject[]).map(({ level, regions, ...rest }) => ({ ...rest, severity: level, areas: regions }) as JsonObject);
+  const c = client({ gemeinde: { ...feed, warnings: renamed, binnenSee: {} } }).client;
+  await assert.rejects(getWarningBriefing(c, { feeds: ["gemeinde"], now: NOW }), (err: Error) => err instanceof DwdParseError && /^The gemeinde feed's warnings have an unexpected shape: none of its 5 warnings has a numeric level\./.test(err.message));
+  await assert.rejects(getWarningBriefing(c, { feeds: ["gemeinde"], lat: BERLIN[0], lon: BERLIN[1], now: NOW }), DwdParseError);
+  await assert.rejects(getWarningAreas(c, { feeds: ["gemeinde"], now: NOW }), DwdParseError);
+  const noAreas = (feed["warnings"] as JsonObject[]).map(({ regions, ...rest }) => ({ ...rest, areas: regions }) as JsonObject);
+  await assert.rejects(getWarningAreas(client({ gemeinde: { ...feed, warnings: noAreas } }).client, { feeds: ["gemeinde"], now: NOW }), /none of its 5 warnings has regions \(areas\)/);
+});
+
+test("briefing: a few warnings without a level or areas are named in a note; at a point they are unlocated, never 'not here'", async () => {
+  const feed = gemeinde();
+  const [first, ...rest] = feed["warnings"] as JsonObject[];
+  const { level: _l, regions: _r, ...odd } = first as JsonObject;
+  const c = client({ gemeinde: { ...feed, warnings: [odd, ...rest], binnenSee: {} } }).client;
+  const all = await getWarningBriefing(c, { feeds: ["gemeinde"], now: NOW });
+  assert.ok(all.notes.some((n) => n === "1 of the gemeinde feed's 5 warnings has no numeric level (listed as a notice) and 1 has no regions: the feed may have changed shape."), all.notes.join(" | "));
+  const munich = await getWarningBriefing(c, { feeds: ["gemeinde"], lat: MUNICH[0], lon: MUNICH[1], now: NOW });
+  assert.deepEqual(munich.unlocated?.map((w) => w.event), ["STURMBÖEN"], "the warning without areas can't be ruled out at the point");
+  assert.equal(munich.status, "ok");
+});
+
+test("crowd: a feed whose reports lost their timestamps is an error; a few without one are named in a note", async () => {
+  const stringly = crowd(REPORTS.map((r) => ({ ...r, timestamp: String(r["timestamp"]) })));
+  await assert.rejects(checkCrowdReports(client({ crowd: stringly }).client, { place: "Mainz", now: NOW }), (err: Error) => err instanceof DwdParseError && /none of its 9 reports has a numeric timestamp/.test(err.message));
+  const some = crowd(REPORTS.map((r, i) => (i === 0 ? { ...r, timestamp: "soon" } : r)));
+  const answer = await checkCrowdReports(client({ crowd: some }).client, { place: "Mainz", now: NOW });
+  assert.ok(answer.notes.includes("1 of the feed's 9 reports has no numeric timestamp: left out; the feed may have changed shape."), answer.notes.join(" | "));
 });
 
 // ---- warning areas -----------------------------------------------------------------------

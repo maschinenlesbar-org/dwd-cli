@@ -12,6 +12,7 @@
 // No bare "not found": an empty answer says what was searched and why it is empty.
 
 import { decodeStationOverview, missingStationIds, staleFeedProblem, type DwdClient } from "./client.js";
+import { DwdParseError } from "./errors.js";
 import type { Lang } from "./enums.js";
 import type { CoastWarningsFeed, CrowdOverview, JsonObject, JsonValue, StationOverview, WarningsFeed } from "./types.js";
 import { assertLang, assertValid, normalizeStationIds, type Problem } from "./validate.js";
@@ -253,10 +254,36 @@ function itemsOf(feed: WarningFeedName, body: WarningsFeed | CoastWarningsFeed):
   return out;
 }
 
-/** Read the feeds in turn (the client checks `lang`). */
-async function readFeeds(client: DwdClient, feeds: readonly WarningFeedName[], lang: Lang): Promise<[WarningFeedName, WarningsFeed | CoastWarningsFeed][]> {
-  const out: [WarningFeedName, WarningsFeed | CoastWarningsFeed][] = [];
-  for (const feed of feeds) out.push([feed, await client.warnings[feed](lang)]);
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * How the items of a feed fit the shape the briefing and the map read: a numeric `level`, and for
+ * nowcast and Gemeinde `regions`. The client checks the envelope; a field renamed or retyped inside
+ * the items would otherwise read as calm. None of the items fitting is a DwdParseError (the feed
+ * can't be read); some not fitting is a note.
+ */
+function itemShapeNote(feed: WarningFeedName, items: readonly FeedItem[]): string | undefined {
+  const noLevel = items.filter(({ item }) => num(item["level"]) === undefined).length;
+  const areal = items.filter(({ feed: from }) => from === "nowcast" || from === "gemeinde");
+  const noRegions = areal.filter(({ item }) => !Array.isArray(item["regions"])).length;
+  const unexpected = (count: number, what: string): DwdParseError =>
+    new DwdParseError(`The ${feed} feed's warnings have an unexpected shape: none of its ${plural(count, "warning", "warnings")} has ${what}. The feed may have changed; its warnings can't be read.`);
+  if (items.length > 0 && noLevel === items.length) throw unexpected(items.length, "a numeric level");
+  if (areal.length > 0 && noRegions === areal.length) throw unexpected(areal.length, "regions (areas)");
+  const parts = [
+    ...(noLevel > 0 ? [`${noLevel} of the ${feed} feed's ${items.length} warnings ${noLevel === 1 ? "has" : "have"} no numeric level (listed as a notice)`] : []),
+    ...(noRegions > 0 ? [`${noLevel > 0 ? `${noRegions}` : `${noRegions} of the ${feed} feed's ${areal.length} warnings`} ${noRegions === 1 ? "has" : "have"} no regions`] : []),
+  ];
+  return parts.length === 0 ? undefined : `${parts.join(" and ")}: the feed may have changed shape.`;
+}
+
+/** Read the feeds in turn (the client checks `lang`), each with its items checked (itemShapeNote). */
+async function readFeeds(client: DwdClient, feeds: readonly WarningFeedName[], lang: Lang): Promise<[WarningFeedName, WarningsFeed | CoastWarningsFeed, string | undefined][]> {
+  const out: [WarningFeedName, WarningsFeed | CoastWarningsFeed, string | undefined][] = [];
+  for (const feed of feeds) {
+    const body = await client.warnings[feed](lang);
+    out.push([feed, body, itemShapeNote(feed, itemsOf(feed, body))]);
+  }
   return out;
 }
 
@@ -319,13 +346,14 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
       return { status: "empty", verdict: reason, reason, searched, active: 0, byEvent: {}, warnings: [], advance: [], feeds: [], notes };
     }
   }
-  for (const [feed, body] of await readFeeds(client, feeds, lang)) {
+  for (const [feed, body, shape] of await readFeeds(client, feeds, lang)) {
     const problem = staleFeedProblem(body.time, now);
     states.push({ feed, published: berlinTime(body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) });
+    if (shape !== undefined) notes.push(shape);
     for (const { feed: from, item, zone } of itemsOf(feed, body)) {
       if (expired(item, now)) continue;
-      // At a point, a coast or lake warning (no area) can't be tested against it: it goes apart.
-      const unlocated = point !== undefined && (from === "coast" || from === "lakes");
+      // At a point, a warning without an area (coast, lakes, or one whose regions are missing) can't be tested against it: it goes apart.
+      const unlocated = point !== undefined && (from === "coast" || from === "lakes" || !Array.isArray(item["regions"]));
       if (point !== undefined && !unlocated && !covers(item, point)) continue;
       const dwdLevel = dwdLevelOf(item);
       const event = text(item["event"]) ?? "(no event)";
@@ -375,7 +403,7 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
   const levels = active.map((w) => w.dwdLevel ?? 0);
   const worst = levels.length === 0 ? 0 : Math.max(...levels);
   const stale = states.filter((s) => s.stale);
-  if (unlocated.length > 0) notes.push(`${unlocated.length} coast or inland-lake warning(s) have no area to test the point against: they are in unlocated, with the zone ids of their sea area or lake, and apply if the point is at sea or on that lake.`);
+  if (unlocated.length > 0) notes.push(`${unlocated.length} coast or inland-lake warning(s) (or warnings without regions) have no area to test the point against: they are in unlocated, with the zone ids of their sea area or lake, and apply if the point is at sea or on that lake.`);
   if (lang === "de") notes.push("DWD's level is the feed's level minus 1; the English feeds (lang en) state it in the text.");
   const where = point === undefined ? "in Germany" : `at ${point[0]}, ${point[1]}`;
   const staleText = stale.map((s) => `the ${s.feed} feed was published at ${s.published}, over an hour ago, so newer warnings may be missing`).join("; ");
@@ -449,10 +477,12 @@ export interface WarningAreas {
   type: "FeatureCollection";
   searched: { feeds: ("nowcast" | "gemeinde")[]; lang: Lang; minDwdLevel?: number };
   features: WarningArea[];
-  /** Regions without a usable geometry, left out. */
+  /** Regions without a usable geometry, and warnings without regions, left out. */
   skipped: number;
   feeds: FeedState[];
   reason?: string;
+  /** What the feeds' items didn't fit (a field missing): only when there is something to say. */
+  notes?: string[];
 }
 
 /**
@@ -472,13 +502,19 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
   const features: (WarningArea & { rank: number })[] = [];
   const states: FeedState[] = [];
   let skipped = 0;
-  for (const [feed, body] of await readFeeds(client, feeds, lang)) {
+  const notes: string[] = [];
+  for (const [feed, body, shape] of await readFeeds(client, feeds, lang)) {
     const problem = staleFeedProblem(body.time, now);
     states.push({ feed, published: berlinTime(body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) });
+    if (shape !== undefined) notes.push(shape);
     for (const { feed: from, item } of itemsOf(feed, body)) {
       if (from === "lakes" || expired(item, now)) continue;
       const dwdLevel = dwdLevelOf(item);
       if (minDwdLevel !== undefined && (dwdLevel ?? 0) < minDwdLevel) continue;
+      if (!Array.isArray(item["regions"])) {
+        skipped++;
+        continue;
+      }
       const event = text(item["event"]) ?? "(no event)";
       const headline = feed === "nowcast" ? event : text(item["headLine"]) ?? text(item["headline"]);
       const description = text(item["descriptionText"]) ?? text(item["description"]);
@@ -512,7 +548,7 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
     }
   }
   const sorted = features.sort((a, b) => b.rank - a.rank).map(({ rank: _rank, ...feature }) => feature);
-  const common = { type: "FeatureCollection" as const, searched, features: sorted, skipped, feeds: states };
+  const common = { type: "FeatureCollection" as const, searched, features: sorted, skipped, feeds: states, ...(notes.length === 0 ? {} : { notes }) };
   if (sorted.length === 0) {
     const stale = states.filter((s) => s.stale).map((s) => s.feed);
     const reason = `No active warning areas to map${minDwdLevel === undefined ? "" : ` at DWD level ${minDwdLevel} or higher`}${stale.length > 0 ? `; the ${stale.join(" and ")} feed is over an hour old, so newer warnings may be missing` : ""}.`;
@@ -879,6 +915,11 @@ export async function checkCrowdReports(client: DwdClient, input: CrowdCheckInpu
   const feed: CrowdOverview = await client.crowd();
   const reports = feed.meldungen.filter(isObject);
   const times = reports.map((r) => num(r["timestamp"])).filter((t): t is number => t !== undefined);
+  // The client checks the envelope; a timestamp renamed or retyped would read as nobody reporting.
+  if (reports.length > 0 && times.length === 0) {
+    throw new DwdParseError(`The crowd feed's reports have an unexpected shape: none of its ${plural(reports.length, "report", "reports")} has a numeric timestamp. The feed may have changed; its reports can't be read.`);
+  }
+  if (times.length < reports.length) notes.push(`${reports.length - times.length} of the feed's ${reports.length} reports ${reports.length - times.length === 1 ? "has" : "have"} no numeric timestamp: left out; the feed may have changed shape.`);
   // Without the feed's end, the window ends at the hour after the newest report: never that report's minute.
   const end = num(feed.end) ?? (times.length > 0 ? Math.ceil(Math.max(...times) / 3_600_000) * 3_600_000 : now);
   const start = num(feed.start);
