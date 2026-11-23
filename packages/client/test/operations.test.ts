@@ -234,6 +234,20 @@ test("crowd: an exact place name wins over partial matches (Mainz, not Mainz-Kas
   assert.deepEqual(partial.places, [{ place: "Mainz-Kastel", count: 1 }]);
 });
 
+test("crowd: a place spelled with ss for ß or ae/oe/ue for the umlaut is the same place, both ways", async () => {
+  const spelled = [
+    report({ place: "Meßstetten", category: "REGEN", variant: "REGEN_STARK", lat: 48.18, lon: 8.96, minutesAgo: 10 }),
+    report({ place: "München", category: "REGEN", variant: "REGEN_STARK", lat: 48.14, lon: 11.58, minutesAgo: 10 }),
+    report({ place: "Goessnitz", category: "REGEN", variant: "REGEN_STARK", lat: 50.89, lon: 12.43, minutesAgo: 10 }),
+  ];
+  const c = client({ crowd: crowd([...REPORTS, ...spelled]) }).client;
+  for (const [asked, found] of [["Messstetten", "Meßstetten"], ["MESSSTETTEN", "Meßstetten"], ["Muenchen", "München"], ["Gößnitz", "Goessnitz"]]) {
+    const answer = await checkCrowdReports(c, { place: asked as string, now: NOW });
+    assert.equal(answer.status, "ok", asked);
+    assert.deepEqual(answer.places, [{ place: found, count: 1 }], asked);
+  }
+});
+
 test("crowd: a name matching places far apart is ambiguous, with the candidates, never one picked", async () => {
   const answer = await checkCrowdReports(client().client, { place: "Neustadt", now: NOW });
   assert.equal(answer.status, "ambiguous");

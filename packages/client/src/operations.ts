@@ -722,7 +722,7 @@ export const CROWD_CATEGORIES = ["REGEN", "GEWITTER", "BLITZE", "HAGEL", "WIND",
 
 /** The input of {@link checkCrowdReports}. */
 export interface CrowdCheckInput {
-  /** A place name, or part of it (`Mainz`, `Lauingen`): an exact name wins over partial matches. */
+  /** A place name, or part of it (`Mainz`, `Lauingen`): an exact name wins over partial matches; case, ß/ss and the umlauts spelled out (Muenchen) don't matter. */
   place?: string | undefined;
   /** A point, with radiusKm: the reports within that distance. */
   lat?: number | undefined;
@@ -777,7 +777,10 @@ export interface CrowdCheck {
   notes: string[];
 }
 
-const fold = (value: string): string => value.normalize("NFC").trim().toLocaleLowerCase("de");
+/** German transliterations: a name typed without ß or umlauts (Messstetten, Muenchen) is the same name. */
+const SPELLED_OUT: Readonly<Record<string, string>> = { ß: "ss", ä: "ae", ö: "oe", ü: "ue" };
+/** A place name as compared: NFC, trimmed, lower case, ß and the umlauts spelled out. */
+const fold = (value: string): string => value.normalize("NFC").trim().toLocaleLowerCase("de").replace(/[ßäöü]/g, (c) => SPELLED_OUT[c] ?? c);
 const positionOf = (report: JsonObject): [number, number] | undefined => {
   const lat = Number(report["lat"]);
   const lon = Number(report["lon"]);
