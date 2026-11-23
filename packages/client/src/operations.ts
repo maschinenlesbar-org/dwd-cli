@@ -630,7 +630,11 @@ function forecastOf(stationId: string, station: JsonObject, now: number, hours: 
     // The hourly series ends at +72 h; later in the day fewer hours are left than were asked for.
     if (out.length > 0 && out.length < hours) {
       notes.push(`Station ${stationId}: ${out.length} of the ${hours} hours asked for; its hourly series ends at ${berlinTime(start + 71 * step)} (days covers the days after).`);
+    } else if (out.length === 0) {
+      notes.push(`Station ${stationId}: no hours left: its hourly series ended at ${berlinTime(start + 71 * step)}, before now; the forecast run (from ${berlinTime(start)}) looks stale.`);
     }
+  } else {
+    notes.push(`Station ${stationId}: no hourly forecast: its forecast1.start is missing or not a time.`);
   }
   // Sunshine per local day, from the hourly and the 3-hourly series (each value at its period's end).
   const sun = new Map<string, { minutes: number; hours: number }>();

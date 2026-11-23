@@ -6,7 +6,7 @@ import { DwdClient } from "../src/client.js";
 import { DwdValidationError } from "../src/errors.js";
 import { berlinTime, checkCrowdReports, containsPoint, dwdLevelOf, getStationForecast, getWarningAreas, getWarningBriefing, regionGeometry } from "../src/operations.js";
 import type { JsonObject } from "../src/types.js";
-import { BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
+import { BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, station, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
 
 const HOUR = 3_600_000;
 const client = (spec: Parameters<typeof dwdApi>[0] = {}) => {
@@ -177,6 +177,18 @@ test("forecast: fewer hours than asked for, because the hourly series ends at +7
   assert.deepEqual(answer.notes, ["Station 10865: 57 of the 72 hours asked for; its hourly series ends at 2026-11-21T23:00+01:00 (days covers the days after)."]);
   const fits = await getStationForecast(client().client, { stationIds: ["10865"], hours: 24, now: NOW });
   assert.deepEqual(fits.notes, []);
+});
+
+test("forecast: a station with no hours left, or no usable hourly series, is named in a note, never a silent empty hours list", async () => {
+  const stale = station();
+  ((stale["10865"] as JsonObject)["forecast1"] as JsonObject)["start"] = MIDNIGHT - 4 * 24 * HOUR;
+  const old = await getStationForecast(client({ stations: stale }).client, { stationIds: ["10865"], now: NOW });
+  assert.deepEqual(old.stations[0]?.hours, []);
+  assert.deepEqual(old.notes, ["Station 10865: no hours left: its hourly series ended at 2026-11-17T23:00+01:00, before now; the forecast run (from 2026-11-15T00:00+01:00) looks stale."]);
+  const odd = station();
+  ((odd["10865"] as JsonObject)["forecast1"] as JsonObject)["start"] = String(MIDNIGHT);
+  const strings = await getStationForecast(client({ stations: odd }).client, { stationIds: ["10865"], now: NOW });
+  assert.deepEqual(strings.notes, ["Station 10865: no hourly forecast: its forecast1.start is missing or not a time."]);
 });
 
 test("forecast: the shorter series are end-aligned at +72 h, totals for the hour from the listed time", async () => {
