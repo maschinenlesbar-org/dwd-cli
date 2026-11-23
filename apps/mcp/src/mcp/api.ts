@@ -8,7 +8,15 @@
 // --base-url: a mirror of both (its /v30 and /v16 under one base), as the mock upstreams of the
 // tests, the image smoke test and the interop check are. Without it, each host is its default.
 
-import { DEFAULT_BASE_URL, DEFAULT_STATIC_BASE_URL, DwdClient, STATIC_VERSION, type DwdClientOptions } from "@maschinenlesbar.org/dwd-client";
+import {
+  assertValid,
+  DEFAULT_BASE_URL,
+  DEFAULT_STATIC_BASE_URL,
+  DwdClient,
+  serviceBaseUrlProblem,
+  STATIC_VERSION,
+  type DwdClientOptions,
+} from "@maschinenlesbar.org/dwd-client";
 
 export {
   DwdError as ClientError,
@@ -53,9 +61,14 @@ export function staticSource(base: string, file: string): string {
   return `${staticBase(base)}${STATIC_VERSION}/${file}`;
 }
 
-/** The DWD client with one base for both hosts: `baseUrl` (a mirror) serves the bucket too. */
+/**
+ * The DWD client with one base for both hosts: `baseUrl` (a mirror) serves the bucket too. A base
+ * ending in the bucket's version path (`/v16`) is refused under the name the server's user gave,
+ * `baseUrl`, before the client would name its own `staticBaseUrl`.
+ */
 export class Client extends DwdClient {
   constructor(options: DwdClientOptions = {}) {
+    if (options.baseUrl !== undefined) assertValid("baseUrl", options.baseUrl, serviceBaseUrlProblem(STATIC_VERSION));
     super({ ...options, staticBaseUrl: options.baseUrl === undefined ? DEFAULT_STATIC_BASE_URL : staticBase(options.baseUrl) });
   }
 }

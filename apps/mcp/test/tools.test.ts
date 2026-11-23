@@ -8,6 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Client, staticBase } from "../src/mcp/api.js";
+import { parseConfig } from "../src/mcp/config.js";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
 import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS } from "./helpers.js";
@@ -127,4 +128,11 @@ test("--base-url naming the default web service in another spelling is the defau
   }
   assert.equal(staticBase("https://app-prod-ws.warnwetter.de:8443"), "https://app-prod-ws.warnwetter.de:8443", "another port is another server: a mirror");
   assert.equal(staticBase("https://app-prod-ws.warnwetter.de/mirror"), "https://app-prod-ws.warnwetter.de/mirror");
+});
+
+test("a --base-url ending in /v16 is refused under the option the user gave, --base-url, never the client's staticBaseUrl", () => {
+  const parsed = parseConfig(["--base-url", "http://mirror.test:8080/v16"]);
+  assert.equal(parsed.kind, "error");
+  assert.match(parsed.kind === "error" ? parsed.message : "", /^--base-url: Invalid baseUrl: Leave out \/v16: the client adds \/v16 itself \(try http:\/\/mirror\.test:8080\)\.$/);
+  assert.throws(() => new Client({ baseUrl: "http://mirror.test:8080/v16/" }), /Invalid baseUrl: Leave out \/v16/);
 });
