@@ -136,3 +136,22 @@ test("a --base-url ending in /v16 is refused under the option the user gave, --b
   assert.match(parsed.kind === "error" ? parsed.message : "", /^--base-url: Invalid baseUrl: Leave out \/v16: the client adds \/v16 itself \(try http:\/\/mirror\.test:8080\)\.$/);
   assert.throws(() => new Client({ baseUrl: "http://mirror.test:8080/v16/" }), /Invalid baseUrl: Leave out \/v16/);
 });
+
+test("the station tools' source is the request made, each id URL-encoded: never another request than the one answered", async () => {
+  const api = dwdApi();
+  const connection = await connect({ transport: api });
+  const cases: [string, Record<string, unknown>, string][] = [
+    ["getStationForecast", { stationIds: ["10865&x=1"] }, "stationIds=10865%26x%3D1"],
+    ["getStationForecast", { stationIds: ["10865#"] }, "stationIds=10865%23"],
+    ["getStationForecast", { stationIds: [" München ", "10865"] }, "stationIds=M%C3%BCnchen,10865"],
+    ["getStationOverview", { stationId: "../x" }, "stationIds=..%2Fx"],
+  ];
+  for (const [tool, args, query] of cases) {
+    const before = api.calls.length;
+    const answer = (await connection.call(tool, args)).structuredContent as Record<string, unknown>;
+    assert.equal(answer["source"], `https://app-prod-ws.warnwetter.de/v30/stationOverviewExtended?${query}`, JSON.stringify(args));
+    const sent = new URL(api.calls[before]?.url ?? "");
+    assert.equal(new URL(String(answer["source"])).searchParams.get("stationIds"), sent.searchParams.get("stationIds"), "the same ids as the request");
+  }
+  await connection.close();
+});

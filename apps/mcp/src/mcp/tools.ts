@@ -15,6 +15,7 @@ import {
   getWarningAreas,
   getWarningBriefing,
   missingStationIds,
+  normalizeStationIds,
   staleFeedProblem,
   type JsonObject,
   type Lang,
@@ -87,6 +88,12 @@ function feedSource(base: string, feeds: readonly WarningFeedName[], language: s
   const suffix = language === "en" ? "_en" : "";
   const names = feeds.map((f) => FEED_FILES[f]);
   return staticSource(base, names.length === 1 ? `${names[0]}${suffix}.json` : `{${names.join(",")}}${suffix}.json`);
+}
+
+/** The station overview's URL for `ids` as the client requests them (trimmed, NFC), each id URL-encoded. */
+function stationSource(base: string, ids: readonly unknown[]): string {
+  const encoded = normalizeStationIds(ids.map(String)).map((id) => encodeURIComponent(String(id)));
+  return `${base}/v30/stationOverviewExtended?stationIds=${encoded.join(",")}`;
 }
 
 const STATIONS = "Common ids: 10865 München-Stadt, 10147 Hamburg-Fuhlsbüttel, 10384 Berlin-Tempelhof, 10637 Frankfurt/Main, 10513 Köln/Bonn, 10739 Stuttgart-Echterdingen, 10400 Düsseldorf, 10338 Hannover, 10488 Dresden-Klotzsche, 10469 Leipzig/Halle, 10763 Nürnberg, 10224 Bremen.";
@@ -179,7 +186,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       ["stationIds"],
     ),
     outputSchema: output({ units: obj, stations: arr, missing: arr }),
-    source: (args, base) => `${base}/v30/stationOverviewExtended?stationIds=${(list(args, "stationIds") ?? []).map((id) => String(id).trim()).join(",")}`,
+    source: (args, base) => stationSource(base, list(args, "stationIds") ?? []),
     async run(args, context) {
       return { ...(await getStationForecast(context.client, { stationIds: list(args, "stationIds") ?? [], hours: num(args, "hours"), days: num(args, "days") })) };
     },
@@ -270,7 +277,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     ].join("\n\n"),
     inputSchema: input({ stationId: { type: "string", minLength: 1, maxLength: 10, description: "One DWD station id, e.g. 10865." } }, ["stationId"]),
     outputSchema: output({ stationId: str_, station: obj }),
-    source: (args, base) => `${base}/v30/stationOverviewExtended?stationIds=${(str(args, "stationId") ?? "").trim()}`,
+    source: (args, base) => stationSource(base, [str(args, "stationId") ?? ""]),
     async run(args, context) {
       const id = str(args, "stationId") ?? "";
       const overview = await context.client.weather.stationOverview([id]);
