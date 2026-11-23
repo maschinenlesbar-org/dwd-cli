@@ -168,3 +168,17 @@ test("checkCrowdReports withWarnings cites the warning feeds it read too", async
   assert.equal(english["source"], `${bucket}/warnings_nowcast_en.json, ${bucket}/gemeinde_warnings_v2_en.json`);
   await connection.close();
 });
+
+test("a page past the end is empty and says where the entries are, never an ok with nothing in it", async () => {
+  const connection = await connect({ transport: dwdApi({ gemeinde: at(gemeinde()), nowcast: at(nowcast()) }) });
+  const areas = (await connection.call("getWarningAreas", { offset: 10000 })).structuredContent as Record<string, unknown>;
+  assert.equal(areas["status"], "empty");
+  assert.equal(areas["total"], 6);
+  assert.equal(areas["reason"], "offset 10000 is past the end: the 6 features are at offsets 0 to 5.");
+  const feed = (await connection.call("getWarningFeed", { feed: "gemeinde", offset: 100 })).structuredContent as Record<string, unknown>;
+  assert.equal(feed["status"], "empty");
+  assert.equal(feed["reason"], "offset 100 is past the end: the 5 warnings are at offsets 0 to 4.");
+  const last = (await connection.call("getWarningFeed", { feed: "gemeinde", offset: 4 })).structuredContent as Record<string, unknown>;
+  assert.equal(last["status"], "ok");
+  await connection.close();
+});

@@ -81,6 +81,9 @@ const lat: JsonSchema = { type: "number", minimum: -90, maximum: 90, description
 const lon: JsonSchema = { type: "number", minimum: -180, maximum: 180, description: "Longitude of a place (with lat), e.g. 11.58 for München." };
 const offset: JsonSchema = { type: "integer", minimum: 0, maximum: 10_000, description: "Where the page starts (default 0)." };
 
+/** The reason of a page that starts past the end of a list of `total` (more than none) `what`. */
+const pastTheEnd = (offset: number, total: number, what: string): string => `offset ${offset} is past the end: the ${total} ${what} are at offsets 0 to ${total - 1}.`;
+
 /** The files of the warning feeds in the bucket. */
 const FEED_FILES: Record<WarningFeedName, string> = { nowcast: "warnings_nowcast", gemeinde: "gemeinde_warnings_v2", coast: "warnings_coast" };
 
@@ -166,7 +169,9 @@ export const TOOLS: readonly ToolDefinition[] = [
       const from = num(args, "offset") ?? 0;
       const page = answer.features.slice(from, from + (num(args, "limit") ?? 10));
       const next = from + page.length;
-      return { ...answer, features: page, total: answer.features.length, ...(next < answer.features.length ? { nextOffset: next } : {}) };
+      const total = answer.features.length;
+      if (total > 0 && from >= total) return { ...answer, status: "empty", reason: pastTheEnd(from, total, "features"), features: [], total };
+      return { ...answer, features: page, total, ...(next < total ? { nextOffset: next } : {}) };
     },
   },
   {
@@ -254,6 +259,9 @@ export const TOOLS: readonly ToolDefinition[] = [
       const next = from + page.length;
       const lakes = "binnenSee" in body ? feedItems(body.binnenSee, "lake") : [];
       const vorab = "vorabInformation" in body ? body.vorabInformation : undefined;
+      if (all.length > 0 && from >= all.length) {
+        return { status: "empty", reason: pastTheEnd(from, all.length, "warnings"), feed, time: berlinTime(body.time), staleFeed: staleFeedProblem(body.time) !== undefined, total: all.length, warnings: [] };
+      }
       return {
         status: all.length === 0 && lakes.length === 0 ? "empty" : "ok",
         ...(all.length === 0 && lakes.length === 0 ? { reason: "The feed has no warnings: calm weather, unless staleFeed is true." } : {}),
