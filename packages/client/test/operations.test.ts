@@ -7,6 +7,7 @@ import { DwdParseError, DwdValidationError } from "../src/errors.js";
 import { berlinTime, checkCrowdReports, containsPoint, dwdLevelOf, getStationForecast, getWarningAreas, getWarningBriefing, regionGeometry } from "../src/operations.js";
 import type { JsonObject } from "../src/types.js";
 import { BERLIN, BROCKEN, crowd, dwdApi, gemeinde, MIDNIGHT, station, MUNICH, NOW, report, REPORTS, square } from "./fixtures.js";
+import { jsonResponse } from "./helpers.js";
 
 const HOUR = 3_600_000;
 const client = (spec: Parameters<typeof dwdApi>[0] = {}) => {
@@ -169,6 +170,27 @@ test("crowd: a feed whose reports lost their timestamps is an error; a few witho
   const some = crowd(REPORTS.map((r, i) => (i === 0 ? { ...r, timestamp: "soon" } : r)));
   const answer = await checkCrowdReports(client({ crowd: some }).client, { place: "Mainz", now: NOW });
   assert.ok(answer.notes.includes("1 of the feed's 9 reports has no numeric timestamp: left out; the feed may have changed shape."), answer.notes.join(" | "));
+});
+
+test("briefing and map: one feed that fails is named as unavailable; the others are answered; all failing is the error", async () => {
+  const { api } = client();
+  const gone = { ...api, transport: async (request: Parameters<typeof api.transport>[0]) => (request.url.includes("warnings_coast") ? jsonResponse({ message: "NoSuchKey" }, 404) : api.transport(request)) };
+  const broken = new DwdClient({ transport: gone.transport });
+  const answer = await getWarningBriefing(broken, { now: NOW });
+  assert.equal(answer.status, "ok");
+  assert.ok(answer.warnings.some((w) => w.feed === "gemeinde") && answer.warnings.some((w) => w.feed === "nowcast"));
+  const coastState = answer.feeds.find((f) => f.feed === "coast");
+  assert.equal(coastState?.unavailable, true);
+  assert.match(coastState?.problem ?? "", /HTTP 404/);
+  assert.match(answer.verdict, /Note: the coast feed could not be read, so its warnings are missing\.$/);
+  const calm = await getWarningBriefing(new DwdClient({ transport: async (request) => (request.url.includes("warnings_coast") ? jsonResponse({ message: "NoSuchKey" }, 404) : jsonResponse({ time: NOW - 60_000, warnings: [], binnenSee: null })) }), { now: NOW });
+  assert.equal(calm.status, "empty");
+  assert.equal(calm.reason, "No active DWD warnings in Germany in the feeds read, but the coast feed could not be read, so its warnings are missing.");
+  await assert.rejects(getWarningBriefing(new DwdClient({ transport: async () => jsonResponse({ message: "NoSuchKey" }, 404) }), { now: NOW }), /HTTP 404/);
+  const map = await getWarningAreas(new DwdClient({ transport: async (request) => (request.url.includes("nowcast") ? jsonResponse({ message: "down" }, 500) : api.transport(request)) }), { now: NOW });
+  assert.equal(map.status, "ok");
+  assert.equal(map.feeds.find((f) => f.feed === "nowcast")?.unavailable, true);
+  assert.ok(map.notes?.some((n) => /^The nowcast feed could not be read \(/.test(n)));
 });
 
 // ---- warning areas -----------------------------------------------------------------------

@@ -12,7 +12,7 @@
 // No bare "not found": an empty answer says what was searched and why it is empty.
 
 import { decodeStationOverview, missingStationIds, staleFeedProblem, type DwdClient } from "./client.js";
-import { DwdParseError } from "./errors.js";
+import { DwdError, DwdParseError, DwdValidationError } from "./errors.js";
 import type { Lang } from "./enums.js";
 import type { CoastWarningsFeed, CrowdOverview, JsonObject, JsonValue, StationOverview, WarningsFeed } from "./types.js";
 import { assertLang, assertValid, normalizeStationIds, type Problem } from "./validate.js";
@@ -194,11 +194,14 @@ export interface BriefedWarning {
   startsLater?: true;
 }
 
-/** A feed's age and whether it is stale. */
+/** A feed's age and whether it is stale, or that it could not be read (`unavailable`, `problem` says why). */
 export interface FeedState {
   feed: WarningFeedName;
-  published: string;
+  /** When the feed was published; absent for a feed that could not be read. */
+  published?: string;
   stale: boolean;
+  /** True when the feed could not be read: its warnings are missing from the answer. */
+  unavailable?: true;
   problem?: string;
 }
 
@@ -277,14 +280,39 @@ function itemShapeNote(feed: WarningFeedName, items: readonly FeedItem[]): strin
   return parts.length === 0 ? undefined : `${parts.join(" and ")}: the feed may have changed shape.`;
 }
 
-/** Read the feeds in turn (the client checks `lang`), each with its items checked (itemShapeNote). */
-async function readFeeds(client: DwdClient, feeds: readonly WarningFeedName[], lang: Lang): Promise<[WarningFeedName, WarningsFeed | CoastWarningsFeed, string | undefined][]> {
-  const out: [WarningFeedName, WarningsFeed | CoastWarningsFeed, string | undefined][] = [];
+/** A feed read: its body and what its items didn't fit, or the error that kept it from being read. */
+type FeedRead = { feed: WarningFeedName; body: WarningsFeed | CoastWarningsFeed; shape: string | undefined } | { feed: WarningFeedName; error: DwdError };
+
+/**
+ * Read the feeds in turn (the client checks `lang`), each with its items checked (itemShapeNote).
+ * A feed that fails (HTTP, network, shape) doesn't take the others with it: it is returned as its
+ * error, for the answer to name. When every feed fails, the first one's error is thrown.
+ */
+async function readFeeds(client: DwdClient, feeds: readonly WarningFeedName[], lang: Lang): Promise<FeedRead[]> {
+  const out: FeedRead[] = [];
   for (const feed of feeds) {
-    const body = await client.warnings[feed](lang);
-    out.push([feed, body, itemShapeNote(feed, itemsOf(feed, body))]);
+    try {
+      const body = await client.warnings[feed](lang);
+      out.push({ feed, body, shape: itemShapeNote(feed, itemsOf(feed, body)) });
+    } catch (err) {
+      if (!(err instanceof DwdError) || err instanceof DwdValidationError) throw err;
+      out.push({ feed, error: err });
+    }
   }
+  const failed = out.filter((read) => "error" in read);
+  if (failed.length === out.length && failed[0] !== undefined && "error" in failed[0]) throw failed[0].error;
   return out;
+}
+
+/** The state of a feed read, and a note for a feed that could not be read. */
+function stateOf(read: FeedRead, now: number, notes: string[]): FeedState {
+  if ("error" in read) {
+    notes.push(`The ${read.feed} feed could not be read (${read.error.message}): its warnings are missing from this answer.`);
+    return { feed: read.feed, stale: false, unavailable: true, problem: read.error.message };
+  }
+  const problem = staleFeedProblem(read.body.time, now);
+  if (read.shape !== undefined) notes.push(read.shape);
+  return { feed: read.feed, published: berlinTime(read.body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) };
 }
 
 /** The feeds asked for, in the canonical order, without repeats; one not `allowed` is a DwdValidationError. */
@@ -346,10 +374,10 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
       return { status: "empty", verdict: reason, reason, searched, active: 0, byEvent: {}, warnings: [], advance: [], feeds: [], notes };
     }
   }
-  for (const [feed, body, shape] of await readFeeds(client, feeds, lang)) {
-    const problem = staleFeedProblem(body.time, now);
-    states.push({ feed, published: berlinTime(body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) });
-    if (shape !== undefined) notes.push(shape);
+  for (const read of await readFeeds(client, feeds, lang)) {
+    states.push(stateOf(read, now, notes));
+    if ("error" in read) continue;
+    const { feed, body } = read;
     for (const { feed: from, item, zone } of itemsOf(feed, body)) {
       if (expired(item, now)) continue;
       // At a point, a warning without an area (coast, lakes, or one whose regions are missing) can't be tested against it: it goes apart.
@@ -402,11 +430,13 @@ export async function getWarningBriefing(client: DwdClient, input: WarningBriefi
   for (const w of active) byEvent[w.event] = (byEvent[w.event] ?? 0) + 1;
   const levels = active.map((w) => w.dwdLevel ?? 0);
   const worst = levels.length === 0 ? 0 : Math.max(...levels);
-  const stale = states.filter((s) => s.stale);
+  const stale = states.filter((s) => s.stale || s.unavailable === true);
   if (unlocated.length > 0) notes.push(`${unlocated.length} coast or inland-lake warning(s) (or warnings without regions) have no area to test the point against: they are in unlocated, with the zone ids of their sea area or lake, and apply if the point is at sea or on that lake.`);
   if (lang === "de") notes.push("DWD's level is the feed's level minus 1; the English feeds (lang en) state it in the text.");
   const where = point === undefined ? "in Germany" : `at ${point[0]}, ${point[1]}`;
-  const staleText = stale.map((s) => `the ${s.feed} feed was published at ${s.published}, over an hour ago, so newer warnings may be missing`).join("; ");
+  const staleText = stale
+    .map((s) => (s.unavailable === true ? `the ${s.feed} feed could not be read, so its warnings are missing` : `the ${s.feed} feed was published at ${s.published}, over an hour ago, so newer warnings may be missing`))
+    .join("; ");
   const shown = active.slice(0, limit);
   const shownAdvance = advance.slice(0, Math.max(0, limit - shown.length));
   const more = active.length + advance.length - shown.length - shownAdvance.length;
@@ -503,10 +533,10 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
   const states: FeedState[] = [];
   let skipped = 0;
   const notes: string[] = [];
-  for (const [feed, body, shape] of await readFeeds(client, feeds, lang)) {
-    const problem = staleFeedProblem(body.time, now);
-    states.push({ feed, published: berlinTime(body.time), stale: problem !== undefined, ...(problem === undefined ? {} : { problem }) });
-    if (shape !== undefined) notes.push(shape);
+  for (const read of await readFeeds(client, feeds, lang)) {
+    states.push(stateOf(read, now, notes));
+    if ("error" in read) continue;
+    const { feed, body } = read;
     for (const { feed: from, item } of itemsOf(feed, body)) {
       if (from === "lakes" || expired(item, now)) continue;
       const dwdLevel = dwdLevelOf(item);
@@ -551,7 +581,8 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
   const common = { type: "FeatureCollection" as const, searched, features: sorted, skipped, feeds: states, ...(notes.length === 0 ? {} : { notes }) };
   if (sorted.length === 0) {
     const stale = states.filter((s) => s.stale).map((s) => s.feed);
-    const reason = `No active warning areas to map${minDwdLevel === undefined ? "" : ` at DWD level ${minDwdLevel} or higher`}${stale.length > 0 ? `; the ${stale.join(" and ")} feed is over an hour old, so newer warnings may be missing` : ""}.`;
+    const unread = states.filter((s) => s.unavailable === true).map((s) => s.feed);
+    const reason = `No active warning areas to map${minDwdLevel === undefined ? "" : ` at DWD level ${minDwdLevel} or higher`}${stale.length > 0 ? `; the ${stale.join(" and ")} feed is over an hour old, so newer warnings may be missing` : ""}${unread.length > 0 ? `; the ${unread.join(" and ")} feed could not be read, so its warnings are missing` : ""}.`;
     return { status: "empty", reason, ...common };
   }
   return { status: "ok", ...common };
