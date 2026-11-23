@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { Client, staticBase } from "../src/mcp/api.js";
 import { parseConfig } from "../src/mcp/config.js";
 import { listTools } from "../src/mcp/server.js";
+import { DEADLINE_HINT, SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import type { JsonObject } from "@maschinenlesbar.org/dwd-client";
 import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS, station } from "./helpers.js";
@@ -235,4 +236,19 @@ test("getWarningAreas reaches every area, also one whose outline alone is over t
   assert.equal(full.isError, true);
   assert.match(full.content[0]?.text ?? "", /geometry "simplified"/);
   await connection.close();
+});
+
+test("the size cap's and the deadline's advice fit every tool: each option they name comes with the tools that take it", () => {
+  for (const hint of [SIZE_HINT, DEADLINE_HINT]) {
+    const named = [...hint.matchAll(/\((\w+)(?: "\w+")?: ([\w, ]+)\)/g)];
+    assert.ok(named.length > 0, hint);
+    for (const [, option, tools] of named) {
+      for (const name of (tools as string).split(", ")) {
+        const tool = TOOLS.find((t) => t.name === name);
+        assert.ok(tool !== undefined, `${name} is a tool`);
+        assert.ok(option as string in ((tool?.inputSchema["properties"] ?? {}) as Record<string, unknown>), `${name} takes ${option}`);
+      }
+    }
+    assert.doesNotMatch(hint.replace(/\([^)]*\)/g, ""), /\b(limit|offset|stationIds|geometry)\b/, "no option named without its tools");
+  }
 });
