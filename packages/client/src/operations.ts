@@ -111,6 +111,37 @@ export function regionGeometry(region: unknown): AreaGeometry | undefined {
   return { type: "Polygon", coordinates: [ring] };
 }
 
+/** The rings of a geometry: a polygon's, or every polygon's of a multipolygon. */
+const ringsOf = (geometry: AreaGeometry): JsonValue[][] =>
+  (geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates).flatMap((polygon) => (Array.isArray(polygon) ? polygon.filter((ring): ring is JsonValue[] => Array.isArray(ring)) : []));
+
+/** How many positions a geometry has, over all its rings. */
+export function positionCount(geometry: AreaGeometry): number {
+  return ringsOf(geometry).reduce((sum, ring) => sum + ring.length, 0);
+}
+
+/**
+ * `geometry` with at most about `maxPoints` positions: each ring keeps its share of them (at least
+ * 4, a closed triangle), evenly spaced along it, its first position and the closing one kept. A
+ * geometry within `maxPoints` comes back as it is. For a map of warning areas (an outline of
+ * thousands of positions is over a result's size), not for exact borders.
+ */
+export function simplifyGeometry(geometry: AreaGeometry, maxPoints: number): AreaGeometry {
+  const total = positionCount(geometry);
+  if (total <= maxPoints) return geometry;
+  const thin = (ring: JsonValue): JsonValue => {
+    if (!Array.isArray(ring)) return ring;
+    const keep = Math.max(4, Math.floor((maxPoints * ring.length) / total));
+    if (ring.length <= keep) return ring;
+    const step = (ring.length - 1) / (keep - 1);
+    const out = Array.from({ length: keep - 1 }, (_, i) => ring[Math.round(i * step)] as JsonValue);
+    out.push(ring[0] as JsonValue);
+    return out;
+  };
+  const polygon = (rings: JsonValue): JsonValue => (Array.isArray(rings) ? rings.map(thin) : rings);
+  return { type: geometry.type, coordinates: geometry.type === "Polygon" ? geometry.coordinates.map(thin) : geometry.coordinates.map(polygon) };
+}
+
 /** True when `[lat, lon]` lies inside the ring of `[lon, lat]` positions (ray casting). */
 function inRing(point: [number, number], ring: JsonValue): boolean {
   if (!Array.isArray(ring)) return false;
@@ -479,6 +510,8 @@ export interface WarningAreasInput {
   lang?: Lang | undefined;
   /** Only warnings of at least this DWD level (1–4). */
   minDwdLevel?: number | undefined;
+  /** An area outline with more positions than this (20–100000) is simplified to about this many (simplifyGeometry); default as delivered. */
+  maxPoints?: number | undefined;
   /** The clock, epoch ms (default now). */
   now?: number | undefined;
 }
@@ -498,6 +531,8 @@ export interface WarningArea {
     start?: string;
     end?: string;
     isVorabinfo: boolean;
+    /** True when the outline was simplified (maxPoints): fine for a map, not for exact borders. */
+    simplified?: true;
   };
 }
 
@@ -527,6 +562,9 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
   const feeds = feedList(input.feeds, ["nowcast", "gemeinde"]) as ("nowcast" | "gemeinde")[];
   const lang = assertLang(input.lang ?? "de");
   const minDwdLevel = input.minDwdLevel === undefined ? undefined : assertValid("minDwdLevel", input.minDwdLevel, within(1, 4, true));
+  const maxPoints = input.maxPoints === undefined ? undefined : assertValid("maxPoints", input.maxPoints, within(20, 100_000, true));
+  let simplified = 0;
+  let largest = 0;
   const now = input.now ?? Date.now();
   const searched = { feeds, lang, ...(minDwdLevel === undefined ? {} : { minDwdLevel }) };
   const features: (WarningArea & { rank: number })[] = [];
@@ -552,11 +590,18 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
       const end = num(item["end"]);
       const warnId = text(item["warnId"]);
       for (const region of Array.isArray(item["regions"]) ? item["regions"] : []) {
-        const geometry = regionGeometry(region);
-        if (geometry === undefined) {
+        const delivered = regionGeometry(region);
+        if (delivered === undefined) {
           skipped++;
           continue;
         }
+        const count = maxPoints === undefined ? 0 : positionCount(delivered);
+        const thin = maxPoints !== undefined && count > maxPoints;
+        if (thin) {
+          simplified++;
+          largest = Math.max(largest, count);
+        }
+        const geometry = thin ? simplifyGeometry(delivered, maxPoints) : delivered;
         features.push({
           type: "Feature",
           geometry,
@@ -571,6 +616,7 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
             ...(start === undefined ? {} : { start: berlinTime(start) }),
             ...(end === undefined ? {} : { end: berlinTime(end) }),
             isVorabinfo: item["isVorabinfo"] === true,
+            ...(thin ? { simplified: true as const } : {}),
           },
           rank: dwdLevel ?? 0,
         });
@@ -578,6 +624,7 @@ export async function getWarningAreas(client: DwdClient, input: WarningAreasInpu
     }
   }
   const sorted = features.sort((a, b) => b.rank - a.rank).map(({ rank: _rank, ...feature }) => feature);
+  if (simplified > 0) notes.push(`${plural(simplified, "area outline", "area outlines")} simplified to at most ${maxPoints} positions (from up to ${largest}): fine for a map, not for exact borders.`);
   const common = { type: "FeatureCollection" as const, searched, features: sorted, skipped, feeds: states, ...(notes.length === 0 ? {} : { notes }) };
   if (sorted.length === 0) {
     const stale = states.filter((s) => s.stale).map((s) => s.feed);

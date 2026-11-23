@@ -67,12 +67,15 @@ export {
   CROWD_CATEGORIES,
   distanceKm,
   DWD_LEVELS,
+  DWD_WARNING_AREA,
   dwdLevelOf,
   FORECAST_UNITS,
   getStationForecast,
   getWarningAreas,
   getWarningBriefing,
+  positionCount,
   regionGeometry,
+  simplifyGeometry,
   WARNING_FEEDS,
 } from "./operations.js";
 export type {

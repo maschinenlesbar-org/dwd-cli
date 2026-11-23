@@ -11,6 +11,7 @@ import { Client, staticBase } from "../src/mcp/api.js";
 import { parseConfig } from "../src/mcp/config.js";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
+import type { JsonObject } from "@maschinenlesbar.org/dwd-client";
 import { coast, crowd, dwdApi, gemeinde, NOW, nowcast, REPORTS, station } from "./helpers.js";
 
 const HOUR = 3_600_000;
@@ -207,5 +208,31 @@ test("getStationForecast over the size cap keeps the stations in the order asked
   assert.deepEqual(seen, ids, "every station asked for, over the pages, in order");
   const past = (await connection.call("getStationForecast", { stationIds: ids, offset: 4 })).structuredContent as Record<string, unknown>;
   assert.deepEqual((past["stations"] as { stationId: string }[]).map((s) => s.stationId), ["10513"]);
+  await connection.close();
+});
+
+test("getWarningAreas reaches every area, also one whose outline alone is over the size cap: simplified by default, as delivered on request", async () => {
+  const ring = Array.from({ length: 3000 }, (_, i) => [10 + Math.cos((i / 3000) * 2 * Math.PI) / 3, 52.5 + Math.sin((i / 3000) * 2 * Math.PI) / 3]);
+  ring.push(ring[0] as number[]);
+  const feed = at(gemeinde());
+  const warnings = feed["warnings"] as Record<string, unknown>[];
+  const huge = { ...warnings[0], warnId: "gw-huge", regions: [{ polygonGeometry: { type: "Polygon", coordinates: [ring] } }] };
+  assert.ok(JSON.stringify(ring).length > 25_000, "the outline alone is over the default cap");
+  const connection = await connect({ transport: dwdApi({ gemeinde: { ...feed, warnings: [huge, ...warnings.slice(1)] } as JsonObject, nowcast: at(nowcast()) }) });
+  const ids: unknown[] = [];
+  let offset = 0;
+  for (let call = 0; call < 10; call++) {
+    const result = await connection.call("getWarningAreas", { offset });
+    assert.notEqual(result.isError, true, result.content[0]?.text);
+    const page = result.structuredContent as Record<string, unknown>;
+    ids.push(...(page["features"] as { properties: { warnId?: string; event: string } }[]).map((f) => f.properties.warnId ?? f.properties.event));
+    if (page["nextOffset"] === undefined) break;
+    offset = page["nextOffset"] as number;
+  }
+  assert.equal(ids.length, 6, "two nowcast areas, four Gemeinde areas, the first of them the huge one");
+  assert.ok(ids.includes("gw-huge"));
+  const full = await connection.call("getWarningAreas", { geometry: "full", offset: ids.indexOf("gw-huge"), limit: 1 });
+  assert.equal(full.isError, true);
+  assert.match(full.content[0]?.text ?? "", /geometry "simplified"/);
   await connection.close();
 });

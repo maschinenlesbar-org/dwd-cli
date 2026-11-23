@@ -227,6 +227,30 @@ test("areas: nowcast features are labelled with their event; the coast feed can'
   assert.match(none.reason ?? "", /No active warning areas to map/);
 });
 
+test("areas: maxPoints simplifies an outline over it to at most that many positions per area, closed, marked and noted; without it, as delivered", async () => {
+  const ring = Array.from({ length: 2000 }, (_, i) => [10 + Math.cos((i / 2000) * 2 * Math.PI), 50 + Math.sin((i / 2000) * 2 * Math.PI)]);
+  ring.push(ring[0] as number[]);
+  const feed = gemeinde();
+  const [first, ...rest] = feed["warnings"] as JsonObject[];
+  const big = { ...first, regions: [{ polygonGeometry: { type: "Polygon", coordinates: [ring] } }] } as JsonObject;
+  const c = client({ gemeinde: { ...feed, warnings: [big, ...rest] } }).client;
+  const whole = await getWarningAreas(c, { feeds: ["gemeinde"], now: NOW });
+  const delivered = whole.features.find((f) => f.properties.warnId === "gw-sturm-1");
+  assert.equal((delivered?.geometry.coordinates[0] as unknown[]).length, 2001);
+  assert.equal(delivered?.properties.simplified, undefined);
+  const small = await getWarningAreas(c, { feeds: ["gemeinde"], maxPoints: 300, now: NOW });
+  const simplified = small.features.find((f) => f.properties.warnId === "gw-sturm-1");
+  const kept = simplified?.geometry.coordinates[0] as number[][];
+  assert.ok(kept.length <= 301 && kept.length >= 200, `${kept.length} positions`);
+  assert.deepEqual(kept[0], kept[kept.length - 1], "the ring stays closed");
+  assert.deepEqual(kept[0], ring[0]);
+  assert.equal(simplified?.properties.simplified, true);
+  assert.ok(small.notes?.includes("1 area outline simplified to at most 300 positions (from up to 2001): fine for a map, not for exact borders."), small.notes?.join(" | "));
+  const square_ = small.features.find((f) => f.properties.warnId === "gw-orkan");
+  assert.equal(square_?.properties.simplified, undefined, "a small outline stays as delivered");
+  await assert.rejects(getWarningAreas(c, { maxPoints: 3 }), DwdValidationError);
+});
+
 test("containsPoint: inside the outer ring and not in a hole", () => {
   const ring = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]];
   const hole = [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]];
