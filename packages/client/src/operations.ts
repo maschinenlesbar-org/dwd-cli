@@ -583,6 +583,8 @@ export interface StationForecasts {
   /** Ids the API has no data for (it answers an unknown id with nothing, not an error). */
   missing: string[];
   reason?: string;
+  /** What the answer leaves out and why (fewer hours than asked for). */
+  notes: string[];
 }
 
 const series = (block: JsonValue | undefined, key: string): (number | null)[] | undefined => {
@@ -601,7 +603,7 @@ const round1 = (value: number | null | undefined): number | null => (typeof valu
  * values at that time, totals (precipitation, sunshine) for the hour ending then. `forecast2`
  * continues 3-hourly from `start` + 72 h, element j for the 3 h ending at `start + (j+1)·timeStep`.
  */
-function forecastOf(stationId: string, station: JsonObject, now: number, hours: number, days: number): StationForecast {
+function forecastOf(stationId: string, station: JsonObject, now: number, hours: number, days: number, notes: string[]): StationForecast {
   const f1 = station["forecast1"];
   const f2 = station["forecast2"];
   const start = isObject(f1) ? num(f1["start"]) : undefined;
@@ -624,6 +626,10 @@ function forecastOf(stationId: string, station: JsonObject, now: number, hours: 
         hour[name] = at(name, HOUR_TOTALS.includes(name) ? h + 1 : h);
       }
       out.push(hour);
+    }
+    // The hourly series ends at +72 h; later in the day fewer hours are left than were asked for.
+    if (out.length > 0 && out.length < hours) {
+      notes.push(`Station ${stationId}: ${out.length} of the ${hours} hours asked for; its hourly series ends at ${berlinTime(start + 71 * step)} (days covers the days after).`);
     }
   }
   // Sunshine per local day, from the hourly and the 3-hourly series (each value at its period's end).
@@ -705,9 +711,10 @@ export async function getStationForecast(client: DwdClient, input: StationForeca
   const overview: StationOverview = await client.weather.stationOverview([...ids]);
   const missing = missingStationIds(ids, overview);
   const decoded = decodeStationOverview(overview);
+  const notes: string[] = [];
   const stations = Object.entries(decoded)
     .filter(([id, station]) => isObject(station) && !missing.includes(id))
-    .map(([id, station]) => forecastOf(id, station, now, hours, days));
+    .map(([id, station]) => forecastOf(id, station, now, hours, days, notes));
   const searched = { stationIds: ids.map((id) => id.trim()) };
   if (stations.length === 0) {
     return {
@@ -716,10 +723,11 @@ export async function getStationForecast(client: DwdClient, input: StationForeca
       units: FORECAST_UNITS,
       stations,
       missing,
+      notes,
       reason: `The API has no data for station id ${missing.join(", ")}: it answers an unknown id with nothing. Station ids are DWD's 5-character ids (10865 München-Stadt, 10147 Hamburg); ask the user for the id or the nearest known station.`,
     };
   }
-  return { status: "ok", searched, units: FORECAST_UNITS, stations, missing };
+  return { status: "ok", searched, units: FORECAST_UNITS, stations, missing, notes };
 }
 
 // ---- crowd reports -------------------------------------------------------------------------

@@ -171,6 +171,14 @@ test("forecast: the hours start at the current hour, not at midnight where the s
   assert.equal(s?.hours[1]?.pressure, 1015);
 });
 
+test("forecast: fewer hours than asked for, because the hourly series ends at +72 h, are named in a note with where it ends", async () => {
+  const answer = await getStationForecast(client().client, { stationIds: ["10865"], hours: 72, now: NOW });
+  assert.equal(answer.stations[0]?.hours.length, 57);
+  assert.deepEqual(answer.notes, ["Station 10865: 57 of the 72 hours asked for; its hourly series ends at 2026-11-21T23:00+01:00 (days covers the days after)."]);
+  const fits = await getStationForecast(client().client, { stationIds: ["10865"], hours: 24, now: NOW });
+  assert.deepEqual(fits.notes, []);
+});
+
 test("forecast: the shorter series are end-aligned at +72 h, totals for the hour from the listed time", async () => {
   const [s] = (await getStationForecast(client().client, { stationIds: ["10865"], hours: 2, now: NOW })).stations;
   // sunshine has 57 values: the first is the hour 15:00-16:00 (30 minutes), not midnight.

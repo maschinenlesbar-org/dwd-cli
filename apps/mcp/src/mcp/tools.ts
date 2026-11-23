@@ -185,7 +185,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     inputSchema: input(
       {
         stationIds: { type: "array", items: { type: "string", minLength: 1, maxLength: 10 }, minItems: 1, maxItems: 5, description: 'DWD station ids, e.g. ["10865"] or ["10865", "10147"] to compare.' },
-        hours: { type: "integer", minimum: 1, maximum: 72, description: "Hours listed from the current hour (default 24)." },
+        hours: { type: "integer", minimum: 1, maximum: 72, description: "Hours listed from the current hour (default 24). The hourly series ends at 23:00 the day after tomorrow, so later in the day fewer come back; notes says so, days covers the rest." },
         days: { type: "integer", minimum: 1, maximum: 10, description: "Days listed from today (default 4)." },
       },
       ["stationIds"],
