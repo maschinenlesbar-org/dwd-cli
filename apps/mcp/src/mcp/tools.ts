@@ -19,6 +19,7 @@ import {
   staleFeedProblem,
   type JsonObject,
   type Lang,
+  WARNING_FEEDS,
   type WarningFeedName,
 } from "@maschinenlesbar.org/dwd-client";
 import { staticSource } from "./api.js";
@@ -54,7 +55,7 @@ const output = (properties: Record<string, JsonSchema>): JsonSchema => ({
   type: "object",
   properties: {
     status: { type: "string", enum: ["ok", "empty", "ambiguous"], description: "ok: the answer; empty: nothing found (reason says why); ambiguous: ask which one (candidates)." },
-    source: { type: "string" },
+    source: { type: "string", description: "The URL the answer was read from; a call that reads several feeds names each URL, separated by \", \"." },
     licence: { type: "string" },
     truncated: { type: "boolean", description: "True when the answer holds only part of a list (size cap): nextOffset says where to go on; or a text cut at its end (it ends in \"…[cut, N characters in all]\")." },
     reason: { type: "string" },
@@ -83,11 +84,10 @@ const offset: JsonSchema = { type: "integer", minimum: 0, maximum: 10_000, descr
 /** The files of the warning feeds in the bucket. */
 const FEED_FILES: Record<WarningFeedName, string> = { nowcast: "warnings_nowcast", gemeinde: "gemeinde_warnings_v2", coast: "warnings_coast" };
 
-/** The feeds' files a call reads, under the bucket: one file, or several in braces. */
+/** The URLs of the feeds a call reads, in the order it reads them, separated by ", ": each one a URL to open. */
 function feedSource(base: string, feeds: readonly WarningFeedName[], language: string | undefined): string {
   const suffix = language === "en" ? "_en" : "";
-  const names = feeds.map((f) => FEED_FILES[f]);
-  return staticSource(base, names.length === 1 ? `${names[0]}${suffix}.json` : `{${names.join(",")}}${suffix}.json`);
+  return WARNING_FEEDS.filter((f) => feeds.includes(f)).map((f) => staticSource(base, `${FEED_FILES[f]}${suffix}.json`)).join(", ");
 }
 
 /** The station overview's URL for `ids` as the client requests them (trimmed, NFC), each id URL-encoded. */
@@ -209,7 +209,8 @@ export const TOOLS: readonly ToolDefinition[] = [
       withWarnings: { type: "boolean", description: "Also the official warnings at the point (given, or the reports' mean position)." },
     }),
     outputSchema: output({ window: obj, since: str_, matched: int, byCategory: arr, places: arr, reports: arr, highestSeverities: {}, officialWarnings: obj, candidates: arr }),
-    source: (_args, base) => staticSource(base, "crowd_meldungen_overview_v2.json"),
+    source: (_args, base, answer) =>
+      [staticSource(base, "crowd_meldungen_overview_v2.json"), ...(answer["officialWarnings"] === undefined ? [] : [feedSource(base, ["nowcast", "gemeinde"], undefined)])].join(", "),
     async run(args, context) {
       return {
         ...(await checkCrowdReports(context.client, {

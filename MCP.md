@@ -77,7 +77,8 @@ For scripts and shared configs, pin a release and its digest from the
 | `getStationOverview` | One station's overview as the web service sends it, decoded to real units. |
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
-`source` it came from (whole, never cut like the data; an answer a redirect fetched from another
+`source` it came from (whole, never cut like the data; a call that reads several feeds names
+each feed's URL, separated by ", "; an answer a redirect fetched from another
 host says so there: "… (answered by https://other.example after a redirect)", and a WARN record
 names both) and the data licence. A text over 2000 characters is cut and ends in `…[cut, N
 characters in all]`, and the answer says `truncated`. An answer over `--max-result-chars` first

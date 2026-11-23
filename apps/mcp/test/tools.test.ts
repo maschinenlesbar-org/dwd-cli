@@ -29,7 +29,8 @@ test("getWarningBriefing: DWD's level and stage, never the feed's number; its so
   assert.equal(answer["status"], "ok", result.content[0]?.text);
   const [first] = answer["warnings"] as { event: string; dwdLevel: number; stage: string }[];
   assert.deepEqual([first?.event, first?.dwdLevel, first?.stage], ["ORKANARTIGE BÖEN", 3, "Unwetterwarnung (red)"]);
-  assert.equal(answer["source"], "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16/{warnings_nowcast,gemeinde_warnings_v2,warnings_coast}.json");
+  const bucket = "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16";
+  assert.equal(answer["source"], `${bucket}/warnings_nowcast.json, ${bucket}/gemeinde_warnings_v2.json, ${bucket}/warnings_coast.json`, "every feed read, each a URL of its own");
   assert.match(String(answer["licence"]), /Datenbasis: Deutscher Wetterdienst/);
   await connection.close();
 });
@@ -153,5 +154,17 @@ test("the station tools' source is the request made, each id URL-encoded: never 
     const sent = new URL(api.calls[before]?.url ?? "");
     assert.equal(new URL(String(answer["source"])).searchParams.get("stationIds"), sent.searchParams.get("stationIds"), "the same ids as the request");
   }
+  await connection.close();
+});
+
+test("checkCrowdReports withWarnings cites the warning feeds it read too", async () => {
+  const connection = await connect({ transport: dwdApi({ crowd: at(crowd(REPORTS)), gemeinde: at(gemeinde()), nowcast: at(nowcast()) }) });
+  const bucket = "https://s3.eu-central-1.amazonaws.com/app-prod-static.warnwetter.de/v16";
+  const plain = (await connection.call("checkCrowdReports", { place: "Mainz" })).structuredContent as Record<string, unknown>;
+  assert.equal(plain["source"], `${bucket}/crowd_meldungen_overview_v2.json`);
+  const checked = (await connection.call("checkCrowdReports", { place: "Mainz", withWarnings: true })).structuredContent as Record<string, unknown>;
+  assert.equal(checked["source"], `${bucket}/crowd_meldungen_overview_v2.json, ${bucket}/warnings_nowcast.json, ${bucket}/gemeinde_warnings_v2.json`);
+  const english = (await connection.call("getWarningAreas", { lang: "en", feeds: ["gemeinde", "nowcast"] })).structuredContent as Record<string, unknown>;
+  assert.equal(english["source"], `${bucket}/warnings_nowcast_en.json, ${bucket}/gemeinde_warnings_v2_en.json`);
   await connection.close();
 });
