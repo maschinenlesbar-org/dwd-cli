@@ -397,8 +397,12 @@ to log one `WARN` record of `dwd.http`, `HTTP 503 from <host>: retry 1 of 3 in 2
 
 **Transport contract.** The engine enforces its limits for every transport, not only
 the built-in one: each call runs under the `timeoutMs` deadline (the request carries
-an `AbortSignal` in `HttpRequest.signal`, which the built-in transport honours, and the
-engine rejects at the deadline whether the transport stops or not), and the body it
+an `AbortSignal` in `HttpRequest.signal`, aborted with the timeout error as its reason,
+which the built-in transport honours, and the engine rejects at the deadline whether the
+transport stops or not; the built-in transport stops with the signal's reason, and for a
+signal some other caller aborted (the MCP server's tool call: its deadline, a cancellation)
+it says "Request aborted by its caller before it finished", never a timeout it didn't have),
+and the body it
 gets back is checked against `maxResponseBytes`. It accepts any `ArrayBuffer` view
 (`Buffer`, a fetch `Uint8Array`, a `DataView`) or `ArrayBuffer` as the body, from any
 realm, and reads headers from a plain object in any case, a `Headers` object or a
